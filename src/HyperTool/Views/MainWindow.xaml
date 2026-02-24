@@ -16,12 +16,16 @@
     <mah:MetroWindow.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
 
-        <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#FF17233E" />
-        <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="#FFF9FAFB" />
-        <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#FF17233E" />
-        <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="#FFF9FAFB" />
-        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#FF35B7FF" />
-        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#FF141B2D" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="#FFF6FAFF" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#FF141B2D" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="#FFF6FAFF" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#FF47C8FF" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FF04111E" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.MenuBrushKey}" Color="#FF141B2D" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.MenuTextBrushKey}" Color="#FFF6FAFF" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlLightBrushKey}" Color="#FF2A3B5F" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlDarkBrushKey}" Color="#FF0E1525" />
 
         <LinearGradientBrush x:Key="WindowGradient" StartPoint="0,0" EndPoint="1,1">
             <GradientStop Color="#FF0A1328" Offset="0" />
@@ -35,78 +39,90 @@
             <Setter Property="BorderBrush" Value="#334A71" />
         </Style>
 
-        <Style TargetType="Button">
+        <Style x:Key="ModernButton" TargetType="Button">
             <Setter Property="Foreground" Value="#FFF9FAFB" />
-            <Setter Property="Background" Value="#223A62" />
-            <Setter Property="BorderBrush" Value="#3C5D8A" />
+            <Setter Property="Background" Value="#203B61" />
+            <Setter Property="BorderBrush" Value="#4A78A8" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="12,8" />
             <Setter Property="Margin" Value="0,0,10,0" />
+            <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
 
-        <Style TargetType="TabControl">
+        <Style x:Key="ModernTabControlStyle" TargetType="TabControl">
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderBrush" Value="#334A71" />
+            <Setter Property="BorderBrush" Value="#35547F" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="4" />
+            <Setter Property="ItemContainerStyle" Value="{StaticResource ModernTabItemStyle}" />
         </Style>
 
-        <Style TargetType="TabItem">
-            <Setter Property="Foreground" Value="#FFD8E5FF" />
-            <Setter Property="Background" Value="#1A263F" />
+        <Style x:Key="ModernTabItemStyle" TargetType="TabItem">
+            <Setter Property="Foreground" Value="#FFDCE9FF" />
+            <Setter Property="Background" Value="#172742" />
             <Setter Property="Padding" Value="14,8" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="BorderBrush" Value="#35547F" />
+            <Setter Property="BorderThickness" Value="1" />
             <Style.Triggers>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#223A62" />
-                    <Setter Property="Foreground" Value="#FFFFFFFF" />
+                    <Setter Property="Background" Value="#FF47C8FF" />
+                    <Setter Property="Foreground" Value="#FF04111E" />
+                    <Setter Property="BorderBrush" Value="#FF47C8FF" />
                 </Trigger>
             </Style.Triggers>
         </Style>
 
-        <Style TargetType="ComboBox">
-            <Setter Property="Foreground" Value="#FFF9FAFB" />
-            <Setter Property="Background" Value="#17233E" />
-            <Setter Property="BorderBrush" Value="#3C5D8A" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Padding" Value="8,4" />
-        </Style>
-
-        <Style TargetType="ComboBoxItem">
-            <Setter Property="Foreground" Value="#FFF9FAFB" />
-            <Setter Property="Background" Value="#17233E" />
-            <Setter Property="Padding" Value="8,4" />
+        <Style x:Key="ModernComboBoxItemStyle" TargetType="ComboBoxItem">
+            <Setter Property="Foreground" Value="#FFF7FAFF" />
+            <Setter Property="Background" Value="#141B2D" />
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="FontWeight" Value="SemiBold" />
             <Style.Triggers>
                 <Trigger Property="IsHighlighted" Value="True">
-                    <Setter Property="Background" Value="#2A4772" />
+                    <Setter Property="Background" Value="#305A86" />
+                    <Setter Property="Foreground" Value="#FFFFFFFF" />
                 </Trigger>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#FF35B7FF" />
-                    <Setter Property="Foreground" Value="#FFFFFFFF" />
+                    <Setter Property="Background" Value="#47C8FF" />
+                    <Setter Property="Foreground" Value="#04111E" />
                 </Trigger>
             </Style.Triggers>
         </Style>
 
-        <Style TargetType="TextBox">
+        <Style x:Key="ModernComboBoxStyle" TargetType="ComboBox">
             <Setter Property="Foreground" Value="#FFF9FAFB" />
-            <Setter Property="Background" Value="#17233E" />
-            <Setter Property="BorderBrush" Value="#3C5D8A" />
+            <Setter Property="Background" Value="#141B2D" />
+            <Setter Property="BorderBrush" Value="#4A78A8" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="ItemContainerStyle" Value="{StaticResource ModernComboBoxItemStyle}" />
+        </Style>
+
+        <Style x:Key="ModernTextBoxStyle" TargetType="TextBox">
+            <Setter Property="Foreground" Value="#FFF9FAFB" />
+            <Setter Property="Background" Value="#141B2D" />
+            <Setter Property="BorderBrush" Value="#4A78A8" />
             <Setter Property="Padding" Value="8,4" />
         </Style>
 
-        <Style TargetType="ListBox">
+        <Style x:Key="ModernListBoxStyle" TargetType="ListBox">
             <Setter Property="Foreground" Value="#FFF9FAFB" />
-            <Setter Property="Background" Value="#17233E" />
-            <Setter Property="BorderBrush" Value="#334A71" />
+            <Setter Property="Background" Value="#141B2D" />
+            <Setter Property="BorderBrush" Value="#35547F" />
+            <Setter Property="BorderThickness" Value="1" />
         </Style>
 
-        <Style TargetType="ListBoxItem">
+        <Style x:Key="ModernListBoxItemStyle" TargetType="ListBoxItem">
             <Setter Property="Foreground" Value="#FFF9FAFB" />
             <Setter Property="Background" Value="Transparent" />
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#2A4772" />
+                    <Setter Property="Background" Value="#305A86" />
                 </Trigger>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#FF35B7FF" />
-                    <Setter Property="Foreground" Value="#FFFFFFFF" />
+                    <Setter Property="Background" Value="#FF47C8FF" />
+                    <Setter Property="Foreground" Value="#FF04111E" />
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -205,6 +221,7 @@
                                Text="VM:" />
 
                     <ComboBox Grid.Column="2"
+                              Style="{StaticResource ModernComboBoxStyle}"
                               DisplayMemberPath="Label"
                               SelectedItem="{Binding SelectedVm}"
                               ItemsSource="{Binding AvailableVms}" />
@@ -232,7 +249,7 @@
                                Text="{Binding SelectedVmCurrentSwitch}" />
                 </Grid>
 
-                <TabControl Margin="0,14,0,0">
+                <TabControl Margin="0,14,0,0" Style="{StaticResource ModernTabControlStyle}">
                     <TabItem Header="Start/Console">
                         <Grid Margin="10">
                             <Grid.RowDefinitions>
@@ -247,26 +264,32 @@
                             </Grid.ColumnDefinitions>
 
                                 <Button Grid.Row="0" Grid.Column="0"
+                                        Style="{StaticResource ModernButton}"
                                     Command="{Binding StartSelectedVmCommand}"
-                                    Content="Start VM" />
+                                        Content="▶ Start VM" />
                                 <Button Grid.Row="0" Grid.Column="1"
+                                        Style="{StaticResource ModernButton}"
                                     Command="{Binding StopSelectedVmCommand}"
-                                    Content="Stop VM (graceful)" />
+                                        Content="■ Stop VM (graceful)" />
                                 <Button Grid.Row="0" Grid.Column="2"
+                                        Style="{StaticResource ModernButton}"
                                     Margin="0"
                                     Command="{Binding TurnOffSelectedVmCommand}"
-                                    Content="Turn Off (hard)" />
+                                        Content="⏻ Turn Off (hard)" />
 
                                 <Button Grid.Row="2" Grid.Column="0"
+                                        Style="{StaticResource ModernButton}"
                                     Command="{Binding RestartSelectedVmCommand}"
-                                    Content="Restart VM" />
+                                        Content="↻ Restart VM" />
                                 <Button Grid.Row="2" Grid.Column="1"
+                                        Style="{StaticResource ModernButton}"
                                     Command="{Binding OpenConsoleCommand}"
-                                    Content="Open Console" />
+                                        Content="🖥 Open Console" />
                                 <Button Grid.Row="2" Grid.Column="2"
+                                        Style="{StaticResource ModernButton}"
                                     Margin="0"
                                     Command="{Binding RefreshVmStatusCommand}"
-                                    Content="Refresh Status" />
+                                        Content="⟳ Refresh Status" />
                         </Grid>
                     </TabItem>
 
@@ -286,27 +309,32 @@
                                            Text="Switch:" />
 
                                 <ComboBox Grid.Column="1"
+                                          Style="{StaticResource ModernComboBoxStyle}"
                                           Margin="8,0"
                                           DisplayMemberPath="Name"
                                           SelectedItem="{Binding SelectedSwitch}"
                                           ItemsSource="{Binding AvailableSwitches}" />
 
                                 <Button Grid.Column="2"
+                                    Style="{StaticResource ModernButton}"
                                     Margin="0"
                                         Command="{Binding LoadSwitchesCommand}"
-                                        Content="Refresh Switches" />
+                                    Content="⟳ Refresh Switches" />
                             </Grid>
 
                             <WrapPanel Margin="0,14,0,0">
                                 <Button Margin="0,0,12,12"
+                                    Style="{StaticResource ModernButton}"
                                         Command="{Binding ConnectSelectedSwitchCommand}"
-                                        Content="Connect to Switch" />
+                                    Content="🔌 Connect to Switch" />
                                 <Button Margin="0,0,12,12"
+                                    Style="{StaticResource ModernButton}"
                                         Command="{Binding DisconnectSwitchCommand}"
-                                        Content="Disconnect" />
+                                    Content="⛔ Disconnect" />
                                 <Button Margin="0,0,12,12"
+                                    Style="{StaticResource ModernButton}"
                                         Command="{Binding ConnectDefaultVmCommand}"
-                                        Content="Connect Default Switch" />
+                                    Content="⚡ Connect Default Switch" />
                             </WrapPanel>
 
                             <TextBlock Foreground="#FFD1D5DB"
@@ -325,6 +353,7 @@
                             </Grid.RowDefinitions>
 
                             <ListBox Grid.Row="0"
+                                     Style="{StaticResource ModernListBoxStyle}"
                                      SelectedItem="{Binding SelectedCheckpoint}"
                                      ItemsSource="{Binding AvailableCheckpoints}">
                                 <ListBox.ItemTemplate>
@@ -365,9 +394,11 @@
                                     <TextBox Grid.Column="1"
                                              Text="{Binding NewCheckpointName, UpdateSourceTrigger=PropertyChanged}" />
                                     <Button Grid.Column="3"
+                                            Style="{StaticResource ModernButton}"
+                                            Margin="0"
                                             Padding="12,8"
                                             Command="{Binding CreateCheckpointCommand}"
-                                            Content="Create Checkpoint" />
+                                            Content="📸 Create Checkpoint" />
                                 </Grid>
 
                                 <Grid Margin="0,8,0,0">
@@ -388,20 +419,24 @@
                                     <TextBox Grid.Column="1"
                                              Text="{Binding NewCheckpointDescription, UpdateSourceTrigger=PropertyChanged}" />
                                     <Button Grid.Column="3"
+                                            Style="{StaticResource ModernButton}"
                                             Padding="12,8"
                                             Command="{Binding ApplyCheckpointCommand}"
-                                            Content="Apply Checkpoint" />
+                                            Content="✅ Apply Checkpoint" />
                                     <Button Grid.Column="5"
+                                            Style="{StaticResource ModernButton}"
+                                            Margin="0"
                                             Padding="12,8"
                                             Command="{Binding DeleteCheckpointCommand}"
-                                            Content="Delete Checkpoint" />
+                                            Content="🗑 Delete Checkpoint" />
                                 </Grid>
 
                                 <WrapPanel Margin="0,10,0,0">
                                     <Button Margin="0,0,12,0"
+                                            Style="{StaticResource ModernButton}"
                                             Padding="12,8"
                                             Command="{Binding LoadCheckpointsCommand}"
-                                            Content="Refresh Checkpoints" />
+                                            Content="⟳ Refresh Checkpoints" />
                                 </WrapPanel>
                             </StackPanel>
                         </Grid>
@@ -433,13 +468,16 @@
                                            FontWeight="SemiBold"
                                            Text="Default VM" />
                                     <ComboBox Grid.Column="1"
+                                              Style="{StaticResource ModernComboBoxStyle}"
                                           DisplayMemberPath="Label"
                                           ItemsSource="{Binding AvailableVms}"
                                           SelectedItem="{Binding SelectedDefaultVmForConfig}" />
                                     <Button Grid.Column="3"
+                                            Style="{StaticResource ModernButton}"
+                                            Margin="0"
                                         Padding="12,8"
                                         Command="{Binding SetDefaultVmCommand}"
-                                        Content="Setze Default" />
+                                            Content="⭐ Setze Default" />
                                 </Grid>
 
                                 <Grid Grid.Row="2">
@@ -450,6 +488,7 @@
                                     </Grid.ColumnDefinitions>
 
                                     <ListBox Grid.Column="0"
+                                             Style="{StaticResource ModernListBoxStyle}"
                                              SelectedItem="{Binding SelectedVmForConfig}"
                                              ItemsSource="{Binding AvailableVms}">
                                         <ListBox.ItemTemplate>
@@ -478,6 +517,7 @@
                                                    FontWeight="SemiBold"
                                                    Text="Neue VM Name" />
                                         <TextBox Grid.Column="1"
+                                                 Style="{StaticResource ModernTextBoxStyle}"
                                                  Text="{Binding NewVmName, UpdateSourceTrigger=PropertyChanged}" />
                                     </Grid>
 
@@ -492,18 +532,21 @@
                                                    FontWeight="SemiBold"
                                                    Text="Label" />
                                         <TextBox Grid.Column="1"
+                                                 Style="{StaticResource ModernTextBoxStyle}"
                                                  Text="{Binding NewVmLabel, UpdateSourceTrigger=PropertyChanged}" />
                                     </Grid>
 
                                     <WrapPanel Margin="0,12,0,0">
                                         <Button Margin="0,0,12,0"
+                                            Style="{StaticResource ModernButton}"
                                                 Padding="12,8"
                                                 Command="{Binding AddVmCommand}"
-                                                Content="VM hinzufügen" />
+                                            Content="＋ VM hinzufügen" />
                                         <Button Margin="0,0,12,0"
+                                            Style="{StaticResource ModernButton}"
                                                 Padding="12,8"
                                                 Command="{Binding RemoveVmCommand}"
-                                                Content="Auswahl entfernen" />
+                                            Content="－ Auswahl entfernen" />
                                     </WrapPanel>
 
                                         <GroupBox Margin="0,14,0,0" Header="HNS">
@@ -518,8 +561,10 @@
                                                           IsChecked="{Binding HnsAutoRestartAfterAnyConnect}"
                                                           Content="Auto-Restart nach jedem Connect" />
                                                 <Button Padding="12,8"
+                                                    Style="{StaticResource ModernButton}"
+                                                    Margin="0"
                                                         Command="{Binding RestartHnsCommand}"
-                                                        Content="HNS jetzt neu starten (UAC)" />
+                                                    Content="⚙ HNS jetzt neu starten (UAC)" />
                                             </StackPanel>
                                         </GroupBox>
 
@@ -545,7 +590,7 @@
                                                         <ColumnDefinition Width="*" />
                                                     </Grid.ColumnDefinitions>
                                                     <TextBlock Grid.Column="0" VerticalAlignment="Center" Foreground="#FFF9FAFB" Text="GitHub Owner" />
-                                                    <TextBox Grid.Column="1" Text="{Binding GithubOwner, UpdateSourceTrigger=PropertyChanged}" />
+                                                    <TextBox Grid.Column="1" Style="{StaticResource ModernTextBoxStyle}" Text="{Binding GithubOwner, UpdateSourceTrigger=PropertyChanged}" />
                                                 </Grid>
                                                 <Grid Margin="0,8,0,0">
                                                     <Grid.ColumnDefinitions>
@@ -553,7 +598,7 @@
                                                         <ColumnDefinition Width="*" />
                                                     </Grid.ColumnDefinitions>
                                                     <TextBlock Grid.Column="0" VerticalAlignment="Center" Foreground="#FFF9FAFB" Text="GitHub Repo" />
-                                                    <TextBox Grid.Column="1" Text="{Binding GithubRepo, UpdateSourceTrigger=PropertyChanged}" />
+                                                    <TextBox Grid.Column="1" Style="{StaticResource ModernTextBoxStyle}" Text="{Binding GithubRepo, UpdateSourceTrigger=PropertyChanged}" />
                                                 </Grid>
                                             </StackPanel>
                                         </GroupBox>
@@ -562,13 +607,15 @@
 
                                 <WrapPanel Grid.Row="4">
                                     <Button Margin="0,0,12,0"
+                                            Style="{StaticResource ModernButton}"
                                             Padding="12,8"
                                             Command="{Binding SaveConfigCommand}"
-                                            Content="Config speichern" />
+                                            Content="💾 Config speichern" />
                                     <Button Margin="0,0,12,0"
+                                            Style="{StaticResource ModernButton}"
                                             Padding="12,8"
                                             Command="{Binding ReloadConfigCommand}"
-                                            Content="Neu laden" />
+                                            Content="⟳ Neu laden" />
                                     <TextBlock VerticalAlignment="Center"
                                                Foreground="#FFD1D5DB"
                                                Text="Standarddatei: HyperTool.config.json" />
@@ -586,13 +633,15 @@
 
                             <WrapPanel>
                                 <Button Margin="0,0,12,0"
+                                    Style="{StaticResource ModernButton}"
                                         Padding="12,8"
                                         Command="{Binding CheckForUpdatesCommand}"
-                                        Content="Jetzt auf Updates prüfen" />
+                                    Content="🛰 Jetzt auf Updates prüfen" />
                                 <Button Margin="0,0,12,0"
+                                    Style="{StaticResource ModernButton}"
                                         Padding="12,8"
                                         Command="{Binding OpenReleasePageCommand}"
-                                        Content="Release-Seite öffnen" />
+                                    Content="🌐 Release-Seite öffnen" />
                             </WrapPanel>
                         </StackPanel>
                     </TabItem>
