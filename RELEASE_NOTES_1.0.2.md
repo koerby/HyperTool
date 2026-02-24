@@ -1,4 +1,4 @@
-# HyperTool v1.0.1
+# HyperTool v1.0.2
 
 ## Highlights
 
