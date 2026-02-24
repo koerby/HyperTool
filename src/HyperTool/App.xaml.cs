@@ -104,10 +104,13 @@ public partial class App : System.Windows.Application
 					mainWindow.Activate();
 				},
 				hideAction: () => mainWindow.Hide(),
-				startDefaultVmAction: () => mainViewModel.StartDefaultVmCommand.Execute(null),
-				stopDefaultVmAction: () => mainViewModel.StopDefaultVmCommand.Execute(null),
-				connectDefaultVmAction: () => mainViewModel.ConnectDefaultVmCommand.Execute(null),
-				createCheckpointAction: () => mainViewModel.CreateCheckpointCommand.Execute(null),
+				getVms: () => mainViewModel.GetTrayVms(),
+				getSwitches: () => mainViewModel.GetTraySwitches(),
+				refreshTrayDataAction: () => mainViewModel.ReloadTrayDataAsync(),
+				startVmAction: vmName => mainViewModel.StartVmFromTrayAsync(vmName),
+				stopVmAction: vmName => mainViewModel.StopVmFromTrayAsync(vmName),
+				createSnapshotAction: vmName => mainViewModel.CreateSnapshotFromTrayAsync(vmName),
+				connectVmToSwitchAction: (vmName, switchName) => mainViewModel.ConnectVmSwitchFromTrayAsync(vmName, switchName),
 				exitAction: () =>
 				{
 					_isExitRequested = true;

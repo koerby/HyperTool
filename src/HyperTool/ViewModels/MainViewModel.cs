@@ -702,6 +702,94 @@ public partial class MainViewModel : ViewModelBase
         });
     }
 
+    public IReadOnlyList<VmDefinition> GetTrayVms()
+    {
+        return AvailableVms
+            .Select(vm => new VmDefinition
+            {
+                Name = vm.Name,
+                Label = vm.Label
+            })
+            .ToList();
+    }
+
+    public IReadOnlyList<HyperVSwitchInfo> GetTraySwitches()
+    {
+        return AvailableSwitches
+            .Select(vmSwitch => new HyperVSwitchInfo
+            {
+                Name = vmSwitch.Name,
+                SwitchType = vmSwitch.SwitchType
+            })
+            .ToList();
+    }
+
+    public Task ReloadTrayDataAsync()
+    {
+        return LoadSwitchesAsync();
+    }
+
+    public async Task StartVmFromTrayAsync(string vmName)
+    {
+        await ExecuteBusyActionAsync($"VM '{vmName}' wird gestartet...", async token =>
+        {
+            await _hyperVService.StartVmAsync(vmName, token);
+            AddNotification($"VM '{vmName}' gestartet.", "Success");
+        });
+        await RefreshVmStatusByNameAsync(vmName);
+    }
+
+    public async Task StopVmFromTrayAsync(string vmName)
+    {
+        await ExecuteBusyActionAsync($"VM '{vmName}' wird gestoppt...", async token =>
+        {
+            await _hyperVService.StopVmGracefulAsync(vmName, token);
+            AddNotification($"VM '{vmName}' graceful gestoppt.", "Success");
+        });
+        await RefreshVmStatusByNameAsync(vmName);
+    }
+
+    public async Task CreateSnapshotFromTrayAsync(string vmName)
+    {
+        var checkpointName = $"checkpoint-{DateTime.Now:yyyyMMdd-HHmmss}";
+
+        await ExecuteBusyActionAsync($"Checkpoint für '{vmName}' wird erstellt...", async token =>
+        {
+            await _hyperVService.CreateCheckpointAsync(vmName, checkpointName, null, token);
+            AddNotification($"Checkpoint '{checkpointName}' für '{vmName}' erstellt.", "Success");
+        });
+    }
+
+    public async Task ConnectVmSwitchFromTrayAsync(string vmName, string switchName)
+    {
+        await ExecuteBusyActionAsync($"'{vmName}' wird mit '{switchName}' verbunden...", async token =>
+        {
+            await _hyperVService.ConnectVmNetworkAdapterAsync(vmName, switchName, token);
+            AddNotification($"'{vmName}' mit '{switchName}' verbunden.", "Success");
+
+            if (ShouldAutoRestartHnsAfterConnect(switchName))
+            {
+                var hnsResult = await _hnsService.RestartHnsElevatedAsync(token);
+                AddNotification(
+                    hnsResult.Success ? hnsResult.Message : $"HNS Neustart fehlgeschlagen: {hnsResult.Message}",
+                    hnsResult.Success ? "Success" : "Error");
+            }
+        });
+
+        await RefreshVmStatusByNameAsync(vmName);
+    }
+
+    private async Task RefreshVmStatusByNameAsync(string vmName)
+    {
+        var currentSelectedVm = SelectedVm;
+
+        SelectedVm = AvailableVms.FirstOrDefault(vm =>
+                        string.Equals(vm.Name, vmName, StringComparison.OrdinalIgnoreCase))
+                    ?? currentSelectedVm;
+
+        await RefreshVmStatusAsync();
+    }
+
     private async Task ReloadConfigAsync()
     {
         await ExecuteBusyActionAsync("Konfiguration wird neu geladen...", _ =>

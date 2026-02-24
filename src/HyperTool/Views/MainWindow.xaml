@@ -6,6 +6,7 @@
         xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
         mc:Ignorable="d"
         Title="{Binding WindowTitle}"
+        Icon="/Assets/HyperTool.ico"
         Width="1080"
         Height="760"
         MinWidth="900"
@@ -14,6 +15,53 @@
         Background="#FF111827">
     <mah:MetroWindow.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+
+        <Style TargetType="ComboBox">
+            <Setter Property="Foreground" Value="#FFF9FAFB" />
+            <Setter Property="Background" Value="#FF111827" />
+            <Setter Property="BorderBrush" Value="#FF4B5563" />
+        </Style>
+
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Foreground" Value="#FFF9FAFB" />
+            <Setter Property="Background" Value="#FF1F2937" />
+            <Setter Property="Padding" Value="8,4" />
+            <Style.Triggers>
+                <Trigger Property="IsHighlighted" Value="True">
+                    <Setter Property="Background" Value="#FF374151" />
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#FF0F766E" />
+                    <Setter Property="Foreground" Value="#FFFFFFFF" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Foreground" Value="#FFF9FAFB" />
+            <Setter Property="Background" Value="#FF111827" />
+            <Setter Property="BorderBrush" Value="#FF4B5563" />
+        </Style>
+
+        <Style TargetType="ListBox">
+            <Setter Property="Foreground" Value="#FFF9FAFB" />
+            <Setter Property="Background" Value="#FF111827" />
+            <Setter Property="BorderBrush" Value="#FF374151" />
+        </Style>
+
+        <Style TargetType="ListBoxItem">
+            <Setter Property="Foreground" Value="#FFF9FAFB" />
+            <Setter Property="Background" Value="Transparent" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#FF374151" />
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#FF0F766E" />
+                    <Setter Property="Foreground" Value="#FFFFFFFF" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </mah:MetroWindow.Resources>
 
     <Grid Margin="20">

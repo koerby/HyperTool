@@ -1,3 +1,5 @@
+using HyperTool.Models;
+
 namespace HyperTool.Services;
 
 public interface ITrayService : IDisposable
@@ -5,9 +7,12 @@ public interface ITrayService : IDisposable
     void Initialize(
         Action showAction,
         Action hideAction,
-        Action startDefaultVmAction,
-        Action stopDefaultVmAction,
-        Action connectDefaultVmAction,
-        Action createCheckpointAction,
+    Func<IReadOnlyList<VmDefinition>> getVms,
+    Func<IReadOnlyList<HyperVSwitchInfo>> getSwitches,
+    Func<Task> refreshTrayDataAction,
+    Func<string, Task> startVmAction,
+    Func<string, Task> stopVmAction,
+    Func<string, Task> createSnapshotAction,
+    Func<string, string, Task> connectVmToSwitchAction,
         Action exitAction);
 }
