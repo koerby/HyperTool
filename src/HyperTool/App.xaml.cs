@@ -126,6 +126,7 @@ public partial class App : System.Windows.Application
 				refreshTrayDataAction: () => mainViewModel.ReloadTrayDataAsync(),
 				startVmAction: vmName => mainViewModel.StartVmFromTrayAsync(vmName),
 				stopVmAction: vmName => mainViewModel.StopVmFromTrayAsync(vmName),
+				openConsoleAction: vmName => mainViewModel.OpenConsoleFromTrayAsync(vmName),
 				createSnapshotAction: vmName => mainViewModel.CreateSnapshotFromTrayAsync(vmName),
 				connectVmToSwitchAction: (vmName, switchName) => mainViewModel.ConnectVmSwitchFromTrayAsync(vmName, switchName),
 				exitAction: () =>

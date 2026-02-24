@@ -1034,6 +1034,9 @@ public partial class MainViewModel : ViewModelBase
         {
             await _hyperVService.StartVmAsync(vmName, token);
             AddNotification($"VM '{vmName}' gestartet.", "Success");
+
+            await _hyperVService.OpenVmConnectAsync(vmName, VmConnectComputerName, token);
+            AddNotification($"Konsole für '{vmName}' geöffnet.", "Info");
         });
         await RefreshVmStatusByNameAsync(vmName);
     }
@@ -1046,6 +1049,15 @@ public partial class MainViewModel : ViewModelBase
             AddNotification($"VM '{vmName}' graceful gestoppt.", "Success");
         });
         await RefreshVmStatusByNameAsync(vmName);
+    }
+
+    public async Task OpenConsoleFromTrayAsync(string vmName)
+    {
+        await ExecuteBusyActionAsync($"Konsole für '{vmName}' wird geöffnet...", async token =>
+        {
+            await _hyperVService.OpenVmConnectAsync(vmName, VmConnectComputerName, token);
+            AddNotification($"Konsole für '{vmName}' geöffnet.", "Info");
+        });
     }
 
     public async Task CreateSnapshotFromTrayAsync(string vmName)

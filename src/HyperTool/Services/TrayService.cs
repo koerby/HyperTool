@@ -18,6 +18,7 @@ public sealed class TrayService : ITrayService
         Func<Task> refreshTrayDataAction,
         Func<string, Task> startVmAction,
         Func<string, Task> stopVmAction,
+        Func<string, Task> openConsoleAction,
         Func<string, Task> createSnapshotAction,
         Func<string, string, Task> connectVmToSwitchAction,
         Action exitAction)
@@ -42,6 +43,7 @@ public sealed class TrayService : ITrayService
                 getSwitches,
                 startVmAction,
                 stopVmAction,
+                openConsoleAction,
                 createSnapshotAction,
                 connectVmToSwitchAction,
                 refreshTrayDataAction,
@@ -56,6 +58,7 @@ public sealed class TrayService : ITrayService
             getSwitches,
             startVmAction,
             stopVmAction,
+            openConsoleAction,
             createSnapshotAction,
             connectVmToSwitchAction,
             refreshTrayDataAction,
@@ -81,6 +84,7 @@ public sealed class TrayService : ITrayService
         Func<IReadOnlyList<HyperVSwitchInfo>> getSwitches,
         Func<string, Task> startVmAction,
         Func<string, Task> stopVmAction,
+        Func<string, Task> openConsoleAction,
         Func<string, Task> createSnapshotAction,
         Func<string, string, Task> connectVmToSwitchAction,
         Func<Task> refreshTrayDataAction,
@@ -96,6 +100,7 @@ public sealed class TrayService : ITrayService
 
         contextMenu.Items.Add(BuildVmActionMenu("VM starten", vms, startVmAction));
         contextMenu.Items.Add(BuildVmActionMenu("VM stoppen", vms, stopVmAction));
+        contextMenu.Items.Add(BuildVmActionMenu("Konsole öffnen", vms, openConsoleAction));
         contextMenu.Items.Add(BuildVmActionMenu("Snapshot erstellen", vms, createSnapshotAction));
         contextMenu.Items.Add(BuildSwitchActionMenu(vms, switches, connectVmToSwitchAction));
 

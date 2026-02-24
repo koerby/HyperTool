@@ -221,6 +221,7 @@
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
                 <StackPanel>
@@ -291,6 +292,20 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </StackPanel>
+
+                <Border Grid.Column="1"
+                        Margin="16,0,0,0"
+                        Padding="8"
+                        CornerRadius="10"
+                        Background="#0F1A2A"
+                        BorderBrush="#2D4265"
+                        BorderThickness="1"
+                        VerticalAlignment="Top">
+                    <Image Source="/Assets/Logo.png"
+                           Width="96"
+                           Height="96"
+                           Stretch="Uniform" />
+                </Border>
             </Grid>
         </Border>
 
@@ -618,16 +633,37 @@
                         </TabItem>
 
                         <TabItem Header="Info">
-                            <StackPanel Margin="4">
-                                <TextBlock Foreground="{StaticResource TextPrimary}" FontSize="18" FontWeight="SemiBold" Text="HyperTool" />
-                                <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="dein nützlicher Hyper V Helfer" />
-                                <TextBlock Margin="0,12,0,0" Foreground="{StaticResource TextMuted}" Text="{Binding AppVersion, StringFormat=Version: {0}}" />
-                                <TextBlock Margin="0,6,0,12" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Text="{Binding UpdateStatus, StringFormat=Update-Status: {0}}" />
-                                <WrapPanel>
-                                    <Button Style="{StaticResource ActionButton}" Command="{Binding CheckForUpdatesCommand}" Content="🛰 Update prüfen" />
-                                    <Button Margin="0" Style="{StaticResource ActionButton}" Command="{Binding OpenReleasePageCommand}" Content="🌐 Release öffnen" />
-                                </WrapPanel>
-                            </StackPanel>
+                            <Grid Margin="4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel>
+                                    <TextBlock Foreground="{StaticResource TextPrimary}" FontSize="18" FontWeight="SemiBold" Text="HyperTool" />
+                                    <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="dein nützlicher Hyper V Helfer" />
+                                    <TextBlock Margin="0,12,0,0" Foreground="{StaticResource TextMuted}" Text="{Binding AppVersion, StringFormat=Version: {0}}" />
+                                    <TextBlock Margin="0,6,0,12" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Text="{Binding UpdateStatus, StringFormat=Update-Status: {0}}" />
+                                    <WrapPanel>
+                                        <Button Style="{StaticResource ActionButton}" Command="{Binding CheckForUpdatesCommand}" Content="🛰 Update prüfen" />
+                                        <Button Margin="0" Style="{StaticResource ActionButton}" Command="{Binding OpenReleasePageCommand}" Content="🌐 Release öffnen" />
+                                    </WrapPanel>
+                                </StackPanel>
+
+                                <Border Grid.Column="1"
+                                        Margin="16,0,0,0"
+                                        Padding="8"
+                                        CornerRadius="10"
+                                        Background="#0F1A2A"
+                                        BorderBrush="#2D4265"
+                                        BorderThickness="1"
+                                        VerticalAlignment="Top">
+                                    <Image Source="/Assets/Logo.png"
+                                           Width="120"
+                                           Height="120"
+                                           Stretch="Uniform" />
+                                </Border>
+                            </Grid>
                         </TabItem>
                     </TabControl>
                 </Grid>
