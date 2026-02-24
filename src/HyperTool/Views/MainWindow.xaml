@@ -3,13 +3,13 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+        xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
         mc:Ignorable="d"
         Title="{Binding WindowTitle}"
-        Width="980"
-        Height="640"
-        MinWidth="820"
-        MinHeight="560"
+        Width="1080"
+        Height="760"
+        MinWidth="900"
+        MinHeight="620"
         WindowStartupLocation="CenterScreen"
         Background="#FF111827">
     <mah:MetroWindow.Resources>
@@ -22,7 +22,10 @@
             <RowDefinition Height="16" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="16" />
+            <RowDefinition Height="2*" />
+            <RowDefinition Height="16" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="16" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
@@ -45,7 +48,7 @@
                                Text="HyperTool" />
                     <TextBlock Margin="0,6,0,0"
                                Foreground="#FFD1D5DB"
-                               Text="Schritt 2: Config Loader + Beispielconfig" />
+                               Text="Schritt 4: VM-Steuerung + Netzwerk" />
                 </StackPanel>
 
                 <Border Grid.Column="1"
@@ -81,9 +84,16 @@
             <StackPanel>
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="80" />
                         <ColumnDefinition Width="16" />
-                        <ColumnDefinition Width="300" />
+                        <ColumnDefinition Width="290" />
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="60" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="130" />
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="60" />
+                        <ColumnDefinition Width="8" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
@@ -97,52 +107,192 @@
                               SelectedItem="{Binding SelectedVm}"
                               ItemsSource="{Binding AvailableVms}" />
 
-                    <StackPanel Grid.Column="3"
-                                Margin="16,0,0,0"
-                                VerticalAlignment="Center">
-                        <TextBlock Foreground="#FFD1D5DB"
-                                   Text="{Binding DefaultSwitchName, StringFormat=Default Switch: {0}}" />
-                        <TextBlock Foreground="#FFD1D5DB"
-                                   Text="{Binding VmConnectComputerName, StringFormat=vmconnect host: {0}}" />
-                    </StackPanel>
+                    <TextBlock Grid.Column="4"
+                               VerticalAlignment="Center"
+                               Foreground="#FFF9FAFB"
+                               FontWeight="SemiBold"
+                               Text="State" />
+
+                    <TextBlock Grid.Column="6"
+                               VerticalAlignment="Center"
+                               Foreground="#FFD1D5DB"
+                               Text="{Binding SelectedVmState}" />
+
+                    <TextBlock Grid.Column="8"
+                               VerticalAlignment="Center"
+                               Foreground="#FFF9FAFB"
+                               FontWeight="SemiBold"
+                               Text="Switch" />
+
+                    <TextBlock Grid.Column="10"
+                               VerticalAlignment="Center"
+                               Foreground="#FFD1D5DB"
+                               Text="{Binding SelectedVmCurrentSwitch}" />
                 </Grid>
 
-                <TextBlock FontSize="16"
-                           Margin="0,14,0,0"
-                           FontWeight="SemiBold"
-                           Foreground="#FFF9FAFB"
-                           Text="Quick Actions (temporär)" />
+                <TabControl Margin="0,14,0,0">
+                    <TabItem Header="Start/Console">
+                        <Grid Margin="10">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="14" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
 
-                <WrapPanel Margin="0,14,0,0"
-                           HorizontalAlignment="Left"
-                           ItemHeight="34"
-                           ItemWidth="220">
-                    <Button Margin="0,0,12,12"
-                            Padding="12,8"
-                            Command="{Binding StartDefaultVmCommand}"
-                            Content="Start Default VM" />
-                    <Button Margin="0,0,12,12"
-                            Padding="12,8"
-                            Command="{Binding StopDefaultVmCommand}"
-                            Content="Stop Default VM" />
-                    <Button Margin="0,0,12,12"
-                            Padding="12,8"
-                            Command="{Binding ConnectDefaultVmCommand}"
-                            Content="Connect Default VM" />
-                    <Button Margin="0,0,12,12"
-                            Padding="12,8"
-                            Command="{Binding CreateCheckpointCommand}"
-                            Content="Create Checkpoint" />
-                </WrapPanel>
+                            <Button Grid.Row="0" Grid.Column="0"
+                                    Margin="0,0,10,0"
+                                    Padding="12,8"
+                                    Command="{Binding StartSelectedVmCommand}"
+                                    Content="Start VM" />
+                            <Button Grid.Row="0" Grid.Column="1"
+                                    Margin="0,0,10,0"
+                                    Padding="12,8"
+                                    Command="{Binding StopSelectedVmCommand}"
+                                    Content="Stop VM (graceful)" />
+                            <Button Grid.Row="0" Grid.Column="2"
+                                    Padding="12,8"
+                                    Command="{Binding TurnOffSelectedVmCommand}"
+                                    Content="Turn Off (hard)" />
+
+                            <Button Grid.Row="2" Grid.Column="0"
+                                    Margin="0,0,10,0"
+                                    Padding="12,8"
+                                    Command="{Binding RestartSelectedVmCommand}"
+                                    Content="Restart VM" />
+                            <Button Grid.Row="2" Grid.Column="1"
+                                    Margin="0,0,10,0"
+                                    Padding="12,8"
+                                    Command="{Binding OpenConsoleCommand}"
+                                    Content="Open Console" />
+                            <Button Grid.Row="2" Grid.Column="2"
+                                    Padding="12,8"
+                                    Command="{Binding RefreshVmStatusCommand}"
+                                    Content="Refresh Status" />
+                        </Grid>
+                    </TabItem>
+
+                    <TabItem Header="Network">
+                        <StackPanel Margin="10">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="100" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="150" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0"
+                                           VerticalAlignment="Center"
+                                           Foreground="#FFF9FAFB"
+                                           FontWeight="SemiBold"
+                                           Text="Switch:" />
+
+                                <ComboBox Grid.Column="1"
+                                          Margin="8,0"
+                                          DisplayMemberPath="Name"
+                                          SelectedItem="{Binding SelectedSwitch}"
+                                          ItemsSource="{Binding AvailableSwitches}" />
+
+                                <Button Grid.Column="2"
+                                        Padding="12,8"
+                                        Command="{Binding LoadSwitchesCommand}"
+                                        Content="Refresh Switches" />
+                            </Grid>
+
+                            <WrapPanel Margin="0,14,0,0">
+                                <Button Margin="0,0,12,12"
+                                        Padding="12,8"
+                                        Command="{Binding ConnectSelectedSwitchCommand}"
+                                        Content="Connect to Switch" />
+                                <Button Margin="0,0,12,12"
+                                        Padding="12,8"
+                                        Command="{Binding DisconnectSwitchCommand}"
+                                        Content="Disconnect" />
+                                <Button Margin="0,0,12,12"
+                                        Padding="12,8"
+                                        Command="{Binding ConnectDefaultVmCommand}"
+                                        Content="Connect Default Switch" />
+                            </WrapPanel>
+
+                            <TextBlock Foreground="#FFD1D5DB"
+                                       Text="{Binding DefaultSwitchName, StringFormat=Default Switch: {0}}" />
+                            <TextBlock Foreground="#FFD1D5DB"
+                                       Text="{Binding VmConnectComputerName, StringFormat=vmconnect host: {0}}" />
+                        </StackPanel>
+                    </TabItem>
+                </TabControl>
             </StackPanel>
         </Border>
 
-        <StatusBar Grid.Row="5"
+        <Border Grid.Row="6"
+                Padding="12"
+                CornerRadius="10"
+                Background="#FF1F2937"
+                BorderThickness="1"
+                BorderBrush="#FF374151">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="8" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Foreground="#FFF9FAFB"
+                               FontWeight="SemiBold"
+                               Text="Notifications" />
+                    <TextBlock Margin="10,0,0,0"
+                               Foreground="#FFD1D5DB"
+                               Text="(non-blocking)" />
+                    <mah:ProgressRing Margin="16,0,0,0"
+                                      Width="16"
+                                      Height="16"
+                                      IsActive="{Binding IsBusy}"
+                                      Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    <TextBlock Margin="8,0,0,0"
+                               Foreground="#FFD1D5DB"
+                               Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"
+                               Text="{Binding BusyText}" />
+                </StackPanel>
+
+                <ListBox Grid.Row="2"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         ItemsSource="{Binding Notifications}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,2,0,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="90" />
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Foreground="#FF9CA3AF"
+                                           Text="{Binding Timestamp, StringFormat={}{0:HH:mm:ss}}" />
+                                <TextBlock Grid.Column="1"
+                                           Foreground="#FFD1D5DB"
+                                           Text="{Binding Level}" />
+                                <TextBlock Grid.Column="2"
+                                           Foreground="#FFF9FAFB"
+                                           TextWrapping="Wrap"
+                                           Text="{Binding Message}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Border>
+
+        <StatusBar Grid.Row="8"
                    Margin="0,16,0,0"
                    Background="#FF1F2937"
                    Foreground="#FFD1D5DB">
             <StatusBarItem>
-                <TextBlock Text="Tray Icon aktiv · Doppelklick zeigt das Fenster" />
+                <TextBlock Text="Tray Icon aktiv · Doppelklick zeigt das Fenster · Schritt 4 aktiv" />
             </StatusBarItem>
         </StatusBar>
     </Grid>

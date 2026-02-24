@@ -22,10 +22,11 @@ public partial class App : System.Windows.Application
 		InitializeLogging();
 
 		IConfigService configService = new ConfigService();
+		IHyperVService hyperVService = new HyperVPowerShellService();
 		var configPath = Path.Combine(AppContext.BaseDirectory, "HyperTool.config.json");
 		var configResult = configService.LoadOrCreate(configPath);
 
-		var mainViewModel = new MainViewModel(configResult);
+		var mainViewModel = new MainViewModel(configResult, hyperVService);
 		var mainWindow = new MainWindow
 		{
 			DataContext = mainViewModel

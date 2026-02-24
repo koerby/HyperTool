@@ -7,10 +7,21 @@ cd /d "%ROOT%"
 set "CONFIG=Release"
 set "RUNTIME=win-x64"
 set "SELF_CONTAINED=false"
+set "NO_PAUSE=false"
 
-if /I "%~1"=="self-contained" (
-    set "SELF_CONTAINED=true"
+for %%A in (%*) do (
+    if /I "%%~A"=="self-contained" set "SELF_CONTAINED=true"
+    if /I "%%~A"=="no-pause" set "NO_PAUSE=true"
 )
+
+echo ==========================================
+echo HyperTool Build Script
+echo ROOT: %ROOT%
+echo CONFIG: %CONFIG%
+echo RUNTIME: %RUNTIME%
+echo SELF_CONTAINED: %SELF_CONTAINED%
+echo ==========================================
+echo.
 
 echo [1/4] Restore...
 dotnet restore HyperTool.sln
@@ -25,21 +36,35 @@ if exist "%DIST_DIR%" rmdir /s /q "%DIST_DIR%"
 mkdir "%DIST_DIR%"
 
 echo [3/4] Publish to dist...
-dotnet publish src\HyperTool\HyperTool.csproj -c %CONFIG% -r %RUNTIME% --self-contained %SELF_CONTAINED% --no-build -o "%DIST_DIR%"
+dotnet publish src\HyperTool\HyperTool.csproj -c %CONFIG% -r %RUNTIME% --self-contained %SELF_CONTAINED% -o "%DIST_DIR%"
 if errorlevel 1 goto :fail
 
 echo [4/4] Copy default config...
 copy /Y "%ROOT%HyperTool.config.json" "%DIST_DIR%\HyperTool.config.json" >nul
+if errorlevel 1 goto :fail
+
+if not exist "%DIST_DIR%\HyperTool.exe" goto :fail
 
 echo.
-echo Fertig. Ausgabe liegt in:
+echo SUCCESS: Build und Publish abgeschlossen.
+echo Ausgabe liegt in:
 echo %DIST_DIR%
+echo.
+echo Inhalt von dist:
+dir /b "%DIST_DIR%"
 echo.
 echo Hinweis: Fuer self-contained Build starte mit:
 echo build.bat self-contained
-goto :eof
+
+if /I "%NO_PAUSE%"=="false" pause
+goto :success
 
 :fail
 echo.
 echo FEHLER: Build/Publish fehlgeschlagen.
+echo Bitte die Ausgabe oben pruefen.
+if /I "%NO_PAUSE%"=="false" pause
 exit /b 1
+
+:success
+exit /b 0
