@@ -4,6 +4,8 @@ public sealed class HyperToolConfig
 {
     public string DefaultVmName { get; set; } = string.Empty;
 
+    public string LastSelectedVmName { get; set; } = string.Empty;
+
     public List<VmDefinition> Vms { get; set; } = [];
 
     public string DefaultSwitchName { get; set; } = "Default Switch";

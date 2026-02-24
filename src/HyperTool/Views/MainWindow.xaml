@@ -221,7 +221,6 @@
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
                 <StackPanel>
@@ -281,19 +280,17 @@
                                     </Button.Style>
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Foreground="White" FontWeight="Bold" Text="●" />
-                                        <TextBlock Margin="6,0,0,0" Foreground="White" Text="{Binding Label}" />
-                                        <TextBlock Margin="8,0,0,0" Foreground="#E2F0FF" Text="{Binding RuntimeState}" />
-                                        <TextBlock Margin="8,0,0,0" Foreground="#B9D6FF" Text="{Binding RuntimeSwitchName}" />
+                                        <TextBlock Margin="6,0,0,0" Foreground="White" Text="{Binding DisplayLabel}" />
+                                        <TextBlock Margin="8,0,0,0" Foreground="#E2F0FF" Text="|" />
+                                        <TextBlock Margin="6,0,0,0" Foreground="#E2F0FF" Text="{Binding RuntimeState}" />
+                                        <TextBlock Margin="8,0,0,0" Foreground="#B9D6FF" Text="|" />
+                                        <TextBlock Margin="6,0,0,0" Foreground="#B9D6FF" Text="{Binding RuntimeSwitchName}" />
                                     </StackPanel>
                                 </Button>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </StackPanel>
-
-                <Border Grid.Column="1" Padding="10,6" CornerRadius="8" Background="{StaticResource AccentStrong}">
-                    <TextBlock Foreground="White" FontWeight="SemiBold" Text="{Binding StatusText}" />
-                </Border>
             </Grid>
         </Border>
 
@@ -359,9 +356,9 @@
                     <Border Grid.Row="0" CornerRadius="12" Background="#10192B" BorderBrush="#2D4265" BorderThickness="1" Padding="12">
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="70" />
-                                <ColumnDefinition Width="16" />
-                                <ColumnDefinition Width="300" />
+                                <ColumnDefinition Width="100" />
+                                <ColumnDefinition Width="12" />
+                                <ColumnDefinition Width="240" />
                                 <ColumnDefinition Width="16" />
                                 <ColumnDefinition Width="54" />
                                 <ColumnDefinition Width="8" />
@@ -372,12 +369,8 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
 
-                            <TextBlock VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="VM" />
-                            <ComboBox Grid.Column="2"
-                                      Style="{StaticResource ReadableComboBoxStyle}"
-                                      DisplayMemberPath="Label"
-                                      SelectedItem="{Binding SelectedVm}"
-                                      ItemsSource="{Binding AvailableVms}" />
+                            <TextBlock VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="Selected VM" />
+                            <TextBlock Grid.Column="2" VerticalAlignment="Center" Foreground="{StaticResource TextMuted}" Text="{Binding SelectedVmDisplayName}" />
 
                             <TextBlock Grid.Column="4" VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="State" />
                             <TextBlock Grid.Column="6" VerticalAlignment="Center" Foreground="{StaticResource TextMuted}" Text="{Binding SelectedVmState}" />
@@ -415,6 +408,15 @@
 
                         <TabItem Header="Network">
                             <StackPanel Margin="4">
+                                <TextBlock Foreground="{StaticResource TextMuted}" TextWrapping="Wrap">
+                                    <Run Text="Selected VM: " />
+                                    <Run Text="{Binding SelectedVmDisplayName}" />
+                                    <Run Text=" | State: " />
+                                    <Run Text="{Binding SelectedVmState}" />
+                                    <Run Text=" | Current Switch: " />
+                                    <Run Text="{Binding SelectedVmCurrentSwitch}" />
+                                </TextBlock>
+
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="100" />
@@ -425,7 +427,7 @@
                                     <TextBlock VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="Switch" />
                                     <ComboBox Grid.Column="1"
                                               Style="{StaticResource ReadableComboBoxStyle}"
-                                              Margin="8,0"
+                                              Margin="8,8,8,0"
                                               IsEnabled="{Binding AreSwitchesLoaded}"
                                               DisplayMemberPath="Name"
                                               SelectedItem="{Binding SelectedSwitch}"
@@ -637,39 +639,106 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="8" />
-                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="8" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="Notifications" />
-                    <TextBlock Margin="10,0,0,0" Foreground="{StaticResource TextMuted}" Text="(non-blocking)" />
-                    <Button Margin="12,0,0,0"
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="Notifications" />
+                        <mah:ProgressRing Margin="12,0,0,0"
+                                          Width="16"
+                                          Height="16"
+                                          IsActive="{Binding IsBusy}"
+                                          Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        <TextBlock Margin="8,0,0,0"
+                                   Foreground="{StaticResource TextMuted}"
+                                   Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                   Text="{Binding BusyText}" />
+                    </StackPanel>
+
+                    <Button Grid.Column="1"
+                            Margin="12,0,0,0"
                             Style="{StaticResource ActionButton}"
                             Padding="8,2"
-                            Command="{Binding ToggleNotificationsCommand}"
-                            Content="{Binding NotificationsToggleText}" />
-                    <mah:ProgressRing Margin="16,0,0,0"
-                                      Width="16"
-                                      Height="16"
-                                      IsActive="{Binding IsBusy}"
-                                      Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                    <TextBlock Margin="8,0,0,0"
-                               Foreground="{StaticResource TextMuted}"
-                               Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"
-                               Text="{Binding BusyText}" />
-                </StackPanel>
+                            Command="{Binding ToggleLogCommand}"
+                            Content="{Binding LogToggleText}" />
+                </Grid>
 
-                <Grid Grid.Row="2">
-                    <Border CornerRadius="8"
+                <Border Grid.Row="2"
+                        CornerRadius="8"
+                        Background="#111A2C"
+                        BorderBrush="#36547E"
+                        BorderThickness="1"
+                        Padding="10">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsLogExpanded}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <TextBlock Foreground="White"
+                               Text="{Binding LastNotificationText}"
+                               TextTrimming="CharacterEllipsis"
+                               TextWrapping="NoWrap" />
+                </Border>
+
+                <Grid Grid.Row="4">
+                    <Grid.Style>
+                        <Style TargetType="Grid">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsLogExpanded}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="8" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <WrapPanel>
+                        <Button Style="{StaticResource ActionButton}"
+                                Padding="8,2"
+                                Command="{Binding CopyNotificationsCommand}"
+                                Content="Copy" />
+                        <Button Style="{StaticResource ActionButton}"
+                                Padding="8,2"
+                                Command="{Binding ClearNotificationsCommand}"
+                                Content="Clear" />
+                    </WrapPanel>
+
+                    <Border Grid.Row="2"
+                            CornerRadius="8"
                             Background="#111A2C"
                             BorderBrush="#36547E"
                             BorderThickness="1"
                             Padding="8"
-                            Visibility="{Binding IsNotificationsExpanded, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            MaxHeight="240">
                         <ListBox Style="{StaticResource ReadableListBoxStyle}"
                                  ItemContainerStyle="{StaticResource ReadableListBoxItemStyle}"
                                  BorderThickness="0"
-                                 ItemsSource="{Binding Notifications}">
+                                 ItemsSource="{Binding Notifications}"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 ScrollViewer.CanContentScroll="True"
+                                 VirtualizingPanel.IsVirtualizing="True"
+                                 VirtualizingPanel.VirtualizationMode="Recycling"
+                                 VirtualizingPanel.ScrollUnit="Pixel">
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
                                     <Grid Margin="0,2,0,2">
@@ -685,33 +754,6 @@
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
-                    </Border>
-
-                    <Border CornerRadius="8"
-                            Background="#111A2C"
-                            BorderBrush="#36547E"
-                            BorderThickness="1"
-                            Padding="10">
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="Visibility" Value="Visible" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsNotificationsExpanded}" Value="True">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="90" />
-                                <ColumnDefinition Width="70" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Foreground="#9DB0CF" Text="{Binding LatestNotification.Timestamp, StringFormat={}{0:HH:mm:ss}}" />
-                            <TextBlock Grid.Column="1" Foreground="#BED2F0" Text="{Binding LatestNotification.Level}" />
-                            <TextBlock Grid.Column="2" Foreground="White" TextWrapping="Wrap" Text="{Binding LatestNotification.Message}" />
-                        </Grid>
                     </Border>
                 </Grid>
             </Grid>

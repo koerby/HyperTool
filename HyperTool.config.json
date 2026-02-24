@@ -1,5 +1,6 @@
 {
   "defaultVmName": "",
+  "lastSelectedVmName": "",
   "vms": [],
   "defaultSwitchName": "Default Switch",
   "vmConnectComputerName": "localhost",

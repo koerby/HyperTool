@@ -74,6 +74,9 @@ public partial class MainViewModel : ViewModelBase
     private string _defaultVmName = string.Empty;
 
     [ObservableProperty]
+    private string _lastSelectedVmName = string.Empty;
+
+    [ObservableProperty]
     private bool _uiEnableTrayIcon = true;
 
     [ObservableProperty]
@@ -101,7 +104,7 @@ public partial class MainViewModel : ViewModelBase
     private int _selectedMenuIndex;
 
     [ObservableProperty]
-    private bool _isNotificationsExpanded;
+    private bool _isLogExpanded;
 
     [ObservableProperty]
     private bool _areSwitchesLoaded;
@@ -122,7 +125,24 @@ public partial class MainViewModel : ViewModelBase
 
     public UiNotification? LatestNotification => Notifications.FirstOrDefault();
 
-    public string NotificationsToggleText => IsNotificationsExpanded ? "Log einklappen" : "Log aufklappen";
+    public string LastNotificationText
+    {
+        get
+        {
+            var latest = LatestNotification;
+            if (latest is null)
+            {
+                return "Keine Notifications";
+            }
+
+            var text = $"[{latest.Timestamp:HH:mm:ss}] [{latest.Level}] {latest.Message}";
+            return text.Length <= 120 ? text : $"{text[..117]}...";
+        }
+    }
+
+    public string LogToggleText => IsLogExpanded ? "▾ Log einklappen" : "▸ Log ausklappen";
+
+    public string SelectedVmDisplayName => SelectedVm?.DisplayLabel ?? "-";
 
     public IAsyncRelayCommand StartDefaultVmCommand { get; }
 
@@ -172,7 +192,7 @@ public partial class MainViewModel : ViewModelBase
 
     public IRelayCommand OpenReleasePageCommand { get; }
 
-    public IRelayCommand ToggleNotificationsCommand { get; }
+    public IRelayCommand ToggleLogCommand { get; }
 
     public IRelayCommand<VmDefinition> SelectVmFromChipCommand { get; }
 
@@ -218,6 +238,7 @@ public partial class MainViewModel : ViewModelBase
 
         WindowTitle = "HyperTool";
         DefaultVmName = configResult.Config.DefaultVmName;
+        LastSelectedVmName = configResult.Config.LastSelectedVmName;
         DefaultSwitchName = configResult.Config.DefaultSwitchName;
         VmConnectComputerName = configResult.Config.VmConnectComputerName;
         ConfigurationNotice = configResult.Notice;
@@ -231,20 +252,6 @@ public partial class MainViewModel : ViewModelBase
         GithubRepo = configResult.Config.Update.GitHubRepo;
         AppVersion = ResolveAppVersion();
         UpdateStatus = "Noch nicht geprüft";
-
-        foreach (var vm in configResult.Config.Vms)
-        {
-            if (vm is null || string.IsNullOrWhiteSpace(vm.Name))
-            {
-                continue;
-            }
-
-            AvailableVms.Add(new VmDefinition
-            {
-                Name = vm.Name,
-                Label = string.IsNullOrWhiteSpace(vm.Label) ? vm.Name : vm.Label
-            });
-        }
 
         if (configResult.IsGenerated)
         {
@@ -263,7 +270,7 @@ public partial class MainViewModel : ViewModelBase
         StopSelectedVmCommand = new AsyncRelayCommand(StopSelectedVmAsync, CanExecuteStopVmAction);
         TurnOffSelectedVmCommand = new AsyncRelayCommand(TurnOffSelectedVmAsync, CanExecuteStopVmAction);
         RestartSelectedVmCommand = new AsyncRelayCommand(RestartSelectedVmAsync, CanExecuteRestartVmAction);
-        OpenConsoleCommand = new AsyncRelayCommand(OpenConsoleAsync, CanExecuteVmAction);
+        OpenConsoleCommand = new AsyncRelayCommand(OpenConsoleAsync, CanExecuteStopVmAction);
 
         LoadSwitchesCommand = new AsyncRelayCommand(LoadSwitchesAsync, () => !IsBusy);
         ConnectSelectedSwitchCommand = new AsyncRelayCommand(ConnectSelectedSwitchAsync, () => !IsBusy && SelectedVm is not null && SelectedSwitch is not null && AreSwitchesLoaded);
@@ -282,7 +289,7 @@ public partial class MainViewModel : ViewModelBase
         RestartHnsCommand = new AsyncRelayCommand(RestartHnsAsync, () => !IsBusy);
         CheckForUpdatesCommand = new AsyncRelayCommand(CheckForUpdatesAsync, () => !IsBusy);
         OpenReleasePageCommand = new RelayCommand(OpenReleasePage);
-        ToggleNotificationsCommand = new RelayCommand(ToggleNotifications);
+        ToggleLogCommand = new RelayCommand(ToggleLog);
         SelectVmFromChipCommand = new RelayCommand<VmDefinition>(SelectVmFromChip);
         ClearNotificationsCommand = new RelayCommand(ClearNotifications);
         CopyNotificationsCommand = new RelayCommand(CopyNotificationsToClipboard);
@@ -299,22 +306,18 @@ public partial class MainViewModel : ViewModelBase
         ConnectDefaultVmCommand = new AsyncRelayCommand(ConnectDefaultVmAsync, () => !IsBusy);
         CreateCheckpointCommand = new AsyncRelayCommand(CreateCheckpointAsync, CanExecuteVmAction);
 
-        SelectedVm = AvailableVms.FirstOrDefault(vm =>
-            string.Equals(vm.Name, configResult.Config.DefaultVmName, StringComparison.OrdinalIgnoreCase))
-            ?? AvailableVms.FirstOrDefault();
-
         SelectedVmForConfig = SelectedVm;
         SelectedDefaultVmForConfig = SelectedVm;
 
-        IsNotificationsExpanded = false;
+        IsLogExpanded = false;
         Notifications.CollectionChanged += OnNotificationsChanged;
 
         _ = InitializeAsync();
     }
 
-    partial void OnIsNotificationsExpandedChanged(bool value)
+    partial void OnIsLogExpandedChanged(bool value)
     {
-        OnPropertyChanged(nameof(NotificationsToggleText));
+        OnPropertyChanged(nameof(LogToggleText));
     }
 
     partial void OnAreSwitchesLoadedChanged(bool value)
@@ -360,6 +363,7 @@ public partial class MainViewModel : ViewModelBase
     {
         ConnectSelectedSwitchCommand.NotifyCanExecuteChanged();
         SelectedVmForConfig = value;
+        OnPropertyChanged(nameof(SelectedVmDisplayName));
 
         if (value is null)
         {
@@ -370,7 +374,7 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
-        DefaultVmName = value.Name;
+        LastSelectedVmName = value.Name;
         _ = PersistSelectedVmAsync(value.Name);
 
         _ = RefreshVmStatusAsync();
@@ -383,6 +387,7 @@ public partial class MainViewModel : ViewModelBase
         StopSelectedVmCommand.NotifyCanExecuteChanged();
         TurnOffSelectedVmCommand.NotifyCanExecuteChanged();
         RestartSelectedVmCommand.NotifyCanExecuteChanged();
+        OpenConsoleCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnSelectedSwitchChanged(HyperVSwitchInfo? value)
@@ -513,7 +518,11 @@ public partial class MainViewModel : ViewModelBase
                 DefaultVmName = AvailableVms[0].Name;
             }
 
-            SelectedVm = AvailableVms.FirstOrDefault(vm => string.Equals(vm.Name, DefaultVmName, StringComparison.OrdinalIgnoreCase))
+            var preferredVmName = !string.IsNullOrWhiteSpace(LastSelectedVmName)
+                ? LastSelectedVmName
+                : DefaultVmName;
+
+            SelectedVm = AvailableVms.FirstOrDefault(vm => string.Equals(vm.Name, preferredVmName, StringComparison.OrdinalIgnoreCase))
                          ?? AvailableVms.FirstOrDefault();
             SelectedVmForConfig = SelectedVm;
             SelectedDefaultVmForConfig = AvailableVms.FirstOrDefault(vm => string.Equals(vm.Name, DefaultVmName, StringComparison.OrdinalIgnoreCase))
@@ -932,6 +941,7 @@ public partial class MainViewModel : ViewModelBase
             var config = new HyperToolConfig
             {
                 DefaultVmName = DefaultVmName,
+                LastSelectedVmName = SelectedVm?.Name ?? LastSelectedVmName,
                 DefaultSwitchName = DefaultSwitchName,
                 VmConnectComputerName = VmConnectComputerName,
                 Hns = new HnsSettings
@@ -1093,14 +1103,15 @@ public partial class MainViewModel : ViewModelBase
             HnsAutoRestartAfterDefaultSwitch = config.Hns.AutoRestartAfterDefaultSwitch;
             HnsAutoRestartAfterAnyConnect = config.Hns.AutoRestartAfterAnyConnect;
             DefaultVmName = config.DefaultVmName;
+            LastSelectedVmName = config.LastSelectedVmName;
             UiEnableTrayIcon = config.Ui.EnableTrayIcon;
             UiStartWithWindows = config.Ui.StartWithWindows;
             UpdateCheckOnStartup = config.Update.CheckOnStartup;
             GithubOwner = config.Update.GitHubOwner;
             GithubRepo = config.Update.GitHubRepo;
-            if (!string.IsNullOrWhiteSpace(previousSelectionName))
+            if (string.IsNullOrWhiteSpace(LastSelectedVmName) && !string.IsNullOrWhiteSpace(previousSelectionName))
             {
-                DefaultVmName = previousSelectionName;
+                LastSelectedVmName = previousSelectionName;
             }
 
             AddNotification("Konfiguration neu geladen.", "Info");
@@ -1117,7 +1128,7 @@ public partial class MainViewModel : ViewModelBase
         {
             var configResult = _configService.LoadOrCreate(_configPath);
             var config = configResult.Config;
-            config.DefaultVmName = vmName;
+            config.LastSelectedVmName = vmName;
 
             _ = _configService.TrySave(_configPath, config, out _);
             await Task.CompletedTask;
@@ -1282,9 +1293,9 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
-    private void ToggleNotifications()
+    private void ToggleLog()
     {
-        IsNotificationsExpanded = !IsNotificationsExpanded;
+        IsLogExpanded = !IsLogExpanded;
     }
 
     private void SelectVmFromChip(VmDefinition? vm)
@@ -1304,6 +1315,12 @@ public partial class MainViewModel : ViewModelBase
     private void OnNotificationsChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         OnPropertyChanged(nameof(LatestNotification));
+        OnPropertyChanged(nameof(LastNotificationText));
+    }
+
+    public void PublishNotification(string message, string level = "Info")
+    {
+        AddNotification(message, level);
     }
 
     private static string ResolveAppVersion()

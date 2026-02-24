@@ -169,16 +169,25 @@ public sealed class ConfigService : IConfigService
         }
 
         config.DefaultVmName = config.DefaultVmName?.Trim() ?? string.Empty;
+        config.LastSelectedVmName = config.LastSelectedVmName?.Trim() ?? string.Empty;
 
-        var vmExists = config.Vms.Any(vm => string.Equals(vm.Name, config.DefaultVmName, StringComparison.OrdinalIgnoreCase));
-        if (!vmExists)
+        if (config.Vms.Count > 0)
         {
-            config.DefaultVmName = config.Vms.FirstOrDefault()?.Name ?? string.Empty;
-            wasUpdated = true;
-            if (!string.IsNullOrWhiteSpace(config.DefaultVmName))
+            var vmExists = config.Vms.Any(vm => string.Equals(vm.Name, config.DefaultVmName, StringComparison.OrdinalIgnoreCase));
+            if (!vmExists)
             {
-                notices.Add("DefaultVmName war ungültig und wurde auf die erste VM gesetzt.");
+                config.DefaultVmName = config.Vms.FirstOrDefault()?.Name ?? string.Empty;
+                wasUpdated = true;
+                if (!string.IsNullOrWhiteSpace(config.DefaultVmName))
+                {
+                    notices.Add("DefaultVmName war ungültig und wurde auf die erste VM gesetzt.");
+                }
             }
+        }
+        else if (!string.IsNullOrWhiteSpace(config.DefaultVmName))
+        {
+            config.DefaultVmName = string.Empty;
+            wasUpdated = true;
         }
 
         if (string.IsNullOrWhiteSpace(config.DefaultSwitchName))
