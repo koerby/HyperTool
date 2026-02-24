@@ -170,7 +170,7 @@ public sealed class HyperVPowerShellService : IHyperVService
 
             using var powerShell = PowerShell.Create();
 
-            var initialState = InitialSessionState.CreateDefault();
+            var initialState = InitialSessionState.CreateDefault2();
             using var runspace = RunspaceFactory.CreateRunspace(initialState);
             runspace.Open();
             powerShell.Runspace = runspace;
