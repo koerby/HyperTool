@@ -370,7 +370,7 @@
                             </Grid.ColumnDefinitions>
 
                             <TextBlock VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="Selected VM" />
-                            <TextBlock Grid.Column="2" VerticalAlignment="Center" Foreground="{StaticResource TextMuted}" Text="{Binding SelectedVmDisplayName}" />
+                            <TextBlock Grid.Column="2" VerticalAlignment="Center" Foreground="{StaticResource TextMuted}" Text="{Binding SelectedVmDisplayName, Mode=OneWay}" />
 
                             <TextBlock Grid.Column="4" VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="State" />
                             <TextBlock Grid.Column="6" VerticalAlignment="Center" Foreground="{StaticResource TextMuted}" Text="{Binding SelectedVmState}" />
@@ -410,7 +410,7 @@
                             <StackPanel Margin="4">
                                 <TextBlock Foreground="{StaticResource TextMuted}" TextWrapping="Wrap">
                                     <Run Text="Selected VM: " />
-                                    <Run Text="{Binding SelectedVmDisplayName}" />
+                                    <Run Text="{Binding SelectedVmDisplayName, Mode=OneWay}" />
                                     <Run Text=" | State: " />
                                     <Run Text="{Binding SelectedVmState}" />
                                     <Run Text=" | Current Switch: " />
