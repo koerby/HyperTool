@@ -26,6 +26,8 @@ public sealed class HyperToolConfig
 
     public UiSettings Ui { get; set; } = new();
 
+    public UpdateSettings Update { get; set; } = new();
+
     public static HyperToolConfig CreateDefault() => new();
 }
 
@@ -45,4 +47,17 @@ public sealed class UiSettings
     public bool StartMinimized { get; set; }
 
     public bool MinimizeToTray { get; set; } = true;
+
+    public bool EnableTrayIcon { get; set; } = true;
+
+    public bool StartWithWindows { get; set; }
+}
+
+public sealed class UpdateSettings
+{
+    public bool CheckOnStartup { get; set; } = true;
+
+    public string GitHubOwner { get; set; } = "koerby";
+
+    public string GitHubRepo { get; set; } = "hyperVswitcher";
 }

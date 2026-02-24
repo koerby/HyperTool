@@ -20,6 +20,13 @@
   "ui": {
     "windowTitle": "HyperTool",
     "startMinimized": false,
-    "minimizeToTray": true
+    "minimizeToTray": true,
+    "enableTrayIcon": true,
+    "startWithWindows": false
+  },
+  "update": {
+    "checkOnStartup": true,
+    "gitHubOwner": "koerby",
+    "gitHubRepo": "hyperVswitcher"
   }
 }

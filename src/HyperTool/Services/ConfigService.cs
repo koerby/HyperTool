@@ -201,10 +201,23 @@ public sealed class ConfigService : IConfigService
 
         config.Hns ??= new HnsSettings();
         config.Ui ??= new UiSettings();
+        config.Update ??= new UpdateSettings();
 
         if (string.IsNullOrWhiteSpace(config.Ui.WindowTitle))
         {
             config.Ui.WindowTitle = "HyperTool";
+            wasUpdated = true;
+        }
+
+        if (string.IsNullOrWhiteSpace(config.Update.GitHubOwner))
+        {
+            config.Update.GitHubOwner = "koerby";
+            wasUpdated = true;
+        }
+
+        if (string.IsNullOrWhiteSpace(config.Update.GitHubRepo))
+        {
+            config.Update.GitHubRepo = "hyperVswitcher";
             wasUpdated = true;
         }
 

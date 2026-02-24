@@ -4,6 +4,8 @@ using HyperTool.Models;
 using HyperTool.Services;
 using Serilog;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.Reflection;
 
 namespace HyperTool.ViewModels;
 
@@ -69,6 +71,30 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     private string _defaultVmName = string.Empty;
 
+    [ObservableProperty]
+    private bool _uiEnableTrayIcon = true;
+
+    [ObservableProperty]
+    private bool _uiStartWithWindows;
+
+    [ObservableProperty]
+    private bool _updateCheckOnStartup = true;
+
+    [ObservableProperty]
+    private string _githubOwner = "koerby";
+
+    [ObservableProperty]
+    private string _githubRepo = "hyperVswitcher";
+
+    [ObservableProperty]
+    private string _appVersion = "0.0.0";
+
+    [ObservableProperty]
+    private string _updateStatus = "Noch nicht geprüft";
+
+    [ObservableProperty]
+    private string _releaseUrl = string.Empty;
+
     public ObservableCollection<VmDefinition> AvailableVms { get; } = [];
 
     public ObservableCollection<HyperVSwitchInfo> AvailableSwitches { get; } = [];
@@ -127,21 +153,35 @@ public partial class MainViewModel : ViewModelBase
 
     public IAsyncRelayCommand RestartHnsCommand { get; }
 
+    public IAsyncRelayCommand CheckForUpdatesCommand { get; }
+
+    public IRelayCommand OpenReleasePageCommand { get; }
+
     private readonly IHyperVService _hyperVService;
     private readonly IHnsService _hnsService;
     private readonly IConfigService _configService;
+    private readonly IStartupService _startupService;
+    private readonly IUpdateService _updateService;
     private readonly string _configPath;
 
     private readonly CancellationTokenSource _lifetimeCancellation = new();
 
-    public MainViewModel(ConfigLoadResult configResult, IHyperVService hyperVService, IHnsService hnsService, IConfigService configService)
+    public MainViewModel(
+        ConfigLoadResult configResult,
+        IHyperVService hyperVService,
+        IHnsService hnsService,
+        IConfigService configService,
+        IStartupService startupService,
+        IUpdateService updateService)
     {
         _hyperVService = hyperVService;
         _hnsService = hnsService;
         _configService = configService;
+        _startupService = startupService;
+        _updateService = updateService;
         _configPath = configResult.ConfigPath;
 
-        WindowTitle = configResult.Config.Ui.WindowTitle;
+        WindowTitle = "HyperTool";
         DefaultVmName = configResult.Config.DefaultVmName;
         DefaultSwitchName = configResult.Config.DefaultSwitchName;
         VmConnectComputerName = configResult.Config.VmConnectComputerName;
@@ -149,6 +189,13 @@ public partial class MainViewModel : ViewModelBase
         HnsEnabled = configResult.Config.Hns.Enabled;
         HnsAutoRestartAfterDefaultSwitch = configResult.Config.Hns.AutoRestartAfterDefaultSwitch;
         HnsAutoRestartAfterAnyConnect = configResult.Config.Hns.AutoRestartAfterAnyConnect;
+        UiEnableTrayIcon = configResult.Config.Ui.EnableTrayIcon;
+        UiStartWithWindows = configResult.Config.Ui.StartWithWindows;
+        UpdateCheckOnStartup = configResult.Config.Update.CheckOnStartup;
+        GithubOwner = configResult.Config.Update.GitHubOwner;
+        GithubRepo = configResult.Config.Update.GitHubRepo;
+        AppVersion = ResolveAppVersion();
+        UpdateStatus = "Noch nicht geprüft";
 
         foreach (var vm in configResult.Config.Vms)
         {
@@ -198,6 +245,8 @@ public partial class MainViewModel : ViewModelBase
         SaveConfigCommand = new AsyncRelayCommand(SaveConfigAsync, () => !IsBusy);
         ReloadConfigCommand = new AsyncRelayCommand(ReloadConfigAsync, () => !IsBusy);
         RestartHnsCommand = new AsyncRelayCommand(RestartHnsAsync, () => !IsBusy);
+        CheckForUpdatesCommand = new AsyncRelayCommand(CheckForUpdatesAsync, () => !IsBusy);
+        OpenReleasePageCommand = new RelayCommand(OpenReleasePage);
 
         StartDefaultVmCommand = new AsyncRelayCommand(StartDefaultVmAsync, () => !IsBusy);
         StopDefaultVmCommand = new AsyncRelayCommand(StopDefaultVmAsync, () => !IsBusy);
@@ -239,6 +288,7 @@ public partial class MainViewModel : ViewModelBase
         SaveConfigCommand.NotifyCanExecuteChanged();
         ReloadConfigCommand.NotifyCanExecuteChanged();
         RestartHnsCommand.NotifyCanExecuteChanged();
+        CheckForUpdatesCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnSelectedVmChanged(VmDefinition? value)
@@ -282,6 +332,11 @@ public partial class MainViewModel : ViewModelBase
         await LoadSwitchesAsync();
         await RefreshVmStatusAsync();
         await LoadCheckpointsAsync();
+
+        if (UpdateCheckOnStartup)
+        {
+            await CheckForUpdatesAsync();
+        }
     }
 
     private async Task StartSelectedVmAsync()
@@ -668,14 +723,29 @@ public partial class MainViewModel : ViewModelBase
                 },
                 Ui = new UiSettings
                 {
-                    WindowTitle = WindowTitle,
+                    WindowTitle = "HyperTool",
                     StartMinimized = false,
-                    MinimizeToTray = true
+                    MinimizeToTray = true,
+                    EnableTrayIcon = UiEnableTrayIcon,
+                    StartWithWindows = UiStartWithWindows
+                },
+                Update = new UpdateSettings
+                {
+                    CheckOnStartup = UpdateCheckOnStartup,
+                    GitHubOwner = GithubOwner,
+                    GitHubRepo = GithubRepo
                 }
             };
 
             if (_configService.TrySave(_configPath, config, out var errorMessage))
             {
+                var executablePath = Environment.ProcessPath ?? string.Empty;
+                if (!string.IsNullOrWhiteSpace(executablePath)
+                    && !_startupService.SetStartWithWindows(UiStartWithWindows, "HyperTool", executablePath, out var startupError))
+                {
+                    AddNotification($"Autostart konnte nicht gesetzt werden: {startupError}", "Warning");
+                }
+
                 AddNotification("Konfiguration gespeichert.", "Success");
             }
             else
@@ -798,12 +868,17 @@ public partial class MainViewModel : ViewModelBase
             var config = configResult.Config;
             var previousSelectionName = SelectedVm?.Name;
 
-            WindowTitle = config.Ui.WindowTitle;
+            WindowTitle = "HyperTool";
             ConfigurationNotice = configResult.Notice;
             HnsEnabled = config.Hns.Enabled;
             HnsAutoRestartAfterDefaultSwitch = config.Hns.AutoRestartAfterDefaultSwitch;
             HnsAutoRestartAfterAnyConnect = config.Hns.AutoRestartAfterAnyConnect;
             DefaultVmName = config.DefaultVmName;
+            UiEnableTrayIcon = config.Ui.EnableTrayIcon;
+            UiStartWithWindows = config.Ui.StartWithWindows;
+            UpdateCheckOnStartup = config.Update.CheckOnStartup;
+            GithubOwner = config.Update.GitHubOwner;
+            GithubRepo = config.Update.GitHubRepo;
 
             AvailableVms.Clear();
             foreach (var vm in config.Vms)
@@ -841,6 +916,65 @@ public partial class MainViewModel : ViewModelBase
         });
 
         await LoadSwitchesAsync();
+    }
+
+    private async Task CheckForUpdatesAsync()
+    {
+        await ExecuteBusyActionAsync("Prüfe GitHub-Version...", async token =>
+        {
+            var result = await _updateService.CheckForUpdateAsync(
+                GithubOwner,
+                GithubRepo,
+                AppVersion,
+                token);
+
+            UpdateStatus = result.Message;
+            ReleaseUrl = result.ReleaseUrl ?? string.Empty;
+
+            if (!result.Success)
+            {
+                AddNotification(result.Message, "Warning");
+                return;
+            }
+
+            AddNotification(result.Message, result.HasUpdate ? "Success" : "Info");
+        });
+    }
+
+    private void OpenReleasePage()
+    {
+        if (string.IsNullOrWhiteSpace(ReleaseUrl))
+        {
+            AddNotification("Keine Release-URL verfügbar.", "Warning");
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = ReleaseUrl,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            AddNotification($"Release-Seite konnte nicht geöffnet werden: {ex.Message}", "Error");
+        }
+    }
+
+    private static string ResolveAppVersion()
+    {
+        var informationalVersion = Assembly.GetExecutingAssembly()
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion;
+
+        if (!string.IsNullOrWhiteSpace(informationalVersion))
+        {
+            return informationalVersion;
+        }
+
+        return Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0";
     }
 
     private async Task ExecuteBusyActionAsync(string busyText, Func<CancellationToken, Task> action, bool showNotificationOnErrorOnly = false)

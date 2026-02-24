@@ -8,12 +8,16 @@ set "CONFIG=Release"
 set "RUNTIME=win-x64"
 set "SELF_CONTAINED=true"
 set "NO_PAUSE=false"
+set "VERSION=1.0.0"
 
 for %%A in (%*) do (
     if /I "%%~A"=="self-contained" set "SELF_CONTAINED=true"
     if /I "%%~A"=="framework-dependent" set "SELF_CONTAINED=false"
     if /I "%%~A"=="no-pause" set "NO_PAUSE=true"
+    echo %%~A | findstr /I /B "version=" >nul && set "VERSION=%%~A"
 )
+
+for /f "tokens=1,* delims==" %%K in ("%VERSION%") do set "VERSION=%%L"
 
 echo ==========================================
 echo HyperTool Build Script
@@ -21,6 +25,7 @@ echo ROOT: %ROOT%
 echo CONFIG: %CONFIG%
 echo RUNTIME: %RUNTIME%
 echo SELF_CONTAINED: %SELF_CONTAINED%
+echo VERSION: %VERSION%
 echo ==========================================
 echo.
 
@@ -29,7 +34,7 @@ dotnet restore HyperTool.sln
 if errorlevel 1 goto :fail
 
 echo [2/4] Build...
-dotnet build HyperTool.sln -c %CONFIG% --no-restore
+dotnet build HyperTool.sln -c %CONFIG% --no-restore /p:Version=%VERSION% /p:FileVersion=%VERSION% /p:AssemblyVersion=%VERSION% /p:InformationalVersion=%VERSION%
 if errorlevel 1 goto :fail
 
 set "DIST_DIR=%ROOT%dist\HyperTool"
@@ -37,7 +42,7 @@ if exist "%DIST_DIR%" rmdir /s /q "%DIST_DIR%"
 mkdir "%DIST_DIR%"
 
 echo [3/4] Publish to dist...
-dotnet publish src\HyperTool\HyperTool.csproj -c %CONFIG% -r %RUNTIME% --self-contained %SELF_CONTAINED% -o "%DIST_DIR%"
+dotnet publish src\HyperTool\HyperTool.csproj -c %CONFIG% -r %RUNTIME% --self-contained %SELF_CONTAINED% -o "%DIST_DIR%" /p:Version=%VERSION% /p:FileVersion=%VERSION% /p:AssemblyVersion=%VERSION% /p:InformationalVersion=%VERSION%
 if errorlevel 1 goto :fail
 
 echo [4/4] Copy default config...
@@ -58,6 +63,8 @@ echo Hinweis: Fuer self-contained Build starte mit:
 echo build.bat self-contained
 echo Fuer framework-dependent Build:
 echo build.bat framework-dependent
+echo Fuer eine eigene Version:
+echo build.bat version=1.2.3
 
 if /I "%NO_PAUSE%"=="false" pause
 goto :success

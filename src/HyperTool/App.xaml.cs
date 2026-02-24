@@ -40,20 +40,32 @@ public partial class App : System.Windows.Application
 			IConfigService configService = new ConfigService();
 			IHyperVService hyperVService = new HyperVPowerShellService();
 			IHnsService hnsService = new HnsService();
+			IStartupService startupService = new StartupService();
+			IUpdateService updateService = new GitHubUpdateService();
 			var configPath = Path.Combine(AppContext.BaseDirectory, "HyperTool.config.json");
 			var configResult = configService.LoadOrCreate(configPath);
+			var uiConfig = configResult.Config.Ui;
 
-			var mainViewModel = new MainViewModel(configResult, hyperVService, hnsService, configService);
+			if (!startupService.SetStartWithWindows(uiConfig.StartWithWindows, "HyperTool", Environment.ProcessPath ?? string.Empty, out var startupError)
+				&& !string.IsNullOrWhiteSpace(startupError))
+			{
+				Log.Warning("Could not apply startup setting: {StartupError}", startupError);
+			}
+
+			var mainViewModel = new MainViewModel(configResult, hyperVService, hnsService, configService, startupService, updateService);
 			var mainWindow = new MainWindow
 			{
 				DataContext = mainViewModel
 			};
 
-			TryInitializeTray(mainWindow, mainViewModel);
+			if (uiConfig.EnableTrayIcon)
+			{
+				TryInitializeTray(mainWindow, mainViewModel);
+			}
 
 			mainWindow.StateChanged += (_, _) =>
 			{
-				if (mainWindow.WindowState == WindowState.Minimized)
+				if (uiConfig.EnableTrayIcon && uiConfig.MinimizeToTray && mainWindow.WindowState == WindowState.Minimized)
 				{
 					mainWindow.Hide();
 				}
@@ -62,6 +74,11 @@ public partial class App : System.Windows.Application
 			mainWindow.Closing += (_, args) =>
 			{
 				if (_isExitRequested)
+				{
+					return;
+				}
+
+				if (!uiConfig.EnableTrayIcon || !uiConfig.MinimizeToTray)
 				{
 					return;
 				}
