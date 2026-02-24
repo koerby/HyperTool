@@ -11,17 +11,18 @@ public sealed class HyperVPowerShellService : IHyperVService
     public async Task<IReadOnlyList<HyperVVmInfo>> GetVmsAsync(CancellationToken cancellationToken)
     {
         const string script = """
-            Get-VM | ForEach-Object {
-                $adapter = Get-VMNetworkAdapter -VMName $_.Name -ErrorAction SilentlyContinue | Select-Object -First 1
+            @(
+                Get-VM | ForEach-Object {
+                    $adapter = Get-VMNetworkAdapter -VMName $_.Name -ErrorAction SilentlyContinue | Select-Object -First 1
 
-                [pscustomobject]@{
-                    Name = $_.Name
-                    State = $_.State.ToString()
-                    Status = $_.Status
-                    CurrentSwitchName = if ($null -ne $adapter -and $null -ne $adapter.SwitchName) { $adapter.SwitchName } else { '' }
+                    [pscustomobject]@{
+                        Name = $_.Name
+                        State = $_.State.ToString()
+                        Status = $_.Status
+                        CurrentSwitchName = if ($null -ne $adapter -and $null -ne $adapter.SwitchName) { $adapter.SwitchName } else { '' }
+                    }
                 }
-            }
-            | ConvertTo-Json -Depth 4 -Compress
+            ) | ConvertTo-Json -Depth 4 -Compress
             """;
 
         var rows = await InvokeJsonArrayAsync(script, cancellationToken);
@@ -49,8 +50,7 @@ public sealed class HyperVPowerShellService : IHyperVService
     public async Task<IReadOnlyList<HyperVSwitchInfo>> GetVmSwitchesAsync(CancellationToken cancellationToken)
     {
         const string script = """
-            Get-VMSwitch | Select-Object Name, SwitchType
-            | ConvertTo-Json -Depth 3 -Compress
+            @(Get-VMSwitch | Select-Object Name, SwitchType) | ConvertTo-Json -Depth 3 -Compress
             """;
 
         var rows = await InvokeJsonArrayAsync(script, cancellationToken);
@@ -74,8 +74,7 @@ public sealed class HyperVPowerShellService : IHyperVService
     public async Task<IReadOnlyList<HyperVCheckpointInfo>> GetCheckpointsAsync(string vmName, CancellationToken cancellationToken)
     {
         var script = $"""
-            Get-VMCheckpoint -VMName {ToPsSingleQuoted(vmName)} | Select-Object Name, CreationTime, CheckpointType
-            | ConvertTo-Json -Depth 4 -Compress
+            @(Get-VMCheckpoint -VMName {ToPsSingleQuoted(vmName)} | Select-Object Name, CreationTime, CheckpointType) | ConvertTo-Json -Depth 4 -Compress
             """;
 
         var rows = await InvokeJsonArrayAsync(script, cancellationToken);
