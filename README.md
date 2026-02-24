@@ -1,100 +1,102 @@
 # HyperTool
 
-Windows-WPF-Tool zur Verwaltung mehrerer Hyper-V VMs mit Tray-Integration.
+HyperTool ist eine Windows WPF Anwendung zur Steuerung von Hyper-V VMs (Start, Stop, Hard Off, Restart, Konsole, Switch Connect/Disconnect, Snapshots) mit MVVM, Tray-Integration und Logging.
+
+## UI Stack
+
+- Framework: WPF (.NET 8)
+- UI Library: MahApps.Metro (Fensterbasis und Controls)
+- Zusätzlich: eigene WPF Styles/Templates für Dark UI
+
+Hinweis: Es wird aktuell nicht WPF-UI und nicht MaterialDesignInXaml verwendet.
 
 ## Voraussetzungen
 
-- Windows 11
-- Hyper-V Feature installiert
-- Hyper-V PowerShell Modul verfügbar (`Get-VM` muss in PowerShell funktionieren)
-- .NET SDK 8.x installiert
-- Für VM-Operationen: Benutzer mit ausreichenden Hyper-V-Rechten
+- Windows 10/11 mit aktiviertem Hyper-V
+- PowerShell mit funktionierendem Hyper-V Modul (Get-VM muss laufen)
+- .NET SDK 8.x für Entwicklung
+- Für VM-Aktionen: Nutzer mit Hyper-V Berechtigungen
 
 ## Projektstruktur
 
-- `HyperTool.sln` – Solution
-- `src/HyperTool` – WPF App (.NET 8)
-- `HyperTool.config.json` – Konfiguration im Programmordner
-- `build.bat` – Build/Publish nach `dist/HyperTool`
+- HyperTool.sln
+- src/HyperTool (WPF App)
+- HyperTool.config.json (Runtime Konfiguration)
+- build.bat (Build/Publish nach dist/HyperTool)
 
 ## Konfiguration
 
-Die Datei `HyperTool.config.json` liegt im Projektroot und wird beim Publish nach `dist/HyperTool` kopiert.
+Datei: HyperTool.config.json
 
-Aktueller Demo-Inhalt:
+Wichtige Felder:
 
-- Default VM: `DER005Z085000_W10_FS20`
-- VMs:
-	- `DER005Z085000_W10_FS20` (`FS20`)
-	- `DER005Z054370_W10_XWP_v6.3SP3_ABT_v6.0_MR2025_03` (`XWP/ABT MR2025_03`)
-- Default Switch: `Default Switch`
+- defaultVmName: optionale Default VM
+- lastSelectedVmName: zuletzt gewählte VM (wird vom UI persistiert)
+- defaultSwitchName: Name des bevorzugten Hyper-V Switches
+- vmConnectComputerName: Zielhost für vmconnect
+- hns: HNS Verhalten
+- ui: Tray/Autostart Optionen
+- update: GitHub Updateprüfung
 
-## Lokal starten (Entwicklung)
+Hinweis: VMs werden zur Laufzeit aus Hyper-V geladen (Auto-Discovery), nicht manuell in der Config gepflegt.
+
+## Entwicklung starten
 
 Im Projektordner:
 
-1. `dotnet restore HyperTool.sln`
-2. `dotnet build HyperTool.sln -c Debug`
-3. `dotnet run --project src/HyperTool/HyperTool.csproj`
+1. dotnet restore HyperTool.sln
+2. dotnet build HyperTool.sln -c Debug
+3. dotnet run --project src/HyperTool/HyperTool.csproj
 
-## Exakten Build bei dir erstellen (empfohlen)
+## Build und Publish
 
-### Standard (empfohlen) – Self-contained
+Standard (self-contained):
 
-Im Projektordner in `cmd.exe` oder PowerShell:
+- build.bat
 
-`build.bat`
+Optionen:
 
-Ergebnis liegt danach in:
+- build.bat framework-dependent
+- build.bat no-pause
+- build.bat self-contained no-pause
 
-`dist\HyperTool`
+Ausgabe: dist/HyperTool
 
-### Variante – Framework-dependent (kleiner)
+## Notifications Panel (Collapsible Log)
 
-`build.bat framework-dependent`
+Aktuelles Verhalten:
 
-### Optional ohne Pause im Script
+- Standardzustand eingeklappt
+- Eingeklappt: Überschrift + letzte Notification (oder Keine Notifications)
+- Aufgeklappt: scrollbare Liste aller Notifications
+- Optionalaktionen im Expanded State: Copy, Clear
 
-`build.bat no-pause`
+### UI Smoke-Check
 
-oder kombiniert:
+1. App starten: Log ist eingeklappt.
+2. Aktion ausführen (z. B. Refresh): letzte Notification Zeile aktualisiert sich.
+3. Log ausklappen: komplette Liste erscheint.
+4. Liste bei vielen Einträgen scrollt vertikal.
+5. Copy kopiert alle Einträge, Clear leert die Liste.
+6. Log einklappen: Listencontainer ist ausgeblendet.
 
-`build.bat self-contained no-pause`
+## Logs und Fehleranalyse
 
-## Falls beim Start "nichts passiert"
+Primärpfad:
 
-Prüfe diese Punkte:
+- dist/HyperTool/logs
 
-1. Starte aus `dist\HyperTool` (nicht aus einem schreibgeschützten Ordner wie `Program Files`).
-2. Prüfe Logdateien:
-	- `dist\HyperTool\logs\`
-	- oder Fallback: `%LOCALAPPDATA%\HyperTool\logs\`
-3. Starte testweise in einer PowerShell aus `dist\HyperTool`:
-	- `./HyperTool.exe`
-4. Falls Framework-dependent gebaut wurde, muss die .NET 8 Desktop Runtime installiert sein.
+Fallback:
 
-## Wie du prüfst, ob Build sauber durchlief
+- %LOCALAPPDATA%/HyperTool/logs
 
-Das Script zeigt am Ende explizit:
+Wenn die App scheinbar nicht startet:
 
-- `SUCCESS: Build und Publish abgeschlossen.`
-- den Zielpfad
-- eine Dateiliste aus `dist\HyperTool`
+1. Aus dist/HyperTool starten.
+2. Logs prüfen.
+3. In PowerShell testweise HyperTool.exe starten.
 
-Zusätzlich wird geprüft, ob `dist\HyperTool\HyperTool.exe` existiert.
+## Rechte
 
-## Dist-Ordner mitnehmen
-
-Du kannst den kompletten Ordner `dist\HyperTool` kopieren und auf ein anderes System mitnehmen.
-
-Wichtig:
-
-- `HyperTool.exe`
-- `HyperTool.config.json`
-- alle mitpublizierten `.dll`-Dateien
-
-## Hinweise zu Rechten
-
-- App startet ohne Admin.
-- Hyper-V-Befehle können je nach Umgebung erhöhte Rechte oder Mitgliedschaft in passenden Gruppen verlangen.
-- Wenn `Get-VM` in PowerShell nicht funktioniert, kann die App keine VM-Daten laden.
+- App selbst läuft ohne Admin.
+- Einzelne Hyper-V oder HNS Aktionen können erhöhte Rechte benötigen.
