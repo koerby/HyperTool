@@ -113,9 +113,37 @@ public sealed class ConfigService : IConfigService
             wasUpdated = true;
             notices.Add("VM-Liste war leer und wurde mit Beispieldaten ergänzt.");
         }
+        else
+        {
+            var normalizedVms = config.Vms
+                .Where(vm => vm is not null)
+                .Select(vm => new VmDefinition
+                {
+                    Name = vm.Name?.Trim() ?? string.Empty,
+                    Label = vm.Label?.Trim() ?? string.Empty
+                })
+                .Where(vm => !string.IsNullOrWhiteSpace(vm.Name))
+                .ToList();
+
+            if (normalizedVms.Count != config.Vms.Count)
+            {
+                wasUpdated = true;
+            }
+
+            config.Vms = normalizedVms;
+        }
+
+        if (config.Vms.Count == 0)
+        {
+            config.Vms = HyperToolConfig.CreateDefault().Vms;
+            wasUpdated = true;
+            notices.Add("Ungültige VM-Einträge wurden entfernt; Beispiele wurden ergänzt.");
+        }
 
         foreach (var vm in config.Vms)
         {
+            vm.Name = vm.Name?.Trim() ?? string.Empty;
+
             if (string.IsNullOrWhiteSpace(vm.Label))
             {
                 vm.Label = vm.Name;
@@ -123,7 +151,9 @@ public sealed class ConfigService : IConfigService
             }
         }
 
-        var vmExists = config.Vms.Any(vm => vm.Name.Equals(config.DefaultVmName, StringComparison.OrdinalIgnoreCase));
+        config.DefaultVmName = config.DefaultVmName?.Trim() ?? string.Empty;
+
+        var vmExists = config.Vms.Any(vm => string.Equals(vm.Name, config.DefaultVmName, StringComparison.OrdinalIgnoreCase));
         if (!vmExists)
         {
             config.DefaultVmName = config.Vms[0].Name;

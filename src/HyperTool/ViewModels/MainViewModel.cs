@@ -109,11 +109,20 @@ public partial class MainViewModel : ViewModelBase
 
         foreach (var vm in configResult.Config.Vms)
         {
-            AvailableVms.Add(vm);
+            if (vm is null || string.IsNullOrWhiteSpace(vm.Name))
+            {
+                continue;
+            }
+
+            AvailableVms.Add(new VmDefinition
+            {
+                Name = vm.Name,
+                Label = string.IsNullOrWhiteSpace(vm.Label) ? vm.Name : vm.Label
+            });
         }
 
         SelectedVm = AvailableVms.FirstOrDefault(vm =>
-            vm.Name.Equals(configResult.Config.DefaultVmName, StringComparison.OrdinalIgnoreCase))
+            string.Equals(vm.Name, configResult.Config.DefaultVmName, StringComparison.OrdinalIgnoreCase))
             ?? AvailableVms.FirstOrDefault();
 
         if (configResult.IsGenerated)
@@ -274,7 +283,7 @@ public partial class MainViewModel : ViewModelBase
                 AvailableSwitches.Add(vmSwitch);
             }
 
-            SelectedSwitch = AvailableSwitches.FirstOrDefault(item => item.Name.Equals(DefaultSwitchName, StringComparison.OrdinalIgnoreCase))
+            SelectedSwitch = AvailableSwitches.FirstOrDefault(item => string.Equals(item.Name, DefaultSwitchName, StringComparison.OrdinalIgnoreCase))
                              ?? AvailableSwitches.FirstOrDefault();
 
             AddNotification($"{AvailableSwitches.Count} Switch(es) geladen.", "Info");
@@ -308,7 +317,7 @@ public partial class MainViewModel : ViewModelBase
 
     private async Task ConnectDefaultVmAsync()
     {
-        var targetVm = AvailableVms.FirstOrDefault(vm => vm.Name.Equals(DefaultVmName, StringComparison.OrdinalIgnoreCase))?.Name
+        var targetVm = AvailableVms.FirstOrDefault(vm => string.Equals(vm.Name, DefaultVmName, StringComparison.OrdinalIgnoreCase))?.Name
                        ?? SelectedVm?.Name
                        ?? AvailableVms.FirstOrDefault()?.Name;
         if (string.IsNullOrWhiteSpace(targetVm))
@@ -327,7 +336,7 @@ public partial class MainViewModel : ViewModelBase
 
     private async Task StartDefaultVmAsync()
     {
-        var targetVm = AvailableVms.FirstOrDefault(vm => vm.Name.Equals(DefaultVmName, StringComparison.OrdinalIgnoreCase))?.Name
+        var targetVm = AvailableVms.FirstOrDefault(vm => string.Equals(vm.Name, DefaultVmName, StringComparison.OrdinalIgnoreCase))?.Name
                        ?? SelectedVm?.Name
                        ?? AvailableVms.FirstOrDefault()?.Name;
         if (string.IsNullOrWhiteSpace(targetVm))
@@ -346,7 +355,7 @@ public partial class MainViewModel : ViewModelBase
 
     private async Task StopDefaultVmAsync()
     {
-        var targetVm = AvailableVms.FirstOrDefault(vm => vm.Name.Equals(DefaultVmName, StringComparison.OrdinalIgnoreCase))?.Name
+        var targetVm = AvailableVms.FirstOrDefault(vm => string.Equals(vm.Name, DefaultVmName, StringComparison.OrdinalIgnoreCase))?.Name
                        ?? SelectedVm?.Name
                        ?? AvailableVms.FirstOrDefault()?.Name;
         if (string.IsNullOrWhiteSpace(targetVm))
@@ -373,7 +382,7 @@ public partial class MainViewModel : ViewModelBase
         await ExecuteBusyActionAsync("VM-Status wird aktualisiert...", async token =>
         {
             var vms = await _hyperVService.GetVmsAsync(token);
-            var vmInfo = vms.FirstOrDefault(item => item.Name.Equals(SelectedVm.Name, StringComparison.OrdinalIgnoreCase));
+            var vmInfo = vms.FirstOrDefault(item => string.Equals(item.Name, SelectedVm.Name, StringComparison.OrdinalIgnoreCase));
             SelectedVmState = vmInfo?.State ?? "Unbekannt";
             SelectedVmCurrentSwitch = string.IsNullOrWhiteSpace(vmInfo?.CurrentSwitchName) ? "-" : vmInfo.CurrentSwitchName;
             StatusText = vmInfo is null ? "VM nicht gefunden" : $"{vmInfo.Name}: {vmInfo.State}";
