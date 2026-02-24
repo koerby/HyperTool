@@ -54,7 +54,7 @@
             <Setter Property="BorderBrush" Value="#35547F" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="4" />
-            <Setter Property="ItemContainerStyle" Value="{StaticResource ModernTabItemStyle}" />
+            <Setter Property="ItemContainerStyle" Value="{DynamicResource ModernTabItemStyle}" />
         </Style>
 
         <Style x:Key="ModernTabItemStyle" TargetType="TabItem">
