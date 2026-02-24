@@ -10,6 +10,7 @@ set "SELF_CONTAINED=true"
 set "NO_PAUSE=false"
 set "VERSION=1.0.0"
 set "VERSION_ARG="
+set "VERSION_PROMPT=Bitte Version eingeben (Default 1.0.0): "
 
 for %%A in (%*) do (
     if /I "%%~A"=="self-contained" set "SELF_CONTAINED=true"
@@ -23,7 +24,7 @@ if defined VERSION_ARG (
 )
 
 if not defined VERSION_ARG (
-    set /p VERSION=Bitte Version eingeben (Default 1.0.0): 
+    set /p "VERSION=!VERSION_PROMPT!"
 )
 
 if not defined VERSION set "VERSION=1.0.0"
