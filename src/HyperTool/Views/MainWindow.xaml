@@ -7,154 +7,162 @@
         mc:Ignorable="d"
         Title="{Binding WindowTitle}"
         Icon="/Assets/HyperTool.ico"
-        Width="1240"
-        Height="900"
-        MinWidth="980"
-        MinHeight="700"
+        Width="1300"
+        Height="920"
+        MinWidth="1040"
+        MinHeight="760"
         WindowStartupLocation="CenterScreen"
-        Background="#FF0B1220">
+        Background="#0B1220">
     <mah:MetroWindow.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
 
-        <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#FF141B2D" />
-        <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="#FFF6FAFF" />
-        <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#FF141B2D" />
-        <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="#FFF6FAFF" />
-        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#FF47C8FF" />
-        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FF04111E" />
-        <SolidColorBrush x:Key="{x:Static SystemColors.MenuBrushKey}" Color="#FF141B2D" />
-        <SolidColorBrush x:Key="{x:Static SystemColors.MenuTextBrushKey}" Color="#FFF6FAFF" />
-        <SolidColorBrush x:Key="{x:Static SystemColors.ControlLightBrushKey}" Color="#FF2A3B5F" />
-        <SolidColorBrush x:Key="{x:Static SystemColors.ControlDarkBrushKey}" Color="#FF0E1525" />
+        <SolidColorBrush x:Key="PageBackground" Color="#0A1220" />
+        <SolidColorBrush x:Key="PanelBackground" Color="#141E32" />
+        <SolidColorBrush x:Key="PanelBorder" Color="#2D4265" />
+        <SolidColorBrush x:Key="TextPrimary" Color="#F8FAFF" />
+        <SolidColorBrush x:Key="TextMuted" Color="#B9C8E6" />
+        <SolidColorBrush x:Key="Accent" Color="#39C3FF" />
+        <SolidColorBrush x:Key="AccentStrong" Color="#1DA7E5" />
 
-        <LinearGradientBrush x:Key="WindowGradient" StartPoint="0,0" EndPoint="1,1">
-            <GradientStop Color="#FF0A1328" Offset="0" />
-            <GradientStop Color="#FF152A4C" Offset="1" />
-        </LinearGradientBrush>
-
-        <Style TargetType="Border" x:Key="CardBorder">
+        <Style x:Key="CardBorder" TargetType="Border">
             <Setter Property="CornerRadius" Value="14" />
-            <Setter Property="Background" Value="#1A263F" />
+            <Setter Property="Background" Value="{StaticResource PanelBackground}" />
+            <Setter Property="BorderBrush" Value="{StaticResource PanelBorder}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="BorderBrush" Value="#334A71" />
         </Style>
 
-        <Style x:Key="ModernButton" TargetType="Button">
-            <Setter Property="Foreground" Value="#FFF9FAFB" />
-            <Setter Property="Background" Value="#203B61" />
-            <Setter Property="BorderBrush" Value="#4A78A8" />
+        <Style x:Key="ActionButton" TargetType="Button">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Background" Value="#264A76" />
+            <Setter Property="BorderBrush" Value="#4370A6" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="12,8" />
+            <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Margin" Value="0,0,10,0" />
-            <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
 
-        <Style x:Key="ModernTabControlStyle" TargetType="TabControl">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderBrush" Value="#35547F" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Padding" Value="4" />
-            <Setter Property="ItemContainerStyle" Value="{DynamicResource ModernTabItemStyle}" />
-        </Style>
-
-        <Style x:Key="ModernTabItemStyle" TargetType="TabItem">
-            <Setter Property="Foreground" Value="#FFDCE9FF" />
-            <Setter Property="Background" Value="#172742" />
-            <Setter Property="Padding" Value="14,8" />
-            <Setter Property="Margin" Value="0,0,6,0" />
-            <Setter Property="BorderBrush" Value="#35547F" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Style.Triggers>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#FF47C8FF" />
-                    <Setter Property="Foreground" Value="#FF04111E" />
-                    <Setter Property="BorderBrush" Value="#FF47C8FF" />
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style x:Key="ModernComboBoxItemStyle" TargetType="ComboBoxItem">
-            <Setter Property="Foreground" Value="#FFF7FAFF" />
-            <Setter Property="Background" Value="#141B2D" />
+        <Style x:Key="ReadableComboBoxItemStyle" TargetType="ComboBoxItem">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Background" Value="#111A2C" />
             <Setter Property="Padding" Value="10,6" />
-            <Setter Property="FontWeight" Value="SemiBold" />
             <Style.Triggers>
                 <Trigger Property="IsHighlighted" Value="True">
-                    <Setter Property="Background" Value="#305A86" />
-                    <Setter Property="Foreground" Value="#FFFFFFFF" />
+                    <Setter Property="Background" Value="#2B5E8D" />
                 </Trigger>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#47C8FF" />
-                    <Setter Property="Foreground" Value="#04111E" />
+                    <Setter Property="Background" Value="{StaticResource Accent}" />
+                    <Setter Property="Foreground" Value="#041321" />
                 </Trigger>
             </Style.Triggers>
         </Style>
 
-        <Style x:Key="ModernComboBoxStyle" TargetType="ComboBox">
-            <Setter Property="Foreground" Value="#FFF9FAFB" />
-            <Setter Property="Background" Value="#141B2D" />
-            <Setter Property="BorderBrush" Value="#4A78A8" />
+        <Style x:Key="ReadableComboBoxStyle" TargetType="ComboBox">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Background" Value="#111A2C" />
+            <Setter Property="BorderBrush" Value="#4D74A5" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Padding" Value="10,6" />
-            <Setter Property="ItemContainerStyle" Value="{StaticResource ModernComboBoxItemStyle}" />
+            <Setter Property="Padding" Value="8,4" />
+            <Setter Property="ItemContainerStyle" Value="{StaticResource ReadableComboBoxItemStyle}" />
+            <Style.Resources>
+                <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#111A2C" />
+                <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="#FFFFFF" />
+                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#39C3FF" />
+                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#041321" />
+                <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#111A2C" />
+                <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="#FFFFFF" />
+            </Style.Resources>
         </Style>
 
-        <Style x:Key="ModernTextBoxStyle" TargetType="TextBox">
-            <Setter Property="Foreground" Value="#FFF9FAFB" />
-            <Setter Property="Background" Value="#141B2D" />
-            <Setter Property="BorderBrush" Value="#4A78A8" />
+        <Style x:Key="ReadableTextBoxStyle" TargetType="TextBox">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Background" Value="#111A2C" />
+            <Setter Property="BorderBrush" Value="#4D74A5" />
+            <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="8,4" />
         </Style>
 
-        <Style x:Key="ModernListBoxStyle" TargetType="ListBox">
-            <Setter Property="Foreground" Value="#FFF9FAFB" />
-            <Setter Property="Background" Value="#141B2D" />
-            <Setter Property="BorderBrush" Value="#35547F" />
+        <Style x:Key="ReadableListBoxStyle" TargetType="ListBox">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Background" Value="#111A2C" />
+            <Setter Property="BorderBrush" Value="#36547E" />
             <Setter Property="BorderThickness" Value="1" />
         </Style>
 
-        <Style x:Key="ModernListBoxItemStyle" TargetType="ListBoxItem">
-            <Setter Property="Foreground" Value="#FFF9FAFB" />
+        <Style x:Key="ReadableListBoxItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Foreground" Value="White" />
             <Setter Property="Background" Value="Transparent" />
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#305A86" />
+                    <Setter Property="Background" Value="#274B72" />
                 </Trigger>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#FF47C8FF" />
-                    <Setter Property="Foreground" Value="#FF04111E" />
+                    <Setter Property="Background" Value="{StaticResource Accent}" />
+                    <Setter Property="Foreground" Value="#041321" />
                 </Trigger>
             </Style.Triggers>
         </Style>
 
-        <Style TargetType="GroupBox">
-            <Setter Property="Foreground" Value="#FFE6EEFF" />
-            <Setter Property="BorderBrush" Value="#3C5D8A" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Padding" Value="8" />
+        <Style x:Key="HiddenTabControlStyle" TargetType="TabControl">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabControl">
+                        <Grid KeyboardNavigation.TabNavigation="Local">
+                            <ContentPresenter ContentSource="SelectedContent" />
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
-        <Style TargetType="CheckBox">
-            <Setter Property="Foreground" Value="#FFE6EEFF" />
+        <Style x:Key="NavListBoxStyle" TargetType="ListBox">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+
+        <Style x:Key="NavListBoxItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Margin" Value="0,0,0,8" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="NavBorder"
+                                CornerRadius="10"
+                                Background="Transparent"
+                                BorderBrush="Transparent"
+                                BorderThickness="1"
+                                Padding="10">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="NavBorder" Property="Background" Value="#1F3555" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="NavBorder" Property="Background" Value="#2E507C" />
+                                <Setter TargetName="NavBorder" Property="BorderBrush" Value="{StaticResource Accent}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </mah:MetroWindow.Resources>
 
-    <Grid Margin="20" Background="{StaticResource WindowGradient}">
+    <Grid Margin="18" Background="{StaticResource PageBackground}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="16" />
+            <RowDefinition Height="12" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="16" />
-            <RowDefinition Height="2*" />
-            <RowDefinition Height="16" />
+            <RowDefinition Height="12" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="16" />
+            <RowDefinition Height="12" />
+            <RowDefinition Height="220" />
+            <RowDefinition Height="12" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0"
-                Padding="16"
-            Style="{StaticResource CardBorder}">
+        <Border Grid.Row="0" Style="{StaticResource CardBorder}" Padding="14">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -162,496 +170,366 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel>
-                    <TextBlock FontSize="22"
-                               FontWeight="SemiBold"
-                               Foreground="#FFF9FAFB"
-                               Text="HyperTool" />
-                    <TextBlock Margin="0,6,0,0"
-                               Foreground="#FFD1D5DB"
-                               FontSize="12"
-                               Text="dein nützlicher Hyper V Helfer" />
+                    <TextBlock Foreground="{StaticResource TextPrimary}" FontSize="24" FontWeight="SemiBold" Text="HyperTool" />
+                    <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="dein nützlicher Hyper V Helfer" />
                 </StackPanel>
 
-                <Border Grid.Column="1"
-                        Padding="10,6"
-                        CornerRadius="6"
-                        VerticalAlignment="Center"
-                    Background="#FF35B7FF">
-                    <TextBlock Foreground="White"
-                               FontWeight="SemiBold"
-                               Text="{Binding StatusText}" />
+                <Border Grid.Column="1" Padding="10,6" CornerRadius="8" Background="{StaticResource AccentStrong}">
+                    <TextBlock Foreground="White" FontWeight="SemiBold" Text="{Binding StatusText}" />
                 </Border>
             </Grid>
         </Border>
 
         <Border Grid.Row="2"
-                Padding="12"
-                CornerRadius="8"
-                Background="#FF7C2D12"
-                BorderThickness="1"
-                BorderBrush="#FF9A3412"
+                Style="{StaticResource CardBorder}"
+                Padding="10"
                 Visibility="{Binding HasConfigurationNotice, Converter={StaticResource BooleanToVisibilityConverter}}">
-            <TextBlock Foreground="#FFFFEDD5"
-                       TextWrapping="Wrap"
-                       Text="{Binding ConfigurationNotice}" />
+            <TextBlock Foreground="#FFEEC9A6" TextWrapping="Wrap" Text="{Binding ConfigurationNotice}" />
         </Border>
 
-        <Border Grid.Row="4"
-                Padding="16"
-            Style="{StaticResource CardBorder}">
-            <StackPanel>
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="80" />
-                        <ColumnDefinition Width="16" />
-                        <ColumnDefinition Width="290" />
-                        <ColumnDefinition Width="16" />
-                        <ColumnDefinition Width="60" />
-                        <ColumnDefinition Width="8" />
-                        <ColumnDefinition Width="130" />
-                        <ColumnDefinition Width="16" />
-                        <ColumnDefinition Width="60" />
-                        <ColumnDefinition Width="8" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
+        <Border Grid.Row="4" Style="{StaticResource CardBorder}" Padding="12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="88" />
+                    <ColumnDefinition Width="12" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
 
-                    <TextBlock VerticalAlignment="Center"
-                               Foreground="#FFF9FAFB"
-                               FontWeight="SemiBold"
-                               Text="VM:" />
+                <Border Grid.Column="0" CornerRadius="12" Background="#10192B" BorderBrush="#2D4265" BorderThickness="1" Padding="8">
+                    <ListBox Style="{StaticResource NavListBoxStyle}"
+                             ItemContainerStyle="{StaticResource NavListBoxItemStyle}"
+                             SelectedIndex="{Binding SelectedMenuIndex, Mode=TwoWay}">
+                        <ListBoxItem>
+                            <StackPanel HorizontalAlignment="Center">
+                                <TextBlock Text="▶" Foreground="{StaticResource Accent}" FontSize="20" HorizontalAlignment="Center" />
+                                <TextBlock Text="Start" Foreground="{StaticResource TextMuted}" FontSize="11" HorizontalAlignment="Center" />
+                            </StackPanel>
+                        </ListBoxItem>
+                        <ListBoxItem>
+                            <StackPanel HorizontalAlignment="Center">
+                                <TextBlock Text="⇆" Foreground="{StaticResource Accent}" FontSize="20" HorizontalAlignment="Center" />
+                                <TextBlock Text="Network" Foreground="{StaticResource TextMuted}" FontSize="11" HorizontalAlignment="Center" />
+                            </StackPanel>
+                        </ListBoxItem>
+                        <ListBoxItem>
+                            <StackPanel HorizontalAlignment="Center">
+                                <TextBlock Text="◷" Foreground="{StaticResource Accent}" FontSize="20" HorizontalAlignment="Center" />
+                                <TextBlock Text="Snaps" Foreground="{StaticResource TextMuted}" FontSize="11" HorizontalAlignment="Center" />
+                            </StackPanel>
+                        </ListBoxItem>
+                        <ListBoxItem>
+                            <StackPanel HorizontalAlignment="Center">
+                                <TextBlock Text="⚙" Foreground="{StaticResource Accent}" FontSize="20" HorizontalAlignment="Center" />
+                                <TextBlock Text="Config" Foreground="{StaticResource TextMuted}" FontSize="11" HorizontalAlignment="Center" />
+                            </StackPanel>
+                        </ListBoxItem>
+                        <ListBoxItem>
+                            <StackPanel HorizontalAlignment="Center">
+                                <TextBlock Text="ⓘ" Foreground="{StaticResource Accent}" FontSize="20" HorizontalAlignment="Center" />
+                                <TextBlock Text="Info" Foreground="{StaticResource TextMuted}" FontSize="11" HorizontalAlignment="Center" />
+                            </StackPanel>
+                        </ListBoxItem>
+                    </ListBox>
+                </Border>
 
-                    <ComboBox Grid.Column="2"
-                              Style="{StaticResource ModernComboBoxStyle}"
-                              DisplayMemberPath="Label"
-                              SelectedItem="{Binding SelectedVm}"
-                              ItemsSource="{Binding AvailableVms}" />
+                <Grid Grid.Column="2">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="12" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Column="4"
-                               VerticalAlignment="Center"
-                               Foreground="#FFF9FAFB"
-                               FontWeight="SemiBold"
-                               Text="State" />
-
-                    <TextBlock Grid.Column="6"
-                               VerticalAlignment="Center"
-                               Foreground="#FFD1D5DB"
-                               Text="{Binding SelectedVmState}" />
-
-                    <TextBlock Grid.Column="8"
-                               VerticalAlignment="Center"
-                               Foreground="#FFF9FAFB"
-                               FontWeight="SemiBold"
-                               Text="Switch" />
-
-                    <TextBlock Grid.Column="10"
-                               VerticalAlignment="Center"
-                               Foreground="#FFD1D5DB"
-                               Text="{Binding SelectedVmCurrentSwitch}" />
-                </Grid>
-
-                <TabControl Margin="0,14,0,0" Style="{StaticResource ModernTabControlStyle}">
-                    <TabItem Header="Start/Console">
-                        <Grid Margin="10">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="14" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
+                    <Border Grid.Row="0" CornerRadius="12" Background="#10192B" BorderBrush="#2D4265" BorderThickness="1" Padding="12">
+                        <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="70" />
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="300" />
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="54" />
+                                <ColumnDefinition Width="8" />
+                                <ColumnDefinition Width="130" />
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="54" />
+                                <ColumnDefinition Width="8" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
 
-                                <Button Grid.Row="0" Grid.Column="0"
-                                        Style="{StaticResource ModernButton}"
-                                    Command="{Binding StartSelectedVmCommand}"
-                                        Content="▶ Start VM" />
-                                <Button Grid.Row="0" Grid.Column="1"
-                                        Style="{StaticResource ModernButton}"
-                                    Command="{Binding StopSelectedVmCommand}"
-                                        Content="■ Stop VM (graceful)" />
-                                <Button Grid.Row="0" Grid.Column="2"
-                                        Style="{StaticResource ModernButton}"
-                                    Margin="0"
-                                    Command="{Binding TurnOffSelectedVmCommand}"
-                                        Content="⏻ Turn Off (hard)" />
+                            <TextBlock VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="VM" />
+                            <ComboBox Grid.Column="2"
+                                      Style="{StaticResource ReadableComboBoxStyle}"
+                                      DisplayMemberPath="Label"
+                                      SelectedItem="{Binding SelectedVm}"
+                                      ItemsSource="{Binding AvailableVms}" />
 
-                                <Button Grid.Row="2" Grid.Column="0"
-                                        Style="{StaticResource ModernButton}"
-                                    Command="{Binding RestartSelectedVmCommand}"
-                                        Content="↻ Restart VM" />
-                                <Button Grid.Row="2" Grid.Column="1"
-                                        Style="{StaticResource ModernButton}"
-                                    Command="{Binding OpenConsoleCommand}"
-                                        Content="🖥 Open Console" />
-                                <Button Grid.Row="2" Grid.Column="2"
-                                        Style="{StaticResource ModernButton}"
-                                    Margin="0"
-                                    Command="{Binding RefreshVmStatusCommand}"
-                                        Content="⟳ Refresh Status" />
+                            <TextBlock Grid.Column="4" VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="State" />
+                            <TextBlock Grid.Column="6" VerticalAlignment="Center" Foreground="{StaticResource TextMuted}" Text="{Binding SelectedVmState}" />
+
+                            <TextBlock Grid.Column="8" VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="Switch" />
+                            <TextBlock Grid.Column="10" VerticalAlignment="Center" Foreground="{StaticResource TextMuted}" Text="{Binding SelectedVmCurrentSwitch}" />
                         </Grid>
-                    </TabItem>
+                    </Border>
 
-                    <TabItem Header="Network">
-                        <StackPanel Margin="10">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="100" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="150" />
-                                </Grid.ColumnDefinitions>
-
-                                <TextBlock Grid.Column="0"
-                                           VerticalAlignment="Center"
-                                           Foreground="#FFF9FAFB"
-                                           FontWeight="SemiBold"
-                                           Text="Switch:" />
-
-                                <ComboBox Grid.Column="1"
-                                          Style="{StaticResource ModernComboBoxStyle}"
-                                          Margin="8,0"
-                                          DisplayMemberPath="Name"
-                                          SelectedItem="{Binding SelectedSwitch}"
-                                          ItemsSource="{Binding AvailableSwitches}" />
-
-                                <Button Grid.Column="2"
-                                    Style="{StaticResource ModernButton}"
-                                    Margin="0"
-                                        Command="{Binding LoadSwitchesCommand}"
-                                    Content="⟳ Refresh Switches" />
-                            </Grid>
-
-                            <WrapPanel Margin="0,14,0,0">
-                                <Button Margin="0,0,12,12"
-                                    Style="{StaticResource ModernButton}"
-                                        Command="{Binding ConnectSelectedSwitchCommand}"
-                                    Content="🔌 Connect to Switch" />
-                                <Button Margin="0,0,12,12"
-                                    Style="{StaticResource ModernButton}"
-                                        Command="{Binding DisconnectSwitchCommand}"
-                                    Content="⛔ Disconnect" />
-                                <Button Margin="0,0,12,12"
-                                    Style="{StaticResource ModernButton}"
-                                        Command="{Binding ConnectDefaultVmCommand}"
-                                    Content="⚡ Connect Default Switch" />
-                            </WrapPanel>
-
-                            <TextBlock Foreground="#FFD1D5DB"
-                                       Text="{Binding DefaultSwitchName, StringFormat=Default Switch: {0}}" />
-                            <TextBlock Foreground="#FFD1D5DB"
-                                       Text="{Binding VmConnectComputerName, StringFormat=vmconnect host: {0}}" />
-                        </StackPanel>
-                    </TabItem>
-
-                    <TabItem Header="Snapshots">
-                        <Grid Margin="10">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="*" />
-                                <RowDefinition Height="12" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-
-                            <ListBox Grid.Row="0"
-                                     Style="{StaticResource ModernListBoxStyle}"
-                                     SelectedItem="{Binding SelectedCheckpoint}"
-                                     ItemsSource="{Binding AvailableCheckpoints}">
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <Grid Margin="0,2,0,2">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="260" />
-                                                <ColumnDefinition Width="170" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Foreground="#FFF9FAFB"
-                                                       Text="{Binding Name}" />
-                                            <TextBlock Grid.Column="1"
-                                                       Foreground="#FFD1D5DB"
-                                                       Text="{Binding Created, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}" />
-                                            <TextBlock Grid.Column="2"
-                                                       Foreground="#FFD1D5DB"
-                                                       Text="{Binding Type}" />
-                                        </Grid>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
-
-                            <StackPanel Grid.Row="2">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="150" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="12" />
-                                        <ColumnDefinition Width="160" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <TextBlock Grid.Column="0"
-                                               VerticalAlignment="Center"
-                                               Foreground="#FFF9FAFB"
-                                               FontWeight="SemiBold"
-                                               Text="Checkpoint Name" />
-                                    <TextBox Grid.Column="1"
-                                             Text="{Binding NewCheckpointName, UpdateSourceTrigger=PropertyChanged}" />
-                                    <Button Grid.Column="3"
-                                            Style="{StaticResource ModernButton}"
-                                            Margin="0"
-                                            Padding="12,8"
-                                            Command="{Binding CreateCheckpointCommand}"
-                                            Content="📸 Create Checkpoint" />
-                                </Grid>
-
-                                <Grid Margin="0,8,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="150" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="12" />
-                                        <ColumnDefinition Width="160" />
-                                        <ColumnDefinition Width="12" />
-                                        <ColumnDefinition Width="160" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <TextBlock Grid.Column="0"
-                                               VerticalAlignment="Center"
-                                               Foreground="#FFF9FAFB"
-                                               FontWeight="SemiBold"
-                                               Text="Beschreibung (optional)" />
-                                    <TextBox Grid.Column="1"
-                                             Text="{Binding NewCheckpointDescription, UpdateSourceTrigger=PropertyChanged}" />
-                                    <Button Grid.Column="3"
-                                            Style="{StaticResource ModernButton}"
-                                            Padding="12,8"
-                                            Command="{Binding ApplyCheckpointCommand}"
-                                            Content="✅ Apply Checkpoint" />
-                                    <Button Grid.Column="5"
-                                            Style="{StaticResource ModernButton}"
-                                            Margin="0"
-                                            Padding="12,8"
-                                            Command="{Binding DeleteCheckpointCommand}"
-                                            Content="🗑 Delete Checkpoint" />
-                                </Grid>
-
-                                <WrapPanel Margin="0,10,0,0">
-                                    <Button Margin="0,0,12,0"
-                                            Style="{StaticResource ModernButton}"
-                                            Padding="12,8"
-                                            Command="{Binding LoadCheckpointsCommand}"
-                                            Content="⟳ Refresh Checkpoints" />
-                                </WrapPanel>
-                            </StackPanel>
-                        </Grid>
-                    </TabItem>
-
-                    <TabItem Header="Config">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                      HorizontalScrollBarVisibility="Disabled">
-                            <Grid Margin="10">
+                    <TabControl Grid.Row="2"
+                                Style="{StaticResource HiddenTabControlStyle}"
+                                SelectedIndex="{Binding SelectedMenuIndex, Mode=TwoWay}">
+                        <TabItem Header="Start">
+                            <Grid Margin="4">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="12" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <Button Grid.Row="0" Grid.Column="0" Style="{StaticResource ActionButton}" Command="{Binding StartSelectedVmCommand}" Content="▶ Start VM" />
+                                <Button Grid.Row="0" Grid.Column="1" Style="{StaticResource ActionButton}" Command="{Binding StopSelectedVmCommand}" Content="■ Stop VM" />
+                                <Button Grid.Row="0" Grid.Column="2" Margin="0" Style="{StaticResource ActionButton}" Command="{Binding TurnOffSelectedVmCommand}" Content="⏻ Hard Off" />
+
+                                <Button Grid.Row="2" Grid.Column="0" Style="{StaticResource ActionButton}" Command="{Binding RestartSelectedVmCommand}" Content="↻ Restart" />
+                                <Button Grid.Row="2" Grid.Column="1" Style="{StaticResource ActionButton}" Command="{Binding OpenConsoleCommand}" Content="🖥 Open Console" />
+                                <Button Grid.Row="2" Grid.Column="2" Margin="0" Style="{StaticResource ActionButton}" Command="{Binding RefreshVmStatusCommand}" Content="⟳ Refresh" />
+                            </Grid>
+                        </TabItem>
+
+                        <TabItem Header="Network">
+                            <StackPanel Margin="4">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="100" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="170" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="Switch" />
+                                    <ComboBox Grid.Column="1"
+                                              Style="{StaticResource ReadableComboBoxStyle}"
+                                              Margin="8,0"
+                                              DisplayMemberPath="Name"
+                                              SelectedItem="{Binding SelectedSwitch}"
+                                              ItemsSource="{Binding AvailableSwitches}" />
+                                    <Button Grid.Column="2" Margin="0" Style="{StaticResource ActionButton}" Command="{Binding LoadSwitchesCommand}" Content="⟳ Refresh Switches" />
+                                </Grid>
+
+                                <WrapPanel Margin="0,12,0,0">
+                                    <Button Style="{StaticResource ActionButton}" Margin="0,0,10,10" Command="{Binding ConnectSelectedSwitchCommand}" Content="🔌 Connect" />
+                                    <Button Style="{StaticResource ActionButton}" Margin="0,0,10,10" Command="{Binding DisconnectSwitchCommand}" Content="⛔ Disconnect" />
+                                    <Button Style="{StaticResource ActionButton}" Margin="0,0,0,10" Command="{Binding ConnectDefaultVmCommand}" Content="⚡ Default Connect" />
+                                </WrapPanel>
+
+                                <TextBlock Foreground="{StaticResource TextMuted}" Text="{Binding DefaultSwitchName, StringFormat=Default Switch: {0}}" />
+                                <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="{Binding VmConnectComputerName, StringFormat=vmconnect host: {0}}" />
+                            </StackPanel>
+                        </TabItem>
+
+                        <TabItem Header="Snapshots">
+                            <Grid Margin="4">
+                                <Grid.RowDefinitions>
                                     <RowDefinition Height="*" />
                                     <RowDefinition Height="12" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="140" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="12" />
-                                        <ColumnDefinition Width="160" />
-                                    </Grid.ColumnDefinitions>
+                                <ListBox Grid.Row="0"
+                                         Style="{StaticResource ReadableListBoxStyle}"
+                                         ItemContainerStyle="{StaticResource ReadableListBoxItemStyle}"
+                                         SelectedItem="{Binding SelectedCheckpoint}"
+                                         ItemsSource="{Binding AvailableCheckpoints}">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,2,0,2">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="260" />
+                                                    <ColumnDefinition Width="170" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Foreground="White" Text="{Binding Name}" />
+                                                <TextBlock Grid.Column="1" Foreground="{StaticResource TextMuted}" Text="{Binding Created, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}" />
+                                                <TextBlock Grid.Column="2" Foreground="{StaticResource TextMuted}" Text="{Binding Type}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
 
-                                    <TextBlock Grid.Column="0"
-                                           VerticalAlignment="Center"
-                                           Foreground="#FFF9FAFB"
-                                           FontWeight="SemiBold"
-                                           Text="Default VM" />
-                                    <ComboBox Grid.Column="1"
-                                              Style="{StaticResource ModernComboBoxStyle}"
-                                          DisplayMemberPath="Label"
-                                          ItemsSource="{Binding AvailableVms}"
-                                          SelectedItem="{Binding SelectedDefaultVmForConfig}" />
-                                    <Button Grid.Column="3"
-                                            Style="{StaticResource ModernButton}"
-                                            Margin="0"
-                                        Padding="12,8"
-                                        Command="{Binding SetDefaultVmCommand}"
-                                            Content="⭐ Setze Default" />
-                                </Grid>
-
-                                <Grid Grid.Row="2">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="2*" />
-                                        <ColumnDefinition Width="12" />
-                                        <ColumnDefinition Width="3*" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <ListBox Grid.Column="0"
-                                             Style="{StaticResource ModernListBoxStyle}"
-                                             SelectedItem="{Binding SelectedVmForConfig}"
-                                             ItemsSource="{Binding AvailableVms}">
-                                        <ListBox.ItemTemplate>
-                                            <DataTemplate>
-                                                <Grid Margin="0,2,0,2">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="220" />
-                                                        <ColumnDefinition Width="*" />
-                                                    </Grid.ColumnDefinitions>
-                                                    <TextBlock Foreground="#FFF9FAFB" Text="{Binding Name}" />
-                                                    <TextBlock Grid.Column="1" Foreground="#FFD1D5DB" Text="{Binding Label}" />
-                                                </Grid>
-                                            </DataTemplate>
-                                        </ListBox.ItemTemplate>
-                                    </ListBox>
-
-                                    <StackPanel Grid.Column="2">
+                                <StackPanel Grid.Row="2">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="140" />
+                                            <ColumnDefinition Width="150" />
                                             <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="12" />
+                                            <ColumnDefinition Width="180" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0"
-                                                   VerticalAlignment="Center"
-                                                   Foreground="#FFF9FAFB"
-                                                   FontWeight="SemiBold"
-                                                   Text="Neue VM Name" />
-                                        <TextBox Grid.Column="1"
-                                                 Style="{StaticResource ModernTextBoxStyle}"
-                                                 Text="{Binding NewVmName, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBlock Grid.Column="0" VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="Checkpoint Name" />
+                                        <TextBox Grid.Column="1" Style="{StaticResource ReadableTextBoxStyle}" Text="{Binding NewCheckpointName, UpdateSourceTrigger=PropertyChanged}" />
+                                        <Button Grid.Column="3" Margin="0" Style="{StaticResource ActionButton}" Command="{Binding CreateCheckpointCommand}" Content="📸 Create" />
                                     </Grid>
 
                                     <Grid Margin="0,8,0,0">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="140" />
+                                            <ColumnDefinition Width="150" />
                                             <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="12" />
+                                            <ColumnDefinition Width="160" />
+                                            <ColumnDefinition Width="12" />
+                                            <ColumnDefinition Width="160" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0"
-                                                   VerticalAlignment="Center"
-                                                   Foreground="#FFF9FAFB"
-                                                   FontWeight="SemiBold"
-                                                   Text="Label" />
-                                        <TextBox Grid.Column="1"
-                                                 Style="{StaticResource ModernTextBoxStyle}"
-                                                 Text="{Binding NewVmLabel, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBlock Grid.Column="0" VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="Beschreibung" />
+                                        <TextBox Grid.Column="1" Style="{StaticResource ReadableTextBoxStyle}" Text="{Binding NewCheckpointDescription, UpdateSourceTrigger=PropertyChanged}" />
+                                        <Button Grid.Column="3" Style="{StaticResource ActionButton}" Command="{Binding ApplyCheckpointCommand}" Content="✅ Apply" />
+                                        <Button Grid.Column="5" Margin="0" Style="{StaticResource ActionButton}" Command="{Binding DeleteCheckpointCommand}" Content="🗑 Delete" />
                                     </Grid>
 
-                                    <WrapPanel Margin="0,12,0,0">
-                                        <Button Margin="0,0,12,0"
-                                            Style="{StaticResource ModernButton}"
-                                                Padding="12,8"
-                                                Command="{Binding AddVmCommand}"
-                                            Content="＋ VM hinzufügen" />
-                                        <Button Margin="0,0,12,0"
-                                            Style="{StaticResource ModernButton}"
-                                                Padding="12,8"
-                                                Command="{Binding RemoveVmCommand}"
-                                            Content="－ Auswahl entfernen" />
+                                    <WrapPanel Margin="0,10,0,0">
+                                        <Button Style="{StaticResource ActionButton}" Margin="0" Command="{Binding LoadCheckpointsCommand}" Content="⟳ Refresh Checkpoints" />
                                     </WrapPanel>
-
-                                        <GroupBox Margin="0,14,0,0" Header="HNS">
-                                            <StackPanel Margin="8">
-                                                <CheckBox Margin="0,0,0,6"
-                                                          IsChecked="{Binding HnsEnabled}"
-                                                          Content="HNS-Flow aktivieren" />
-                                                <CheckBox Margin="0,0,0,6"
-                                                          IsChecked="{Binding HnsAutoRestartAfterDefaultSwitch}"
-                                                          Content="Auto-Restart nach Default-Switch Connect" />
-                                                <CheckBox Margin="0,0,0,10"
-                                                          IsChecked="{Binding HnsAutoRestartAfterAnyConnect}"
-                                                          Content="Auto-Restart nach jedem Connect" />
-                                                <Button Padding="12,8"
-                                                    Style="{StaticResource ModernButton}"
-                                                    Margin="0"
-                                                        Command="{Binding RestartHnsCommand}"
-                                                    Content="⚙ HNS jetzt neu starten (UAC)" />
-                                            </StackPanel>
-                                        </GroupBox>
-
-                                        <GroupBox Margin="0,14,0,0" Header="System">
-                                            <StackPanel Margin="8">
-                                                <CheckBox Margin="0,0,0,8"
-                                                          IsChecked="{Binding UiEnableTrayIcon}"
-                                                          Content="Tasktray-Icon aktiv" />
-                                                <CheckBox Margin="0,0,0,8"
-                                                          IsChecked="{Binding UiStartWithWindows}"
-                                                          Content="Mit Windows starten" />
-                                            </StackPanel>
-                                        </GroupBox>
-
-                                        <GroupBox Margin="0,14,0,0" Header="Updates">
-                                            <StackPanel Margin="8">
-                                                <CheckBox Margin="0,0,0,8"
-                                                          IsChecked="{Binding UpdateCheckOnStartup}"
-                                                          Content="Beim Start auf Updates prüfen" />
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="120" />
-                                                        <ColumnDefinition Width="*" />
-                                                    </Grid.ColumnDefinitions>
-                                                    <TextBlock Grid.Column="0" VerticalAlignment="Center" Foreground="#FFF9FAFB" Text="GitHub Owner" />
-                                                    <TextBox Grid.Column="1" Style="{StaticResource ModernTextBoxStyle}" Text="{Binding GithubOwner, UpdateSourceTrigger=PropertyChanged}" />
-                                                </Grid>
-                                                <Grid Margin="0,8,0,0">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="120" />
-                                                        <ColumnDefinition Width="*" />
-                                                    </Grid.ColumnDefinitions>
-                                                    <TextBlock Grid.Column="0" VerticalAlignment="Center" Foreground="#FFF9FAFB" Text="GitHub Repo" />
-                                                    <TextBox Grid.Column="1" Style="{StaticResource ModernTextBoxStyle}" Text="{Binding GithubRepo, UpdateSourceTrigger=PropertyChanged}" />
-                                                </Grid>
-                                            </StackPanel>
-                                        </GroupBox>
-                                    </StackPanel>
-                                </Grid>
-
-                                <WrapPanel Grid.Row="4">
-                                    <Button Margin="0,0,12,0"
-                                            Style="{StaticResource ModernButton}"
-                                            Padding="12,8"
-                                            Command="{Binding SaveConfigCommand}"
-                                            Content="💾 Config speichern" />
-                                    <Button Margin="0,0,12,0"
-                                            Style="{StaticResource ModernButton}"
-                                            Padding="12,8"
-                                            Command="{Binding ReloadConfigCommand}"
-                                            Content="⟳ Neu laden" />
-                                    <TextBlock VerticalAlignment="Center"
-                                               Foreground="#FFD1D5DB"
-                                               Text="Standarddatei: HyperTool.config.json" />
-                                </WrapPanel>
+                                </StackPanel>
                             </Grid>
-                        </ScrollViewer>
-                    </TabItem>
+                        </TabItem>
 
-                    <TabItem Header="Info">
-                        <StackPanel Margin="12">
-                            <TextBlock Foreground="#FFF9FAFB" FontSize="18" FontWeight="SemiBold" Text="HyperTool" />
-                            <TextBlock Margin="0,4,0,0" Foreground="#FFD1D5DB" Text="dein nützlicher Hyper V Helfer" />
-                            <TextBlock Margin="0,12,0,0" Foreground="#FFD1D5DB" Text="{Binding AppVersion, StringFormat=Version: {0}}" />
-                            <TextBlock Margin="0,6,0,12" Foreground="#FFD1D5DB" Text="{Binding UpdateStatus, StringFormat=Update-Status: {0}}" TextWrapping="Wrap" />
+                        <TabItem Header="Config">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                <Grid Margin="4">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="12" />
+                                        <RowDefinition Height="*" />
+                                        <RowDefinition Height="12" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
 
-                            <WrapPanel>
-                                <Button Margin="0,0,12,0"
-                                    Style="{StaticResource ModernButton}"
-                                        Padding="12,8"
-                                        Command="{Binding CheckForUpdatesCommand}"
-                                    Content="🛰 Jetzt auf Updates prüfen" />
-                                <Button Margin="0,0,12,0"
-                                    Style="{StaticResource ModernButton}"
-                                        Padding="12,8"
-                                        Command="{Binding OpenReleasePageCommand}"
-                                    Content="🌐 Release-Seite öffnen" />
-                            </WrapPanel>
-                        </StackPanel>
-                    </TabItem>
-                </TabControl>
-            </StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="140" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="12" />
+                                            <ColumnDefinition Width="180" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="Default VM" />
+                                        <ComboBox Grid.Column="1" Style="{StaticResource ReadableComboBoxStyle}" DisplayMemberPath="Label" ItemsSource="{Binding AvailableVms}" SelectedItem="{Binding SelectedDefaultVmForConfig}" />
+                                        <Button Grid.Column="3" Margin="0" Style="{StaticResource ActionButton}" Command="{Binding SetDefaultVmCommand}" Content="⭐ Setze Default" />
+                                    </Grid>
+
+                                    <Grid Grid.Row="2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="2*" />
+                                            <ColumnDefinition Width="12" />
+                                            <ColumnDefinition Width="3*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <ListBox Grid.Column="0"
+                                                 Style="{StaticResource ReadableListBoxStyle}"
+                                                 ItemContainerStyle="{StaticResource ReadableListBoxItemStyle}"
+                                                 SelectedItem="{Binding SelectedVmForConfig}"
+                                                 ItemsSource="{Binding AvailableVms}">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Margin="0,2,0,2">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="220" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Foreground="White" Text="{Binding Name}" />
+                                                        <TextBlock Grid.Column="1" Foreground="{StaticResource TextMuted}" Text="{Binding Label}" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+
+                                        <StackPanel Grid.Column="2">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="140" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="Neue VM Name" />
+                                                <TextBox Grid.Column="1" Style="{StaticResource ReadableTextBoxStyle}" Text="{Binding NewVmName, UpdateSourceTrigger=PropertyChanged}" />
+                                            </Grid>
+
+                                            <Grid Margin="0,8,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="140" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="Label" />
+                                                <TextBox Grid.Column="1" Style="{StaticResource ReadableTextBoxStyle}" Text="{Binding NewVmLabel, UpdateSourceTrigger=PropertyChanged}" />
+                                            </Grid>
+
+                                            <WrapPanel Margin="0,12,0,0">
+                                                <Button Style="{StaticResource ActionButton}" Command="{Binding AddVmCommand}" Content="＋ VM hinzufügen" />
+                                                <Button Margin="0" Style="{StaticResource ActionButton}" Command="{Binding RemoveVmCommand}" Content="－ Entfernen" />
+                                            </WrapPanel>
+
+                                            <GroupBox Margin="0,14,0,0" Header="HNS" Foreground="{StaticResource TextPrimary}" BorderBrush="#36547E">
+                                                <StackPanel Margin="8">
+                                                    <CheckBox Margin="0,0,0,6" Foreground="{StaticResource TextPrimary}" IsChecked="{Binding HnsEnabled}" Content="HNS-Flow aktivieren" />
+                                                    <CheckBox Margin="0,0,0,6" Foreground="{StaticResource TextPrimary}" IsChecked="{Binding HnsAutoRestartAfterDefaultSwitch}" Content="Auto-Restart nach Default-Switch Connect" />
+                                                    <CheckBox Margin="0,0,0,10" Foreground="{StaticResource TextPrimary}" IsChecked="{Binding HnsAutoRestartAfterAnyConnect}" Content="Auto-Restart nach jedem Connect" />
+                                                    <Button Margin="0" Style="{StaticResource ActionButton}" Command="{Binding RestartHnsCommand}" Content="⚙ HNS neu starten" />
+                                                </StackPanel>
+                                            </GroupBox>
+
+                                            <GroupBox Margin="0,14,0,0" Header="System" Foreground="{StaticResource TextPrimary}" BorderBrush="#36547E">
+                                                <StackPanel Margin="8">
+                                                    <CheckBox Margin="0,0,0,8" Foreground="{StaticResource TextPrimary}" IsChecked="{Binding UiEnableTrayIcon}" Content="Tasktray-Icon aktiv" />
+                                                    <CheckBox Margin="0,0,0,8" Foreground="{StaticResource TextPrimary}" IsChecked="{Binding UiStartWithWindows}" Content="Mit Windows starten" />
+                                                </StackPanel>
+                                            </GroupBox>
+
+                                            <GroupBox Margin="0,14,0,0" Header="Updates" Foreground="{StaticResource TextPrimary}" BorderBrush="#36547E">
+                                                <StackPanel Margin="8">
+                                                    <CheckBox Margin="0,0,0,8" Foreground="{StaticResource TextPrimary}" IsChecked="{Binding UpdateCheckOnStartup}" Content="Beim Start auf Updates prüfen" />
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="120" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}" Text="GitHub Owner" />
+                                                        <TextBox Grid.Column="1" Style="{StaticResource ReadableTextBoxStyle}" Text="{Binding GithubOwner, UpdateSourceTrigger=PropertyChanged}" />
+                                                    </Grid>
+                                                    <Grid Margin="0,8,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="120" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}" Text="GitHub Repo" />
+                                                        <TextBox Grid.Column="1" Style="{StaticResource ReadableTextBoxStyle}" Text="{Binding GithubRepo, UpdateSourceTrigger=PropertyChanged}" />
+                                                    </Grid>
+                                                </StackPanel>
+                                            </GroupBox>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <WrapPanel Grid.Row="4">
+                                        <Button Style="{StaticResource ActionButton}" Command="{Binding SaveConfigCommand}" Content="💾 Speichern" />
+                                        <Button Style="{StaticResource ActionButton}" Command="{Binding ReloadConfigCommand}" Content="⟳ Neu laden" />
+                                        <TextBlock VerticalAlignment="Center" Foreground="{StaticResource TextMuted}" Text="Standarddatei: HyperTool.config.json" />
+                                    </WrapPanel>
+                                </Grid>
+                            </ScrollViewer>
+                        </TabItem>
+
+                        <TabItem Header="Info">
+                            <StackPanel Margin="4">
+                                <TextBlock Foreground="{StaticResource TextPrimary}" FontSize="18" FontWeight="SemiBold" Text="HyperTool" />
+                                <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="dein nützlicher Hyper V Helfer" />
+                                <TextBlock Margin="0,12,0,0" Foreground="{StaticResource TextMuted}" Text="{Binding AppVersion, StringFormat=Version: {0}}" />
+                                <TextBlock Margin="0,6,0,12" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Text="{Binding UpdateStatus, StringFormat=Update-Status: {0}}" />
+                                <WrapPanel>
+                                    <Button Style="{StaticResource ActionButton}" Command="{Binding CheckForUpdatesCommand}" Content="🛰 Update prüfen" />
+                                    <Button Margin="0" Style="{StaticResource ActionButton}" Command="{Binding OpenReleasePageCommand}" Content="🌐 Release öffnen" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </TabItem>
+                    </TabControl>
+                </Grid>
+            </Grid>
         </Border>
 
-        <Border Grid.Row="6"
-                Padding="12"
-            Style="{StaticResource CardBorder}">
+        <Border Grid.Row="6" Style="{StaticResource CardBorder}" Padding="12">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -660,26 +538,22 @@
                 </Grid.RowDefinitions>
 
                 <StackPanel Orientation="Horizontal">
-                    <TextBlock Foreground="#FFF9FAFB"
-                               FontWeight="SemiBold"
-                               Text="Notifications" />
-                    <TextBlock Margin="10,0,0,0"
-                               Foreground="#FFD1D5DB"
-                               Text="(non-blocking)" />
+                    <TextBlock Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="Notifications" />
+                    <TextBlock Margin="10,0,0,0" Foreground="{StaticResource TextMuted}" Text="(non-blocking)" />
                     <mah:ProgressRing Margin="16,0,0,0"
                                       Width="16"
                                       Height="16"
                                       IsActive="{Binding IsBusy}"
                                       Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
                     <TextBlock Margin="8,0,0,0"
-                               Foreground="#FFD1D5DB"
+                               Foreground="{StaticResource TextMuted}"
                                Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"
                                Text="{Binding BusyText}" />
                 </StackPanel>
 
                 <ListBox Grid.Row="2"
-                         Background="Transparent"
-                         BorderThickness="0"
+                         Style="{StaticResource ReadableListBoxStyle}"
+                         ItemContainerStyle="{StaticResource ReadableListBoxItemStyle}"
                          ItemsSource="{Binding Notifications}">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
@@ -689,15 +563,9 @@
                                     <ColumnDefinition Width="70" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Foreground="#FF9CA3AF"
-                                           Text="{Binding Timestamp, StringFormat={}{0:HH:mm:ss}}" />
-                                <TextBlock Grid.Column="1"
-                                           Foreground="#FFD1D5DB"
-                                           Text="{Binding Level}" />
-                                <TextBlock Grid.Column="2"
-                                           Foreground="#FFF9FAFB"
-                                           TextWrapping="Wrap"
-                                           Text="{Binding Message}" />
+                                <TextBlock Foreground="#9DB0CF" Text="{Binding Timestamp, StringFormat={}{0:HH:mm:ss}}" />
+                                <TextBlock Grid.Column="1" Foreground="#BED2F0" Text="{Binding Level}" />
+                                <TextBlock Grid.Column="2" Foreground="White" TextWrapping="Wrap" Text="{Binding Message}" />
                             </Grid>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
@@ -705,12 +573,9 @@
             </Grid>
         </Border>
 
-        <StatusBar Grid.Row="8"
-                   Margin="0,16,0,0"
-                   Background="#FF1F2937"
-                   Foreground="#FFD1D5DB">
+        <StatusBar Grid.Row="8" Background="{StaticResource PanelBackground}" Foreground="{StaticResource TextMuted}">
             <StatusBarItem>
-                <TextBlock Text="Tray Icon aktiv · Doppelklick zeigt das Fenster · Schritt 6 aktiv" />
+                <TextBlock Text="HyperTool · Sidebar Navigation aktiv · UI Refresh" />
             </StatusBarItem>
         </StatusBar>
     </Grid>

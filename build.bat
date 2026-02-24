@@ -22,6 +22,10 @@ if defined VERSION_ARG (
     for /f "tokens=1,* delims==" %%K in ("%VERSION_ARG%") do set "VERSION=%%L"
 )
 
+if not defined VERSION_ARG (
+    set /p VERSION=Bitte Version eingeben (Default 1.0.0): 
+)
+
 if not defined VERSION set "VERSION=1.0.0"
 
 echo ==========================================

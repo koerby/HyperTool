@@ -95,6 +95,9 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     private string _releaseUrl = string.Empty;
 
+    [ObservableProperty]
+    private int _selectedMenuIndex;
+
     public ObservableCollection<VmDefinition> AvailableVms { get; } = [];
 
     public ObservableCollection<HyperVSwitchInfo> AvailableSwitches { get; } = [];
