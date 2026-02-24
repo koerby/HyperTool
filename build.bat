@@ -6,11 +6,12 @@ cd /d "%ROOT%"
 
 set "CONFIG=Release"
 set "RUNTIME=win-x64"
-set "SELF_CONTAINED=false"
+set "SELF_CONTAINED=true"
 set "NO_PAUSE=false"
 
 for %%A in (%*) do (
     if /I "%%~A"=="self-contained" set "SELF_CONTAINED=true"
+    if /I "%%~A"=="framework-dependent" set "SELF_CONTAINED=false"
     if /I "%%~A"=="no-pause" set "NO_PAUSE=true"
 )
 
@@ -55,6 +56,8 @@ dir /b "%DIST_DIR%"
 echo.
 echo Hinweis: Fuer self-contained Build starte mit:
 echo build.bat self-contained
+echo Fuer framework-dependent Build:
+echo build.bat framework-dependent
 
 if /I "%NO_PAUSE%"=="false" pause
 goto :success

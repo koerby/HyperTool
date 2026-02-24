@@ -20,7 +20,8 @@ public sealed class ConfigService : IConfigService
             if (!File.Exists(configPath))
             {
                 var defaultConfig = HyperToolConfig.CreateDefault();
-                WriteConfig(configPath, defaultConfig);
+
+                var couldWriteDefault = TryWriteConfig(configPath, defaultConfig);
 
                 Log.Warning("Config file not found. Created default config at {ConfigPath}", configPath);
                 return new ConfigLoadResult
@@ -28,7 +29,9 @@ public sealed class ConfigService : IConfigService
                     Config = defaultConfig,
                     ConfigPath = configPath,
                     IsGenerated = true,
-                    Notice = "Konfiguration fehlte und wurde als Beispiel erzeugt. Bitte HyperTool.config.json prüfen."
+                    Notice = couldWriteDefault
+                        ? "Konfiguration fehlte und wurde als Beispiel erzeugt. Bitte HyperTool.config.json prüfen."
+                        : "Konfiguration fehlte und konnte wegen fehlender Schreibrechte nicht gespeichert werden. HyperTool läuft mit In-Memory-Defaults."
                 };
             }
 
@@ -38,8 +41,17 @@ public sealed class ConfigService : IConfigService
 
             if (wasUpdated)
             {
-                WriteConfig(configPath, validated);
-                Log.Warning("Config was normalized and rewritten at {ConfigPath}", configPath);
+                var couldWriteValidated = TryWriteConfig(configPath, validated);
+                if (couldWriteValidated)
+                {
+                    Log.Warning("Config was normalized and rewritten at {ConfigPath}", configPath);
+                }
+                else
+                {
+                    notice = string.IsNullOrWhiteSpace(notice)
+                        ? "Konfiguration wurde korrigiert, konnte aber nicht gespeichert werden (fehlende Schreibrechte)."
+                        : $"{notice} Konfiguration konnte nicht gespeichert werden (fehlende Schreibrechte).";
+                }
             }
 
             return new ConfigLoadResult
@@ -55,28 +67,39 @@ public sealed class ConfigService : IConfigService
             Log.Error(ex, "Failed to load config. Recreating default config at {ConfigPath}", configPath);
 
             var fallbackConfig = HyperToolConfig.CreateDefault();
-            WriteConfig(configPath, fallbackConfig);
+            var couldWriteFallback = TryWriteConfig(configPath, fallbackConfig);
 
             return new ConfigLoadResult
             {
                 Config = fallbackConfig,
                 ConfigPath = configPath,
                 IsGenerated = true,
-                Notice = "Konfiguration war ungültig und wurde auf ein Beispiel zurückgesetzt."
+                Notice = couldWriteFallback
+                    ? "Konfiguration war ungültig und wurde auf ein Beispiel zurückgesetzt."
+                    : "Konfiguration war ungültig und konnte wegen fehlender Schreibrechte nicht gespeichert werden. HyperTool läuft mit In-Memory-Defaults."
             };
         }
     }
 
-    private static void WriteConfig(string configPath, HyperToolConfig config)
+    private static bool TryWriteConfig(string configPath, HyperToolConfig config)
     {
-        var directoryPath = Path.GetDirectoryName(configPath);
-        if (!string.IsNullOrWhiteSpace(directoryPath))
+        try
         {
-            Directory.CreateDirectory(directoryPath);
-        }
+            var directoryPath = Path.GetDirectoryName(configPath);
+            if (!string.IsNullOrWhiteSpace(directoryPath))
+            {
+                Directory.CreateDirectory(directoryPath);
+            }
 
-        var json = JsonSerializer.Serialize(config, SerializerOptions);
-        File.WriteAllText(configPath, json);
+            var json = JsonSerializer.Serialize(config, SerializerOptions);
+            File.WriteAllText(configPath, json);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Config write failed for {ConfigPath}", configPath);
+            return false;
+        }
     }
 
     private static (HyperToolConfig Config, bool WasUpdated, string? Notice) ValidateAndNormalize(HyperToolConfig config)

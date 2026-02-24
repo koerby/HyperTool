@@ -39,7 +39,7 @@ Im Projektordner:
 
 ## Exakten Build bei dir erstellen (empfohlen)
 
-### Variante A – Framework-dependent (kleiner)
+### Standard (empfohlen) – Self-contained
 
 Im Projektordner in `cmd.exe` oder PowerShell:
 
@@ -49,9 +49,9 @@ Ergebnis liegt danach in:
 
 `dist\HyperTool`
 
-### Variante B – Self-contained (größer, ohne lokale .NET Runtime)
+### Variante – Framework-dependent (kleiner)
 
-`build.bat self-contained`
+`build.bat framework-dependent`
 
 ### Optional ohne Pause im Script
 
@@ -60,6 +60,18 @@ Ergebnis liegt danach in:
 oder kombiniert:
 
 `build.bat self-contained no-pause`
+
+## Falls beim Start "nichts passiert"
+
+Prüfe diese Punkte:
+
+1. Starte aus `dist\HyperTool` (nicht aus einem schreibgeschützten Ordner wie `Program Files`).
+2. Prüfe Logdateien:
+	- `dist\HyperTool\logs\`
+	- oder Fallback: `%LOCALAPPDATA%\HyperTool\logs\`
+3. Starte testweise in einer PowerShell aus `dist\HyperTool`:
+	- `./HyperTool.exe`
+4. Falls Framework-dependent gebaut wurde, muss die .NET 8 Desktop Runtime installiert sein.
 
 ## Wie du prüfst, ob Build sauber durchlief
 

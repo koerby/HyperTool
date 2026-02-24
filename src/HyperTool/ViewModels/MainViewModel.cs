@@ -28,6 +28,15 @@ public partial class MainViewModel : ViewModelBase
     private HyperVSwitchInfo? _selectedSwitch;
 
     [ObservableProperty]
+    private HyperVCheckpointInfo? _selectedCheckpoint;
+
+    [ObservableProperty]
+    private string _newCheckpointName = string.Empty;
+
+    [ObservableProperty]
+    private string _newCheckpointDescription = string.Empty;
+
+    [ObservableProperty]
     private string _selectedVmState = "Unbekannt";
 
     [ObservableProperty]
@@ -39,6 +48,8 @@ public partial class MainViewModel : ViewModelBase
     public ObservableCollection<VmDefinition> AvailableVms { get; } = [];
 
     public ObservableCollection<HyperVSwitchInfo> AvailableSwitches { get; } = [];
+
+    public ObservableCollection<HyperVCheckpointInfo> AvailableCheckpoints { get; } = [];
 
     public ObservableCollection<UiNotification> Notifications { get; } = [];
 
@@ -56,7 +67,7 @@ public partial class MainViewModel : ViewModelBase
 
     public IAsyncRelayCommand ConnectDefaultVmCommand { get; }
 
-    public IRelayCommand CreateCheckpointCommand { get; }
+    public IAsyncRelayCommand CreateCheckpointCommand { get; }
 
     public IAsyncRelayCommand StartSelectedVmCommand { get; }
 
@@ -75,6 +86,12 @@ public partial class MainViewModel : ViewModelBase
     public IAsyncRelayCommand DisconnectSwitchCommand { get; }
 
     public IAsyncRelayCommand RefreshVmStatusCommand { get; }
+
+    public IAsyncRelayCommand LoadCheckpointsCommand { get; }
+
+    public IAsyncRelayCommand ApplyCheckpointCommand { get; }
+
+    public IAsyncRelayCommand DeleteCheckpointCommand { get; }
 
     private readonly IHyperVService _hyperVService;
 
@@ -123,10 +140,14 @@ public partial class MainViewModel : ViewModelBase
         DisconnectSwitchCommand = new AsyncRelayCommand(DisconnectSwitchAsync, CanExecuteVmAction);
         RefreshVmStatusCommand = new AsyncRelayCommand(RefreshVmStatusAsync, () => !IsBusy);
 
+        LoadCheckpointsCommand = new AsyncRelayCommand(LoadCheckpointsAsync, CanExecuteVmAction);
+        ApplyCheckpointCommand = new AsyncRelayCommand(ApplyCheckpointAsync, () => !IsBusy && SelectedVm is not null && SelectedCheckpoint is not null);
+        DeleteCheckpointCommand = new AsyncRelayCommand(DeleteCheckpointAsync, () => !IsBusy && SelectedVm is not null && SelectedCheckpoint is not null);
+
         StartDefaultVmCommand = new AsyncRelayCommand(StartDefaultVmAsync, () => !IsBusy);
         StopDefaultVmCommand = new AsyncRelayCommand(StopDefaultVmAsync, () => !IsBusy);
         ConnectDefaultVmCommand = new AsyncRelayCommand(ConnectDefaultVmAsync, () => !IsBusy);
-        CreateCheckpointCommand = new RelayCommand(() => AddNotification("Checkpoint-Funktion folgt in Schritt 5.", "Info"));
+        CreateCheckpointCommand = new AsyncRelayCommand(CreateCheckpointAsync, CanExecuteVmAction);
 
         _ = InitializeAsync();
     }
@@ -147,6 +168,9 @@ public partial class MainViewModel : ViewModelBase
         ConnectSelectedSwitchCommand.NotifyCanExecuteChanged();
         DisconnectSwitchCommand.NotifyCanExecuteChanged();
         RefreshVmStatusCommand.NotifyCanExecuteChanged();
+        LoadCheckpointsCommand.NotifyCanExecuteChanged();
+        ApplyCheckpointCommand.NotifyCanExecuteChanged();
+        DeleteCheckpointCommand.NotifyCanExecuteChanged();
         StartDefaultVmCommand.NotifyCanExecuteChanged();
         StopDefaultVmCommand.NotifyCanExecuteChanged();
         ConnectDefaultVmCommand.NotifyCanExecuteChanged();
@@ -160,15 +184,24 @@ public partial class MainViewModel : ViewModelBase
         {
             SelectedVmState = "Unbekannt";
             SelectedVmCurrentSwitch = "-";
+            AvailableCheckpoints.Clear();
+            SelectedCheckpoint = null;
             return;
         }
 
         _ = RefreshVmStatusAsync();
+        _ = LoadCheckpointsAsync();
     }
 
     partial void OnSelectedSwitchChanged(HyperVSwitchInfo? value)
     {
         ConnectSelectedSwitchCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnSelectedCheckpointChanged(HyperVCheckpointInfo? value)
+    {
+        ApplyCheckpointCommand.NotifyCanExecuteChanged();
+        DeleteCheckpointCommand.NotifyCanExecuteChanged();
     }
 
     private bool CanExecuteVmAction() => !IsBusy && SelectedVm is not null;
@@ -177,6 +210,7 @@ public partial class MainViewModel : ViewModelBase
     {
         await LoadSwitchesAsync();
         await RefreshVmStatusAsync();
+        await LoadCheckpointsAsync();
     }
 
     private async Task StartSelectedVmAsync()
@@ -344,6 +378,89 @@ public partial class MainViewModel : ViewModelBase
             SelectedVmCurrentSwitch = string.IsNullOrWhiteSpace(vmInfo?.CurrentSwitchName) ? "-" : vmInfo.CurrentSwitchName;
             StatusText = vmInfo is null ? "VM nicht gefunden" : $"{vmInfo.Name}: {vmInfo.State}";
         }, showNotificationOnErrorOnly: true);
+    }
+
+    private async Task LoadCheckpointsAsync()
+    {
+        if (SelectedVm is null)
+        {
+            return;
+        }
+
+        await ExecuteBusyActionAsync("Checkpoints werden geladen...", async token =>
+        {
+            var checkpoints = await _hyperVService.GetCheckpointsAsync(SelectedVm.Name, token);
+
+            AvailableCheckpoints.Clear();
+            foreach (var checkpoint in checkpoints.OrderByDescending(item => item.Created))
+            {
+                AvailableCheckpoints.Add(checkpoint);
+            }
+
+            SelectedCheckpoint = AvailableCheckpoints.FirstOrDefault();
+            AddNotification($"{AvailableCheckpoints.Count} Checkpoint(s) für '{SelectedVm.Name}' geladen.", "Info");
+        }, showNotificationOnErrorOnly: true);
+    }
+
+    private async Task CreateCheckpointAsync()
+    {
+        if (SelectedVm is null)
+        {
+            return;
+        }
+
+        var checkpointName = string.IsNullOrWhiteSpace(NewCheckpointName)
+            ? $"checkpoint-{DateTime.Now:yyyyMMdd-HHmmss}"
+            : NewCheckpointName.Trim();
+
+        await ExecuteBusyActionAsync("Checkpoint wird erstellt...", async token =>
+        {
+            await _hyperVService.CreateCheckpointAsync(
+                SelectedVm.Name,
+                checkpointName,
+                string.IsNullOrWhiteSpace(NewCheckpointDescription) ? null : NewCheckpointDescription.Trim(),
+                token);
+
+            AddNotification($"Checkpoint '{checkpointName}' für '{SelectedVm.Name}' erstellt.", "Success");
+        });
+
+        NewCheckpointName = string.Empty;
+        NewCheckpointDescription = string.Empty;
+        await LoadCheckpointsAsync();
+    }
+
+    private async Task ApplyCheckpointAsync()
+    {
+        if (SelectedVm is null || SelectedCheckpoint is null)
+        {
+            return;
+        }
+
+        await ExecuteBusyActionAsync("Checkpoint wird angewendet...", async token =>
+        {
+            await _hyperVService.ApplyCheckpointAsync(SelectedVm.Name, SelectedCheckpoint.Name, token);
+            AddNotification($"Checkpoint '{SelectedCheckpoint.Name}' auf '{SelectedVm.Name}' angewendet.", "Warning");
+        });
+
+        await RefreshVmStatusAsync();
+        await LoadCheckpointsAsync();
+    }
+
+    private async Task DeleteCheckpointAsync()
+    {
+        if (SelectedVm is null || SelectedCheckpoint is null)
+        {
+            return;
+        }
+
+        var checkpointName = SelectedCheckpoint.Name;
+        await ExecuteBusyActionAsync("Checkpoint wird gelöscht...", async token =>
+        {
+            await _hyperVService.RemoveCheckpointAsync(SelectedVm.Name, checkpointName, token);
+            AddNotification($"Checkpoint '{checkpointName}' von '{SelectedVm.Name}' gelöscht.", "Warning");
+        });
+
+        await LoadCheckpointsAsync();
     }
 
     private async Task ExecuteBusyActionAsync(string busyText, Func<CancellationToken, Task> action, bool showNotificationOnErrorOnly = false)

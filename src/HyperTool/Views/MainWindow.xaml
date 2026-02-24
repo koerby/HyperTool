@@ -224,6 +224,97 @@
                                        Text="{Binding VmConnectComputerName, StringFormat=vmconnect host: {0}}" />
                         </StackPanel>
                     </TabItem>
+
+                    <TabItem Header="Snapshots">
+                        <Grid Margin="10">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="12" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <ListBox Grid.Row="0"
+                                     SelectedItem="{Binding SelectedCheckpoint}"
+                                     ItemsSource="{Binding AvailableCheckpoints}">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,2,0,2">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="260" />
+                                                <ColumnDefinition Width="170" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Foreground="#FFF9FAFB"
+                                                       Text="{Binding Name}" />
+                                            <TextBlock Grid.Column="1"
+                                                       Foreground="#FFD1D5DB"
+                                                       Text="{Binding Created, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}" />
+                                            <TextBlock Grid.Column="2"
+                                                       Foreground="#FFD1D5DB"
+                                                       Text="{Binding Type}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+
+                            <StackPanel Grid.Row="2">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="150" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="12" />
+                                        <ColumnDefinition Width="160" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Grid.Column="0"
+                                               VerticalAlignment="Center"
+                                               Foreground="#FFF9FAFB"
+                                               FontWeight="SemiBold"
+                                               Text="Checkpoint Name" />
+                                    <TextBox Grid.Column="1"
+                                             Text="{Binding NewCheckpointName, UpdateSourceTrigger=PropertyChanged}" />
+                                    <Button Grid.Column="3"
+                                            Padding="12,8"
+                                            Command="{Binding CreateCheckpointCommand}"
+                                            Content="Create Checkpoint" />
+                                </Grid>
+
+                                <Grid Margin="0,8,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="150" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="12" />
+                                        <ColumnDefinition Width="160" />
+                                        <ColumnDefinition Width="12" />
+                                        <ColumnDefinition Width="160" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Grid.Column="0"
+                                               VerticalAlignment="Center"
+                                               Foreground="#FFF9FAFB"
+                                               FontWeight="SemiBold"
+                                               Text="Beschreibung (optional)" />
+                                    <TextBox Grid.Column="1"
+                                             Text="{Binding NewCheckpointDescription, UpdateSourceTrigger=PropertyChanged}" />
+                                    <Button Grid.Column="3"
+                                            Padding="12,8"
+                                            Command="{Binding ApplyCheckpointCommand}"
+                                            Content="Apply Checkpoint" />
+                                    <Button Grid.Column="5"
+                                            Padding="12,8"
+                                            Command="{Binding DeleteCheckpointCommand}"
+                                            Content="Delete Checkpoint" />
+                                </Grid>
+
+                                <WrapPanel Margin="0,10,0,0">
+                                    <Button Margin="0,0,12,0"
+                                            Padding="12,8"
+                                            Command="{Binding LoadCheckpointsCommand}"
+                                            Content="Refresh Checkpoints" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Grid>
+                    </TabItem>
                 </TabControl>
             </StackPanel>
         </Border>
@@ -292,7 +383,7 @@
                    Background="#FF1F2937"
                    Foreground="#FFD1D5DB">
             <StatusBarItem>
-                <TextBlock Text="Tray Icon aktiv · Doppelklick zeigt das Fenster · Schritt 4 aktiv" />
+                <TextBlock Text="Tray Icon aktiv · Doppelklick zeigt das Fenster · Schritt 5 aktiv" />
             </StatusBarItem>
         </StatusBar>
     </Grid>
