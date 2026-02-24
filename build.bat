@@ -9,15 +9,20 @@ set "RUNTIME=win-x64"
 set "SELF_CONTAINED=true"
 set "NO_PAUSE=false"
 set "VERSION=1.0.0"
+set "VERSION_ARG="
 
 for %%A in (%*) do (
     if /I "%%~A"=="self-contained" set "SELF_CONTAINED=true"
     if /I "%%~A"=="framework-dependent" set "SELF_CONTAINED=false"
     if /I "%%~A"=="no-pause" set "NO_PAUSE=true"
-    echo %%~A | findstr /I /B "version=" >nul && set "VERSION=%%~A"
+    echo %%~A | findstr /I /B "version=" >nul && set "VERSION_ARG=%%~A"
 )
 
-for /f "tokens=1,* delims==" %%K in ("%VERSION%") do set "VERSION=%%L"
+if defined VERSION_ARG (
+    for /f "tokens=1,* delims==" %%K in ("%VERSION_ARG%") do set "VERSION=%%L"
+)
+
+if not defined VERSION set "VERSION=1.0.0"
 
 echo ==========================================
 echo HyperTool Build Script
