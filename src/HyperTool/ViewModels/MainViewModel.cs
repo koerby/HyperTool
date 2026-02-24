@@ -7,6 +7,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Diagnostics;
 using System.Reflection;
+using System.Windows;
 
 namespace HyperTool.ViewModels;
 
@@ -102,6 +103,9 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isNotificationsExpanded;
 
+    [ObservableProperty]
+    private bool _areSwitchesLoaded;
+
     public ObservableCollection<VmDefinition> AvailableVms { get; } = [];
 
     public ObservableCollection<HyperVSwitchInfo> AvailableSwitches { get; } = [];
@@ -172,6 +176,22 @@ public partial class MainViewModel : ViewModelBase
 
     public IRelayCommand<VmDefinition> SelectVmFromChipCommand { get; }
 
+    public IRelayCommand ClearNotificationsCommand { get; }
+
+    public IRelayCommand CopyNotificationsCommand { get; }
+
+    public IAsyncRelayCommand<string> StartVmByNameCommand { get; }
+
+    public IAsyncRelayCommand<string> StopVmByNameCommand { get; }
+
+    public IAsyncRelayCommand<string> TurnOffVmByNameCommand { get; }
+
+    public IAsyncRelayCommand<string> RestartVmByNameCommand { get; }
+
+    public IAsyncRelayCommand<string> OpenConsoleByNameCommand { get; }
+
+    public IAsyncRelayCommand<string> CreateSnapshotByNameCommand { get; }
+
     private readonly IHyperVService _hyperVService;
     private readonly IHnsService _hnsService;
     private readonly IConfigService _configService;
@@ -239,16 +259,16 @@ public partial class MainViewModel : ViewModelBase
             StatusText = "Konfiguration geladen";
         }
 
-        StartSelectedVmCommand = new AsyncRelayCommand(StartSelectedVmAsync, CanExecuteVmAction);
-        StopSelectedVmCommand = new AsyncRelayCommand(StopSelectedVmAsync, CanExecuteVmAction);
-        TurnOffSelectedVmCommand = new AsyncRelayCommand(TurnOffSelectedVmAsync, CanExecuteVmAction);
-        RestartSelectedVmCommand = new AsyncRelayCommand(RestartSelectedVmAsync, CanExecuteVmAction);
+        StartSelectedVmCommand = new AsyncRelayCommand(StartSelectedVmAsync, CanExecuteStartVmAction);
+        StopSelectedVmCommand = new AsyncRelayCommand(StopSelectedVmAsync, CanExecuteStopVmAction);
+        TurnOffSelectedVmCommand = new AsyncRelayCommand(TurnOffSelectedVmAsync, CanExecuteStopVmAction);
+        RestartSelectedVmCommand = new AsyncRelayCommand(RestartSelectedVmAsync, CanExecuteRestartVmAction);
         OpenConsoleCommand = new AsyncRelayCommand(OpenConsoleAsync, CanExecuteVmAction);
 
         LoadSwitchesCommand = new AsyncRelayCommand(LoadSwitchesAsync, () => !IsBusy);
-        ConnectSelectedSwitchCommand = new AsyncRelayCommand(ConnectSelectedSwitchAsync, () => !IsBusy && SelectedVm is not null && SelectedSwitch is not null);
+        ConnectSelectedSwitchCommand = new AsyncRelayCommand(ConnectSelectedSwitchAsync, () => !IsBusy && SelectedVm is not null && SelectedSwitch is not null && AreSwitchesLoaded);
         DisconnectSwitchCommand = new AsyncRelayCommand(DisconnectSwitchAsync, CanExecuteVmAction);
-        RefreshVmStatusCommand = new AsyncRelayCommand(RefreshVmStatusAsync, () => !IsBusy);
+        RefreshVmStatusCommand = new AsyncRelayCommand(RefreshRuntimeDataAsync, () => !IsBusy);
 
         LoadCheckpointsCommand = new AsyncRelayCommand(LoadCheckpointsAsync, CanExecuteVmAction);
         ApplyCheckpointCommand = new AsyncRelayCommand(ApplyCheckpointAsync, () => !IsBusy && SelectedVm is not null && SelectedCheckpoint is not null);
@@ -264,6 +284,15 @@ public partial class MainViewModel : ViewModelBase
         OpenReleasePageCommand = new RelayCommand(OpenReleasePage);
         ToggleNotificationsCommand = new RelayCommand(ToggleNotifications);
         SelectVmFromChipCommand = new RelayCommand<VmDefinition>(SelectVmFromChip);
+        ClearNotificationsCommand = new RelayCommand(ClearNotifications);
+        CopyNotificationsCommand = new RelayCommand(CopyNotificationsToClipboard);
+
+        StartVmByNameCommand = new AsyncRelayCommand<string>(StartVmByNameAsync, _ => !IsBusy);
+        StopVmByNameCommand = new AsyncRelayCommand<string>(StopVmByNameAsync, _ => !IsBusy);
+        TurnOffVmByNameCommand = new AsyncRelayCommand<string>(TurnOffVmByNameAsync, _ => !IsBusy);
+        RestartVmByNameCommand = new AsyncRelayCommand<string>(RestartVmByNameAsync, _ => !IsBusy);
+        OpenConsoleByNameCommand = new AsyncRelayCommand<string>(OpenConsoleByNameAsync, _ => !IsBusy);
+        CreateSnapshotByNameCommand = new AsyncRelayCommand<string>(CreateSnapshotByNameAsync, _ => !IsBusy);
 
         StartDefaultVmCommand = new AsyncRelayCommand(StartDefaultVmAsync, () => !IsBusy);
         StopDefaultVmCommand = new AsyncRelayCommand(StopDefaultVmAsync, () => !IsBusy);
@@ -286,6 +315,11 @@ public partial class MainViewModel : ViewModelBase
     partial void OnIsNotificationsExpandedChanged(bool value)
     {
         OnPropertyChanged(nameof(NotificationsToggleText));
+    }
+
+    partial void OnAreSwitchesLoadedChanged(bool value)
+    {
+        ConnectSelectedSwitchCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnConfigurationNoticeChanged(string? value)
@@ -314,6 +348,12 @@ public partial class MainViewModel : ViewModelBase
         ReloadConfigCommand.NotifyCanExecuteChanged();
         RestartHnsCommand.NotifyCanExecuteChanged();
         CheckForUpdatesCommand.NotifyCanExecuteChanged();
+        StartVmByNameCommand.NotifyCanExecuteChanged();
+        StopVmByNameCommand.NotifyCanExecuteChanged();
+        TurnOffVmByNameCommand.NotifyCanExecuteChanged();
+        RestartVmByNameCommand.NotifyCanExecuteChanged();
+        OpenConsoleByNameCommand.NotifyCanExecuteChanged();
+        CreateSnapshotByNameCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnSelectedVmChanged(VmDefinition? value)
@@ -330,8 +370,19 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
+        DefaultVmName = value.Name;
+        _ = PersistSelectedVmAsync(value.Name);
+
         _ = RefreshVmStatusAsync();
         _ = LoadCheckpointsAsync();
+    }
+
+    partial void OnSelectedVmStateChanged(string value)
+    {
+        StartSelectedVmCommand.NotifyCanExecuteChanged();
+        StopSelectedVmCommand.NotifyCanExecuteChanged();
+        TurnOffSelectedVmCommand.NotifyCanExecuteChanged();
+        RestartSelectedVmCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnSelectedSwitchChanged(HyperVSwitchInfo? value)
@@ -352,9 +403,26 @@ public partial class MainViewModel : ViewModelBase
 
     private bool CanExecuteVmAction() => !IsBusy && SelectedVm is not null;
 
+    private bool CanExecuteStartVmAction() => CanExecuteVmAction() && !IsRunningState(SelectedVmState);
+
+    private bool CanExecuteStopVmAction() => CanExecuteVmAction() && IsRunningState(SelectedVmState);
+
+    private bool CanExecuteRestartVmAction() => CanExecuteVmAction() && IsRunningState(SelectedVmState);
+
+    private static bool IsRunningState(string? state)
+    {
+        if (string.IsNullOrWhiteSpace(state))
+        {
+            return false;
+        }
+
+        return state.Contains("Running", StringComparison.OrdinalIgnoreCase)
+               || state.Contains("Läuft", StringComparison.OrdinalIgnoreCase);
+    }
+
     private async Task InitializeAsync()
     {
-        await LoadVmsFromHyperVAsync();
+        await LoadVmsFromHyperVWithRetryAsync();
         await LoadSwitchesAsync();
         await RefreshVmStatusAsync();
         await LoadCheckpointsAsync();
@@ -365,6 +433,43 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    private async Task LoadVmsFromHyperVWithRetryAsync()
+    {
+        var retryDelays = new[] { 300, 700, 1500 };
+        Exception? lastException = null;
+
+        for (var attempt = 0; attempt <= retryDelays.Length; attempt++)
+        {
+            try
+            {
+                await LoadVmsFromHyperVAsync();
+                if (AvailableVms.Count > 0)
+                {
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                lastException = ex;
+            }
+
+            if (attempt < retryDelays.Length)
+            {
+                await Task.Delay(retryDelays[attempt]);
+            }
+        }
+
+        if (lastException is not null)
+        {
+            AddNotification($"Hyper-V scheint nicht verfügbar: {lastException.Message}", "Warning");
+            StatusText = "Hyper-V nicht verfügbar";
+            return;
+        }
+
+        AddNotification("Keine Hyper-V VMs gefunden. Bitte Hyper-V aktivieren/installieren.", "Warning");
+        StatusText = "Keine Hyper-V VMs gefunden";
+    }
+
     private async Task LoadVmsFromHyperVAsync()
     {
         await ExecuteBusyActionAsync("Hyper-V VMs werden geladen...", async token =>
@@ -372,6 +477,12 @@ public partial class MainViewModel : ViewModelBase
             var vms = await _hyperVService.GetVmsAsync(token);
             if (vms.Count == 0)
             {
+                AvailableVms.Clear();
+                SelectedVm = null;
+                SelectedVmForConfig = null;
+                SelectedDefaultVmForConfig = null;
+                SelectedVmState = "Unbekannt";
+                SelectedVmCurrentSwitch = "-";
                 return;
             }
 
@@ -463,6 +574,8 @@ public partial class MainViewModel : ViewModelBase
 
     private async Task LoadSwitchesAsync()
     {
+        AreSwitchesLoaded = false;
+
         await ExecuteBusyActionAsync("Switches werden geladen...", async token =>
         {
             var switches = await _hyperVService.GetVmSwitchesAsync(token);
@@ -476,8 +589,17 @@ public partial class MainViewModel : ViewModelBase
             SelectedSwitch = AvailableSwitches.FirstOrDefault(item => string.Equals(item.Name, DefaultSwitchName, StringComparison.OrdinalIgnoreCase))
                              ?? AvailableSwitches.FirstOrDefault();
 
+            AreSwitchesLoaded = true;
+
             AddNotification($"{AvailableSwitches.Count} Switch(es) geladen.", "Info");
         });
+    }
+
+    private async Task RefreshRuntimeDataAsync()
+    {
+        await LoadVmsFromHyperVWithRetryAsync();
+        await LoadSwitchesAsync();
+        await RefreshVmStatusAsync();
     }
 
     private async Task ConnectSelectedSwitchAsync()
@@ -807,27 +929,11 @@ public partial class MainViewModel : ViewModelBase
     {
         await ExecuteBusyActionAsync("Konfiguration wird gespeichert...", _ =>
         {
-            if (AvailableVms.Count == 0)
-            {
-                AddNotification("Mindestens eine VM ist erforderlich.", "Error");
-                return Task.CompletedTask;
-            }
-
-            if (string.IsNullOrWhiteSpace(DefaultVmName))
-            {
-                DefaultVmName = AvailableVms[0].Name;
-            }
-
             var config = new HyperToolConfig
             {
                 DefaultVmName = DefaultVmName,
                 DefaultSwitchName = DefaultSwitchName,
                 VmConnectComputerName = VmConnectComputerName,
-                Vms = AvailableVms.Select(vm => new VmDefinition
-                {
-                    Name = vm.Name,
-                    Label = vm.Label
-                }).ToList(),
                 Hns = new HnsSettings
                 {
                     Enabled = HnsEnabled,
@@ -992,37 +1098,10 @@ public partial class MainViewModel : ViewModelBase
             UpdateCheckOnStartup = config.Update.CheckOnStartup;
             GithubOwner = config.Update.GitHubOwner;
             GithubRepo = config.Update.GitHubRepo;
-
-            AvailableVms.Clear();
-            foreach (var vm in config.Vms)
+            if (!string.IsNullOrWhiteSpace(previousSelectionName))
             {
-                if (vm is null || string.IsNullOrWhiteSpace(vm.Name))
-                {
-                    continue;
-                }
-
-                AvailableVms.Add(new VmDefinition
-                {
-                    Name = vm.Name,
-                    Label = string.IsNullOrWhiteSpace(vm.Label) ? vm.Name : vm.Label
-                });
+                DefaultVmName = previousSelectionName;
             }
-
-            if (string.IsNullOrWhiteSpace(DefaultVmName) && AvailableVms.Count > 0)
-            {
-                DefaultVmName = AvailableVms[0].Name;
-            }
-
-            SelectedVm = AvailableVms.FirstOrDefault(vm =>
-                             string.Equals(vm.Name, previousSelectionName, StringComparison.OrdinalIgnoreCase))
-                         ?? AvailableVms.FirstOrDefault(vm =>
-                             string.Equals(vm.Name, DefaultVmName, StringComparison.OrdinalIgnoreCase))
-                         ?? AvailableVms.FirstOrDefault();
-
-            SelectedVmForConfig = SelectedVm;
-            SelectedDefaultVmForConfig = AvailableVms.FirstOrDefault(vm =>
-                                           string.Equals(vm.Name, DefaultVmName, StringComparison.OrdinalIgnoreCase))
-                                       ?? SelectedVm;
 
             AddNotification("Konfiguration neu geladen.", "Info");
             return Task.CompletedTask;
@@ -1030,6 +1109,132 @@ public partial class MainViewModel : ViewModelBase
 
         await LoadVmsFromHyperVAsync();
         await LoadSwitchesAsync();
+    }
+
+    private async Task PersistSelectedVmAsync(string vmName)
+    {
+        try
+        {
+            var configResult = _configService.LoadOrCreate(_configPath);
+            var config = configResult.Config;
+            config.DefaultVmName = vmName;
+
+            _ = _configService.TrySave(_configPath, config, out _);
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Selected VM could not be persisted.");
+        }
+    }
+
+    private async Task StartVmByNameAsync(string? vmName)
+    {
+        if (string.IsNullOrWhiteSpace(vmName))
+        {
+            return;
+        }
+
+        await ExecuteBusyActionAsync($"VM '{vmName}' wird gestartet...", async token =>
+        {
+            await _hyperVService.StartVmAsync(vmName, token);
+            AddNotification($"VM '{vmName}' gestartet.", "Success");
+        });
+
+        await RefreshVmStatusByNameAsync(vmName);
+    }
+
+    private async Task StopVmByNameAsync(string? vmName)
+    {
+        if (string.IsNullOrWhiteSpace(vmName))
+        {
+            return;
+        }
+
+        await ExecuteBusyActionAsync($"VM '{vmName}' wird gestoppt...", async token =>
+        {
+            await _hyperVService.StopVmGracefulAsync(vmName, token);
+            AddNotification($"VM '{vmName}' gestoppt.", "Success");
+        });
+
+        await RefreshVmStatusByNameAsync(vmName);
+    }
+
+    private async Task TurnOffVmByNameAsync(string? vmName)
+    {
+        if (string.IsNullOrWhiteSpace(vmName))
+        {
+            return;
+        }
+
+        await ExecuteBusyActionAsync($"VM '{vmName}' wird hart ausgeschaltet...", async token =>
+        {
+            await _hyperVService.TurnOffVmAsync(vmName, token);
+            AddNotification($"VM '{vmName}' hart ausgeschaltet.", "Warning");
+        });
+
+        await RefreshVmStatusByNameAsync(vmName);
+    }
+
+    private async Task RestartVmByNameAsync(string? vmName)
+    {
+        if (string.IsNullOrWhiteSpace(vmName))
+        {
+            return;
+        }
+
+        await ExecuteBusyActionAsync($"VM '{vmName}' wird neu gestartet...", async token =>
+        {
+            await _hyperVService.RestartVmAsync(vmName, token);
+            AddNotification($"VM '{vmName}' neu gestartet.", "Success");
+        });
+
+        await RefreshVmStatusByNameAsync(vmName);
+    }
+
+    private async Task OpenConsoleByNameAsync(string? vmName)
+    {
+        if (string.IsNullOrWhiteSpace(vmName))
+        {
+            return;
+        }
+
+        await ExecuteBusyActionAsync($"Konsole für '{vmName}' wird geöffnet...", async token =>
+        {
+            await _hyperVService.OpenVmConnectAsync(vmName, VmConnectComputerName, token);
+            AddNotification($"Konsole für '{vmName}' geöffnet.", "Info");
+        });
+    }
+
+    private async Task CreateSnapshotByNameAsync(string? vmName)
+    {
+        if (string.IsNullOrWhiteSpace(vmName))
+        {
+            return;
+        }
+
+        var checkpointName = $"checkpoint-{DateTime.Now:yyyyMMdd-HHmmss}";
+        await ExecuteBusyActionAsync($"Snapshot für '{vmName}' wird erstellt...", async token =>
+        {
+            await _hyperVService.CreateCheckpointAsync(vmName, checkpointName, null, token);
+            AddNotification($"Checkpoint '{checkpointName}' für '{vmName}' erstellt.", "Success");
+        });
+    }
+
+    private void ClearNotifications()
+    {
+        Notifications.Clear();
+    }
+
+    private void CopyNotificationsToClipboard()
+    {
+        var lines = Notifications
+            .Select(entry => $"[{entry.Timestamp:yyyy-MM-dd HH:mm:ss}] [{entry.Level}] {entry.Message}")
+            .ToArray();
+
+        var text = lines.Length == 0 ? "Keine Notifications vorhanden." : string.Join(Environment.NewLine, lines);
+        System.Windows.Clipboard.SetText(text);
+        AddNotification("Notifications in Zwischenablage kopiert.", "Info");
     }
 
     private async Task CheckForUpdatesAsync()
