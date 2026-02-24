@@ -33,9 +33,9 @@ public sealed class HyperToolConfig
 
 public sealed class HnsSettings
 {
-    public bool Enabled { get; set; } = true;
+    public bool Enabled { get; set; }
 
-    public bool AutoRestartAfterDefaultSwitch { get; set; } = true;
+    public bool AutoRestartAfterDefaultSwitch { get; set; }
 
     public bool AutoRestartAfterAnyConnect { get; set; }
 }

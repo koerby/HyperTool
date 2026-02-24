@@ -13,8 +13,8 @@
   "defaultSwitchName": "Default Switch",
   "vmConnectComputerName": "localhost",
   "hns": {
-    "enabled": true,
-    "autoRestartAfterDefaultSwitch": true,
+    "enabled": false,
+    "autoRestartAfterDefaultSwitch": false,
     "autoRestartAfterAnyConnect": false
   },
   "ui": {

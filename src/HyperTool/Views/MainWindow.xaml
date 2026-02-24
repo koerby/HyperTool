@@ -12,31 +12,73 @@
         MinWidth="980"
         MinHeight="700"
         WindowStartupLocation="CenterScreen"
-        Background="#FF111827">
+        Background="#FF0B1220">
     <mah:MetroWindow.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
 
-        <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#FF1F2937" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#FF17233E" />
         <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="#FFF9FAFB" />
-        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#FF0F766E" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#FF17233E" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="#FFF9FAFB" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#FF35B7FF" />
         <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFFFFFFF" />
+
+        <LinearGradientBrush x:Key="WindowGradient" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#FF0A1328" Offset="0" />
+            <GradientStop Color="#FF152A4C" Offset="1" />
+        </LinearGradientBrush>
+
+        <Style TargetType="Border" x:Key="CardBorder">
+            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="Background" Value="#1A263F" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="#334A71" />
+        </Style>
+
+        <Style TargetType="Button">
+            <Setter Property="Foreground" Value="#FFF9FAFB" />
+            <Setter Property="Background" Value="#223A62" />
+            <Setter Property="BorderBrush" Value="#3C5D8A" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="Margin" Value="0,0,10,0" />
+        </Style>
+
+        <Style TargetType="TabControl">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="#334A71" />
+        </Style>
+
+        <Style TargetType="TabItem">
+            <Setter Property="Foreground" Value="#FFD8E5FF" />
+            <Setter Property="Background" Value="#1A263F" />
+            <Setter Property="Padding" Value="14,8" />
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#223A62" />
+                    <Setter Property="Foreground" Value="#FFFFFFFF" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
 
         <Style TargetType="ComboBox">
             <Setter Property="Foreground" Value="#FFF9FAFB" />
-            <Setter Property="Background" Value="#FF111827" />
-            <Setter Property="BorderBrush" Value="#FF4B5563" />
+            <Setter Property="Background" Value="#17233E" />
+            <Setter Property="BorderBrush" Value="#3C5D8A" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="8,4" />
         </Style>
 
         <Style TargetType="ComboBoxItem">
             <Setter Property="Foreground" Value="#FFF9FAFB" />
-            <Setter Property="Background" Value="#FF1F2937" />
+            <Setter Property="Background" Value="#17233E" />
             <Setter Property="Padding" Value="8,4" />
             <Style.Triggers>
                 <Trigger Property="IsHighlighted" Value="True">
-                    <Setter Property="Background" Value="#FF374151" />
+                    <Setter Property="Background" Value="#2A4772" />
                 </Trigger>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#FF0F766E" />
+                    <Setter Property="Background" Value="#FF35B7FF" />
                     <Setter Property="Foreground" Value="#FFFFFFFF" />
                 </Trigger>
             </Style.Triggers>
@@ -44,14 +86,15 @@
 
         <Style TargetType="TextBox">
             <Setter Property="Foreground" Value="#FFF9FAFB" />
-            <Setter Property="Background" Value="#FF111827" />
-            <Setter Property="BorderBrush" Value="#FF4B5563" />
+            <Setter Property="Background" Value="#17233E" />
+            <Setter Property="BorderBrush" Value="#3C5D8A" />
+            <Setter Property="Padding" Value="8,4" />
         </Style>
 
         <Style TargetType="ListBox">
             <Setter Property="Foreground" Value="#FFF9FAFB" />
-            <Setter Property="Background" Value="#FF111827" />
-            <Setter Property="BorderBrush" Value="#FF374151" />
+            <Setter Property="Background" Value="#17233E" />
+            <Setter Property="BorderBrush" Value="#334A71" />
         </Style>
 
         <Style TargetType="ListBoxItem">
@@ -59,17 +102,28 @@
             <Setter Property="Background" Value="Transparent" />
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#FF374151" />
+                    <Setter Property="Background" Value="#2A4772" />
                 </Trigger>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#FF0F766E" />
+                    <Setter Property="Background" Value="#FF35B7FF" />
                     <Setter Property="Foreground" Value="#FFFFFFFF" />
                 </Trigger>
             </Style.Triggers>
         </Style>
+
+        <Style TargetType="GroupBox">
+            <Setter Property="Foreground" Value="#FFE6EEFF" />
+            <Setter Property="BorderBrush" Value="#3C5D8A" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="8" />
+        </Style>
+
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="#FFE6EEFF" />
+        </Style>
     </mah:MetroWindow.Resources>
 
-    <Grid Margin="20">
+    <Grid Margin="20" Background="{StaticResource WindowGradient}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="16" />
@@ -84,10 +138,7 @@
 
         <Border Grid.Row="0"
                 Padding="16"
-                CornerRadius="10"
-                Background="#FF1F2937"
-                BorderThickness="1"
-                BorderBrush="#FF374151">
+            Style="{StaticResource CardBorder}">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -109,7 +160,7 @@
                         Padding="10,6"
                         CornerRadius="6"
                         VerticalAlignment="Center"
-                        Background="#FF0F766E">
+                    Background="#FF35B7FF">
                     <TextBlock Foreground="White"
                                FontWeight="SemiBold"
                                Text="{Binding StatusText}" />
@@ -131,10 +182,7 @@
 
         <Border Grid.Row="4"
                 Padding="16"
-                CornerRadius="10"
-                Background="#FF1F2937"
-                BorderThickness="1"
-                BorderBrush="#FF374151">
+            Style="{StaticResource CardBorder}">
             <StackPanel>
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -198,33 +246,25 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
 
-                            <Button Grid.Row="0" Grid.Column="0"
-                                    Margin="0,0,10,0"
-                                    Padding="12,8"
+                                <Button Grid.Row="0" Grid.Column="0"
                                     Command="{Binding StartSelectedVmCommand}"
                                     Content="Start VM" />
-                            <Button Grid.Row="0" Grid.Column="1"
-                                    Margin="0,0,10,0"
-                                    Padding="12,8"
+                                <Button Grid.Row="0" Grid.Column="1"
                                     Command="{Binding StopSelectedVmCommand}"
                                     Content="Stop VM (graceful)" />
-                            <Button Grid.Row="0" Grid.Column="2"
-                                    Padding="12,8"
+                                <Button Grid.Row="0" Grid.Column="2"
+                                    Margin="0"
                                     Command="{Binding TurnOffSelectedVmCommand}"
                                     Content="Turn Off (hard)" />
 
-                            <Button Grid.Row="2" Grid.Column="0"
-                                    Margin="0,0,10,0"
-                                    Padding="12,8"
+                                <Button Grid.Row="2" Grid.Column="0"
                                     Command="{Binding RestartSelectedVmCommand}"
                                     Content="Restart VM" />
-                            <Button Grid.Row="2" Grid.Column="1"
-                                    Margin="0,0,10,0"
-                                    Padding="12,8"
+                                <Button Grid.Row="2" Grid.Column="1"
                                     Command="{Binding OpenConsoleCommand}"
                                     Content="Open Console" />
-                            <Button Grid.Row="2" Grid.Column="2"
-                                    Padding="12,8"
+                                <Button Grid.Row="2" Grid.Column="2"
+                                    Margin="0"
                                     Command="{Binding RefreshVmStatusCommand}"
                                     Content="Refresh Status" />
                         </Grid>
@@ -252,22 +292,19 @@
                                           ItemsSource="{Binding AvailableSwitches}" />
 
                                 <Button Grid.Column="2"
-                                        Padding="12,8"
+                                    Margin="0"
                                         Command="{Binding LoadSwitchesCommand}"
                                         Content="Refresh Switches" />
                             </Grid>
 
                             <WrapPanel Margin="0,14,0,0">
                                 <Button Margin="0,0,12,12"
-                                        Padding="12,8"
                                         Command="{Binding ConnectSelectedSwitchCommand}"
                                         Content="Connect to Switch" />
                                 <Button Margin="0,0,12,12"
-                                        Padding="12,8"
                                         Command="{Binding DisconnectSwitchCommand}"
                                         Content="Disconnect" />
                                 <Button Margin="0,0,12,12"
-                                        Padding="12,8"
                                         Command="{Binding ConnectDefaultVmCommand}"
                                         Content="Connect Default Switch" />
                             </WrapPanel>
@@ -565,10 +602,7 @@
 
         <Border Grid.Row="6"
                 Padding="12"
-                CornerRadius="10"
-                Background="#FF1F2937"
-                BorderThickness="1"
-                BorderBrush="#FF374151">
+            Style="{StaticResource CardBorder}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
