@@ -98,10 +98,7 @@ public sealed class TrayService : ITrayService
         var vms = getVms();
         var switches = getSwitches();
 
-        contextMenu.Items.Add(BuildVmActionMenu("VM starten", vms, startVmAction));
-        contextMenu.Items.Add(BuildVmActionMenu("VM stoppen", vms, stopVmAction));
-        contextMenu.Items.Add(BuildVmActionMenu("Konsole öffnen", vms, openConsoleAction));
-        contextMenu.Items.Add(BuildVmActionMenu("Snapshot erstellen", vms, createSnapshotAction));
+        contextMenu.Items.Add(BuildVmActionsMenu(vms, startVmAction, stopVmAction, openConsoleAction, createSnapshotAction));
         contextMenu.Items.Add(BuildSwitchActionMenu(vms, switches, connectVmToSwitchAction));
 
         contextMenu.Items.Add(new ToolStripSeparator());
@@ -121,9 +118,14 @@ public sealed class TrayService : ITrayService
         contextMenu.Items.Add("Exit", null, (_, _) => exitAction());
     }
 
-    private static ToolStripMenuItem BuildVmActionMenu(string title, IReadOnlyList<VmDefinition> vms, Func<string, Task> action)
+    private static ToolStripMenuItem BuildVmActionsMenu(
+        IReadOnlyList<VmDefinition> vms,
+        Func<string, Task> startAction,
+        Func<string, Task> stopAction,
+        Func<string, Task> openConsoleAction,
+        Func<string, Task> snapshotAction)
     {
-        var menu = new ToolStripMenuItem(title);
+        var menu = new ToolStripMenuItem("VM Aktionen");
 
         if (vms.Count == 0)
         {
@@ -135,7 +137,14 @@ public sealed class TrayService : ITrayService
         {
             var vmName = vm.Name;
             var vmLabel = string.IsNullOrWhiteSpace(vm.Label) ? vmName : vm.Label;
-            menu.DropDownItems.Add(vmLabel, null, async (_, _) => await action(vmName));
+            var vmMenu = new ToolStripMenuItem(vmLabel);
+
+            vmMenu.DropDownItems.Add("Start", null, async (_, _) => await startAction(vmName));
+            vmMenu.DropDownItems.Add("Stop", null, async (_, _) => await stopAction(vmName));
+            vmMenu.DropDownItems.Add("Konsole öffnen", null, async (_, _) => await openConsoleAction(vmName));
+            vmMenu.DropDownItems.Add("Snapshot erstellen", null, async (_, _) => await snapshotAction(vmName));
+
+            menu.DropDownItems.Add(vmMenu);
         }
 
         return menu;

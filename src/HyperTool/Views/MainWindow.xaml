@@ -5,6 +5,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+        xmlns:conv="clr-namespace:HyperTool.Converters"
         mc:Ignorable="d"
         Title="{Binding WindowTitle}"
         Icon="/Assets/HyperTool.ico"
@@ -16,6 +17,7 @@
         Background="#0B1220">
     <mah:MetroWindow.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <conv:StringEqualsConverter x:Key="StringEqualsConverter" />
 
         <SolidColorBrush x:Key="PageBackground" Color="#0A1220" />
         <SolidColorBrush x:Key="PanelBackground" Color="#141E32" />
@@ -267,6 +269,7 @@
                                         <Style TargetType="Button" BasedOn="{StaticResource ActionButton}">
                                             <Setter Property="Background" Value="#36506D" />
                                             <Setter Property="BorderBrush" Value="#5B84AE" />
+                                            <Setter Property="BorderThickness" Value="1" />
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding RuntimeState}" Value="Running">
                                                     <Setter Property="Background" Value="#1F8B4A" />
@@ -275,6 +278,16 @@
                                                 <DataTrigger Binding="{Binding RuntimeState}" Value="Off">
                                                     <Setter Property="Background" Value="#5A2F42" />
                                                     <Setter Property="BorderBrush" Value="#B66D8D" />
+                                                </DataTrigger>
+                                                <DataTrigger Value="True">
+                                                    <DataTrigger.Binding>
+                                                        <MultiBinding Converter="{StaticResource StringEqualsConverter}">
+                                                            <Binding Path="Name" />
+                                                            <Binding Path="DataContext.SelectedVm.Name" RelativeSource="{RelativeSource AncestorType=Window}" />
+                                                        </MultiBinding>
+                                                    </DataTrigger.Binding>
+                                                    <Setter Property="BorderBrush" Value="#F7C948" />
+                                                    <Setter Property="BorderThickness" Value="2" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -633,37 +646,16 @@
                         </TabItem>
 
                         <TabItem Header="Info">
-                            <Grid Margin="4">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-
-                                <StackPanel>
-                                    <TextBlock Foreground="{StaticResource TextPrimary}" FontSize="18" FontWeight="SemiBold" Text="HyperTool" />
-                                    <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="dein nützlicher Hyper V Helfer" />
-                                    <TextBlock Margin="0,12,0,0" Foreground="{StaticResource TextMuted}" Text="{Binding AppVersion, StringFormat=Version: {0}}" />
-                                    <TextBlock Margin="0,6,0,12" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Text="{Binding UpdateStatus, StringFormat=Update-Status: {0}}" />
-                                    <WrapPanel>
-                                        <Button Style="{StaticResource ActionButton}" Command="{Binding CheckForUpdatesCommand}" Content="🛰 Update prüfen" />
-                                        <Button Margin="0" Style="{StaticResource ActionButton}" Command="{Binding OpenReleasePageCommand}" Content="🌐 Release öffnen" />
-                                    </WrapPanel>
-                                </StackPanel>
-
-                                <Border Grid.Column="1"
-                                        Margin="16,0,0,0"
-                                        Padding="8"
-                                        CornerRadius="10"
-                                        Background="#0F1A2A"
-                                        BorderBrush="#2D4265"
-                                        BorderThickness="1"
-                                        VerticalAlignment="Top">
-                                    <Image Source="/Assets/Logo.png"
-                                           Width="120"
-                                           Height="120"
-                                           Stretch="Uniform" />
-                                </Border>
-                            </Grid>
+                            <StackPanel Margin="4">
+                                <TextBlock Foreground="{StaticResource TextPrimary}" FontSize="18" FontWeight="SemiBold" Text="HyperTool" />
+                                <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="dein nützlicher Hyper V Helfer" />
+                                <TextBlock Margin="0,12,0,0" Foreground="{StaticResource TextMuted}" Text="{Binding AppVersion, StringFormat=Version: {0}}" />
+                                <TextBlock Margin="0,6,0,12" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Text="{Binding UpdateStatus, StringFormat=Update-Status: {0}}" />
+                                <WrapPanel>
+                                    <Button Style="{StaticResource ActionButton}" Command="{Binding CheckForUpdatesCommand}" Content="🛰 Update prüfen" />
+                                    <Button Margin="0" Style="{StaticResource ActionButton}" Command="{Binding OpenReleasePageCommand}" Content="🌐 Release öffnen" />
+                                </WrapPanel>
+                            </StackPanel>
                         </TabItem>
                     </TabControl>
                 </Grid>
