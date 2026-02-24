@@ -121,10 +121,6 @@ public partial class MainViewModel : ViewModelBase
             });
         }
 
-        SelectedVm = AvailableVms.FirstOrDefault(vm =>
-            string.Equals(vm.Name, configResult.Config.DefaultVmName, StringComparison.OrdinalIgnoreCase))
-            ?? AvailableVms.FirstOrDefault();
-
         if (configResult.IsGenerated)
         {
             StatusText = "Beispiel-Konfiguration erzeugt";
@@ -157,6 +153,10 @@ public partial class MainViewModel : ViewModelBase
         StopDefaultVmCommand = new AsyncRelayCommand(StopDefaultVmAsync, () => !IsBusy);
         ConnectDefaultVmCommand = new AsyncRelayCommand(ConnectDefaultVmAsync, () => !IsBusy);
         CreateCheckpointCommand = new AsyncRelayCommand(CreateCheckpointAsync, CanExecuteVmAction);
+
+        SelectedVm = AvailableVms.FirstOrDefault(vm =>
+            string.Equals(vm.Name, configResult.Config.DefaultVmName, StringComparison.OrdinalIgnoreCase))
+            ?? AvailableVms.FirstOrDefault();
 
         _ = InitializeAsync();
     }
