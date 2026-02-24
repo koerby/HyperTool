@@ -2,8 +2,7 @@ using HyperTool.Models;
 using Serilog;
 using System.Diagnostics;
 using System.Globalization;
-using System.Management.Automation;
-using System.Management.Automation.Runspaces;
+using System.Text.Json;
 
 namespace HyperTool.Services;
 
@@ -22,9 +21,10 @@ public sealed class HyperVPowerShellService : IHyperVService
                     CurrentSwitchName = if ($null -ne $adapter -and $null -ne $adapter.SwitchName) { $adapter.SwitchName } else { '' }
                 }
             }
+            | ConvertTo-Json -Depth 4 -Compress
             """;
 
-        var rows = await InvokeAsync(script, null, cancellationToken);
+        var rows = await InvokeJsonArrayAsync(script, cancellationToken);
         return rows.Select(row => new HyperVVmInfo
         {
             Name = GetString(row, "Name"),
@@ -35,24 +35,25 @@ public sealed class HyperVPowerShellService : IHyperVService
     }
 
     public Task StartVmAsync(string vmName, CancellationToken cancellationToken) =>
-        InvokeNonQueryAsync("Start-VM -VMName $VmName -Confirm:$false", new Dictionary<string, object?> { ["VmName"] = vmName }, cancellationToken);
+        InvokeNonQueryAsync($"Start-VM -VMName {ToPsSingleQuoted(vmName)} -Confirm:$false", cancellationToken);
 
     public Task StopVmGracefulAsync(string vmName, CancellationToken cancellationToken) =>
-        InvokeNonQueryAsync("Stop-VM -VMName $VmName -Shutdown -Confirm:$false", new Dictionary<string, object?> { ["VmName"] = vmName }, cancellationToken);
+        InvokeNonQueryAsync($"Stop-VM -VMName {ToPsSingleQuoted(vmName)} -Shutdown -Confirm:$false", cancellationToken);
 
     public Task TurnOffVmAsync(string vmName, CancellationToken cancellationToken) =>
-        InvokeNonQueryAsync("Stop-VM -VMName $VmName -TurnOff -Confirm:$false", new Dictionary<string, object?> { ["VmName"] = vmName }, cancellationToken);
+        InvokeNonQueryAsync($"Stop-VM -VMName {ToPsSingleQuoted(vmName)} -TurnOff -Confirm:$false", cancellationToken);
 
     public Task RestartVmAsync(string vmName, CancellationToken cancellationToken) =>
-        InvokeNonQueryAsync("Restart-VM -VMName $VmName -Force -Confirm:$false", new Dictionary<string, object?> { ["VmName"] = vmName }, cancellationToken);
+        InvokeNonQueryAsync($"Restart-VM -VMName {ToPsSingleQuoted(vmName)} -Force -Confirm:$false", cancellationToken);
 
     public async Task<IReadOnlyList<HyperVSwitchInfo>> GetVmSwitchesAsync(CancellationToken cancellationToken)
     {
         const string script = """
             Get-VMSwitch | Select-Object Name, SwitchType
+            | ConvertTo-Json -Depth 3 -Compress
             """;
 
-        var rows = await InvokeAsync(script, null, cancellationToken);
+        var rows = await InvokeJsonArrayAsync(script, cancellationToken);
         return rows.Select(row => new HyperVSwitchInfo
         {
             Name = GetString(row, "Name"),
@@ -62,27 +63,22 @@ public sealed class HyperVPowerShellService : IHyperVService
 
     public Task ConnectVmNetworkAdapterAsync(string vmName, string switchName, CancellationToken cancellationToken) =>
         InvokeNonQueryAsync(
-            "Connect-VMNetworkAdapter -VMName $VmName -SwitchName $SwitchName",
-            new Dictionary<string, object?>
-            {
-                ["VmName"] = vmName,
-                ["SwitchName"] = switchName
-            },
+            $"Connect-VMNetworkAdapter -VMName {ToPsSingleQuoted(vmName)} -SwitchName {ToPsSingleQuoted(switchName)}",
             cancellationToken);
 
     public Task DisconnectVmNetworkAdapterAsync(string vmName, CancellationToken cancellationToken) =>
         InvokeNonQueryAsync(
-            "Disconnect-VMNetworkAdapter -VMName $VmName",
-            new Dictionary<string, object?> { ["VmName"] = vmName },
+            $"Disconnect-VMNetworkAdapter -VMName {ToPsSingleQuoted(vmName)}",
             cancellationToken);
 
     public async Task<IReadOnlyList<HyperVCheckpointInfo>> GetCheckpointsAsync(string vmName, CancellationToken cancellationToken)
     {
-        const string script = """
-            Get-VMCheckpoint -VMName $VmName | Select-Object Name, CreationTime, CheckpointType
+        var script = $"""
+            Get-VMCheckpoint -VMName {ToPsSingleQuoted(vmName)} | Select-Object Name, CreationTime, CheckpointType
+            | ConvertTo-Json -Depth 4 -Compress
             """;
 
-        var rows = await InvokeAsync(script, new Dictionary<string, object?> { ["VmName"] = vmName }, cancellationToken);
+        var rows = await InvokeJsonArrayAsync(script, cancellationToken);
         return rows.Select(row => new HyperVCheckpointInfo
         {
             Name = GetString(row, "Name"),
@@ -99,33 +95,18 @@ public sealed class HyperVPowerShellService : IHyperVService
         }
 
         await InvokeNonQueryAsync(
-            "Checkpoint-VM -VMName $VmName -SnapshotName $CheckpointName -Confirm:$false",
-            new Dictionary<string, object?>
-            {
-                ["VmName"] = vmName,
-                ["CheckpointName"] = checkpointName
-            },
+            $"Checkpoint-VM -VMName {ToPsSingleQuoted(vmName)} -SnapshotName {ToPsSingleQuoted(checkpointName)} -Confirm:$false",
             cancellationToken);
     }
 
     public Task ApplyCheckpointAsync(string vmName, string checkpointName, CancellationToken cancellationToken) =>
         InvokeNonQueryAsync(
-            "Restore-VMCheckpoint -VMCheckpoint (Get-VMCheckpoint -VMName $VmName -Name $CheckpointName) -Confirm:$false",
-            new Dictionary<string, object?>
-            {
-                ["VmName"] = vmName,
-                ["CheckpointName"] = checkpointName
-            },
+            $"Restore-VMCheckpoint -VMCheckpoint (Get-VMCheckpoint -VMName {ToPsSingleQuoted(vmName)} -Name {ToPsSingleQuoted(checkpointName)}) -Confirm:$false",
             cancellationToken);
 
     public Task RemoveCheckpointAsync(string vmName, string checkpointName, CancellationToken cancellationToken) =>
         InvokeNonQueryAsync(
-            "Remove-VMCheckpoint -VMName $VmName -Name $CheckpointName -Confirm:$false",
-            new Dictionary<string, object?>
-            {
-                ["VmName"] = vmName,
-                ["CheckpointName"] = checkpointName
-            },
+            $"Remove-VMCheckpoint -VMName {ToPsSingleQuoted(vmName)} -Name {ToPsSingleQuoted(checkpointName)} -Confirm:$false",
             cancellationToken);
 
     public Task OpenVmConnectAsync(string vmName, string computerName, CancellationToken cancellationToken)
@@ -154,65 +135,124 @@ public sealed class HyperVPowerShellService : IHyperVService
         return Task.CompletedTask;
     }
 
-    private async Task InvokeNonQueryAsync(string script, IReadOnlyDictionary<string, object?>? parameters, CancellationToken cancellationToken)
+    private async Task InvokeNonQueryAsync(string script, CancellationToken cancellationToken)
     {
-        await InvokeAsync(script, parameters, cancellationToken);
+        _ = await InvokePowerShellAsync(script, cancellationToken);
     }
 
-    private static async Task<IReadOnlyList<PSObject>> InvokeAsync(
-        string script,
-        IReadOnlyDictionary<string, object?>? parameters,
-        CancellationToken cancellationToken)
+    private static async Task<IReadOnlyList<JsonElement>> InvokeJsonArrayAsync(string script, CancellationToken cancellationToken)
     {
-        return await Task.Run(() =>
+        var json = await InvokePowerShellAsync(script, cancellationToken);
+        if (string.IsNullOrWhiteSpace(json))
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            return [];
+        }
 
-            using var powerShell = PowerShell.Create();
+        using var document = JsonDocument.Parse(json);
+        if (document.RootElement.ValueKind == JsonValueKind.Array)
+        {
+            return document.RootElement.EnumerateArray().Select(element => element.Clone()).ToList();
+        }
 
-            var initialState = InitialSessionState.CreateDefault2();
-            using var runspace = RunspaceFactory.CreateRunspace(initialState);
-            runspace.Open();
-            powerShell.Runspace = runspace;
+        if (document.RootElement.ValueKind == JsonValueKind.Object)
+        {
+            return [document.RootElement.Clone()];
+        }
 
-            powerShell.AddScript("Import-Module Hyper-V -ErrorAction Stop");
+        return [];
+    }
 
-            if (parameters is not null)
+    private static async Task<string> InvokePowerShellAsync(string script, CancellationToken cancellationToken)
+    {
+        var wrappedScript = $"$ErrorActionPreference = 'Stop'; Import-Module Hyper-V -ErrorAction Stop; {script}";
+        var processStartInfo = new ProcessStartInfo
+        {
+            FileName = "powershell.exe",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+
+        processStartInfo.ArgumentList.Add("-NoProfile");
+        processStartInfo.ArgumentList.Add("-NonInteractive");
+        processStartInfo.ArgumentList.Add("-ExecutionPolicy");
+        processStartInfo.ArgumentList.Add("Bypass");
+        processStartInfo.ArgumentList.Add("-Command");
+        processStartInfo.ArgumentList.Add(wrappedScript);
+
+        using var process = Process.Start(processStartInfo);
+        if (process is null)
+        {
+            throw new InvalidOperationException("PowerShell konnte nicht gestartet werden.");
+        }
+
+        var standardOutputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        var standardErrorTask = process.StandardError.ReadToEndAsync(cancellationToken);
+
+        try
+        {
+            await process.WaitForExitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            try
             {
-                foreach (var parameter in parameters)
+                if (!process.HasExited)
                 {
-                    runspace.SessionStateProxy.SetVariable(parameter.Key, parameter.Value);
+                    process.Kill(entireProcessTree: true);
                 }
             }
-
-            powerShell.AddScript(script);
-
-            var output = powerShell.Invoke();
-
-            if (powerShell.HadErrors)
+            catch
             {
-                var errors = powerShell.Streams.Error.Select(error => error.ToString()).ToArray();
-                var message = string.Join(Environment.NewLine, errors);
-                throw new InvalidOperationException($"Hyper-V PowerShell command failed:{Environment.NewLine}{message}");
             }
 
-            return (IReadOnlyList<PSObject>)output;
-        }, cancellationToken);
-    }
+            throw;
+        }
 
-    private static string GetString(PSObject source, string propertyName)
-    {
-        var value = source.Properties[propertyName]?.Value;
-        return value?.ToString() ?? string.Empty;
-    }
+        var standardOutput = await standardOutputTask;
+        var standardError = await standardErrorTask;
 
-    private static DateTime GetDateTime(PSObject source, string propertyName)
-    {
-        var value = source.Properties[propertyName]?.Value;
-        return value switch
+        if (process.ExitCode != 0)
         {
-            DateTime dateTime => dateTime,
-            string text when DateTime.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var parsed) => parsed,
+            var message = string.IsNullOrWhiteSpace(standardError) ? standardOutput : standardError;
+            throw new InvalidOperationException($"Hyper-V PowerShell command failed:{Environment.NewLine}{message.Trim()}");
+        }
+
+        return standardOutput.Trim();
+    }
+
+    private static string ToPsSingleQuoted(string value)
+    {
+        var escaped = (value ?? string.Empty).Replace("'", "''", StringComparison.Ordinal);
+        return $"'{escaped}'";
+    }
+
+    private static string GetString(JsonElement source, string propertyName)
+    {
+        if (!source.TryGetProperty(propertyName, out var value))
+        {
+            return string.Empty;
+        }
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.String => value.GetString() ?? string.Empty,
+            JsonValueKind.Null => string.Empty,
+            _ => value.ToString()
+        };
+    }
+
+    private static DateTime GetDateTime(JsonElement source, string propertyName)
+    {
+        if (!source.TryGetProperty(propertyName, out var value))
+        {
+            return DateTime.MinValue;
+        }
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.String when DateTime.TryParse(value.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var parsed) => parsed,
             _ => DateTime.MinValue
         };
     }
