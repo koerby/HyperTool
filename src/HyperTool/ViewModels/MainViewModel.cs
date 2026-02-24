@@ -332,6 +332,7 @@ public partial class MainViewModel : ViewModelBase
 
     private async Task InitializeAsync()
     {
+        await LoadVmsFromHyperVAsync();
         await LoadSwitchesAsync();
         await RefreshVmStatusAsync();
         await LoadCheckpointsAsync();
@@ -340,6 +341,49 @@ public partial class MainViewModel : ViewModelBase
         {
             await CheckForUpdatesAsync();
         }
+    }
+
+    private async Task LoadVmsFromHyperVAsync()
+    {
+        await ExecuteBusyActionAsync("Hyper-V VMs werden geladen...", async token =>
+        {
+            var vms = await _hyperVService.GetVmsAsync(token);
+            if (vms.Count == 0)
+            {
+                return;
+            }
+
+            var existingLabels = AvailableVms
+                .GroupBy(vm => vm.Name, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First().Label, StringComparer.OrdinalIgnoreCase);
+
+            AvailableVms.Clear();
+            foreach (var vmInfo in vms.OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase))
+            {
+                var label = existingLabels.TryGetValue(vmInfo.Name, out var existingLabel) && !string.IsNullOrWhiteSpace(existingLabel)
+                    ? existingLabel
+                    : vmInfo.Name;
+
+                AvailableVms.Add(new VmDefinition
+                {
+                    Name = vmInfo.Name,
+                    Label = label
+                });
+            }
+
+            if (AvailableVms.Count > 0 && !AvailableVms.Any(vm => string.Equals(vm.Name, DefaultVmName, StringComparison.OrdinalIgnoreCase)))
+            {
+                DefaultVmName = AvailableVms[0].Name;
+            }
+
+            SelectedVm = AvailableVms.FirstOrDefault(vm => string.Equals(vm.Name, DefaultVmName, StringComparison.OrdinalIgnoreCase))
+                         ?? AvailableVms.FirstOrDefault();
+            SelectedVmForConfig = SelectedVm;
+            SelectedDefaultVmForConfig = AvailableVms.FirstOrDefault(vm => string.Equals(vm.Name, DefaultVmName, StringComparison.OrdinalIgnoreCase))
+                                       ?? SelectedVm;
+
+            AddNotification($"{AvailableVms.Count} Hyper-V VM(s) automatisch geladen.", "Info");
+        }, showNotificationOnErrorOnly: true);
     }
 
     private async Task StartSelectedVmAsync()
@@ -918,6 +962,7 @@ public partial class MainViewModel : ViewModelBase
             return Task.CompletedTask;
         });
 
+        await LoadVmsFromHyperVAsync();
         await LoadSwitchesAsync();
     }
 

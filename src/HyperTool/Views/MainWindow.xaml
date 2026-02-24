@@ -62,6 +62,8 @@
             <Setter Property="BorderBrush" Value="#4D74A5" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="8,4" />
+            <Setter Property="TextElement.Foreground" Value="White" />
+            <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="ItemContainerStyle" Value="{StaticResource ReadableComboBoxItemStyle}" />
             <Style.Resources>
                 <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#111A2C" />
@@ -70,6 +72,8 @@
                 <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#041321" />
                 <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#111A2C" />
                 <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="#FFFFFF" />
+                <SolidColorBrush x:Key="{x:Static SystemColors.MenuBrushKey}" Color="#111A2C" />
+                <SolidColorBrush x:Key="{x:Static SystemColors.MenuTextBrushKey}" Color="#FFFFFF" />
             </Style.Resources>
         </Style>
 
