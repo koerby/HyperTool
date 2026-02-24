@@ -1,0 +1,25 @@
+{
+  "defaultVmName": "DER005Z085000_W10_FS20",
+  "vms": [
+    {
+      "name": "DER005Z085000_W10_FS20",
+      "label": "FS20"
+    },
+    {
+      "name": "DER005Z054370_W10_XWP_v6.3SP3_ABT_v6.0_MR2025_03",
+      "label": "XWP/ABT MR2025_03"
+    }
+  ],
+  "defaultSwitchName": "Default Switch",
+  "vmConnectComputerName": "localhost",
+  "hns": {
+    "enabled": true,
+    "autoRestartAfterDefaultSwitch": true,
+    "autoRestartAfterAnyConnect": false
+  },
+  "ui": {
+    "windowTitle": "HyperTool",
+    "startMinimized": false,
+    "minimizeToTray": true
+  }
+}
