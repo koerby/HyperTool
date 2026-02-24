@@ -48,7 +48,7 @@
                                Text="HyperTool" />
                     <TextBlock Margin="0,6,0,0"
                                Foreground="#FFD1D5DB"
-                               Text="Schritt 4: VM-Steuerung + Netzwerk" />
+                               Text="Schritt 6: Config-Editor + HNS-Flow" />
                 </StackPanel>
 
                 <Border Grid.Column="1"
@@ -315,6 +315,138 @@
                             </StackPanel>
                         </Grid>
                     </TabItem>
+
+                    <TabItem Header="Config">
+                        <Grid Margin="10">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="12" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="12" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="140" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="12" />
+                                    <ColumnDefinition Width="160" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0"
+                                           VerticalAlignment="Center"
+                                           Foreground="#FFF9FAFB"
+                                           FontWeight="SemiBold"
+                                           Text="Default VM" />
+                                <ComboBox Grid.Column="1"
+                                          DisplayMemberPath="Label"
+                                          ItemsSource="{Binding AvailableVms}"
+                                          SelectedItem="{Binding SelectedDefaultVmForConfig}" />
+                                <Button Grid.Column="3"
+                                        Padding="12,8"
+                                        Command="{Binding SetDefaultVmCommand}"
+                                        Content="Setze Default" />
+                            </Grid>
+
+                            <Grid Grid.Row="2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="2*" />
+                                    <ColumnDefinition Width="12" />
+                                    <ColumnDefinition Width="3*" />
+                                </Grid.ColumnDefinitions>
+
+                                <ListBox Grid.Column="0"
+                                         SelectedItem="{Binding SelectedVmForConfig}"
+                                         ItemsSource="{Binding AvailableVms}">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,2,0,2">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="220" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Foreground="#FFF9FAFB" Text="{Binding Name}" />
+                                                <TextBlock Grid.Column="1" Foreground="#FFD1D5DB" Text="{Binding Label}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+
+                                <StackPanel Grid.Column="2">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="140" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="#FFF9FAFB"
+                                                   FontWeight="SemiBold"
+                                                   Text="Neue VM Name" />
+                                        <TextBox Grid.Column="1"
+                                                 Text="{Binding NewVmName, UpdateSourceTrigger=PropertyChanged}" />
+                                    </Grid>
+
+                                    <Grid Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="140" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="#FFF9FAFB"
+                                                   FontWeight="SemiBold"
+                                                   Text="Label" />
+                                        <TextBox Grid.Column="1"
+                                                 Text="{Binding NewVmLabel, UpdateSourceTrigger=PropertyChanged}" />
+                                    </Grid>
+
+                                    <WrapPanel Margin="0,12,0,0">
+                                        <Button Margin="0,0,12,0"
+                                                Padding="12,8"
+                                                Command="{Binding AddVmCommand}"
+                                                Content="VM hinzufügen" />
+                                        <Button Margin="0,0,12,0"
+                                                Padding="12,8"
+                                                Command="{Binding RemoveVmCommand}"
+                                                Content="Auswahl entfernen" />
+                                    </WrapPanel>
+
+                                    <GroupBox Margin="0,14,0,0" Header="HNS">
+                                        <StackPanel Margin="8">
+                                            <CheckBox Margin="0,0,0,6"
+                                                      IsChecked="{Binding HnsEnabled}"
+                                                      Content="HNS-Flow aktivieren" />
+                                            <CheckBox Margin="0,0,0,6"
+                                                      IsChecked="{Binding HnsAutoRestartAfterDefaultSwitch}"
+                                                      Content="Auto-Restart nach Default-Switch Connect" />
+                                            <CheckBox Margin="0,0,0,10"
+                                                      IsChecked="{Binding HnsAutoRestartAfterAnyConnect}"
+                                                      Content="Auto-Restart nach jedem Connect" />
+                                            <Button Padding="12,8"
+                                                    Command="{Binding RestartHnsCommand}"
+                                                    Content="HNS jetzt neu starten (UAC)" />
+                                        </StackPanel>
+                                    </GroupBox>
+                                </StackPanel>
+                            </Grid>
+
+                            <WrapPanel Grid.Row="4">
+                                <Button Margin="0,0,12,0"
+                                        Padding="12,8"
+                                        Command="{Binding SaveConfigCommand}"
+                                        Content="Config speichern" />
+                                <Button Margin="0,0,12,0"
+                                    Padding="12,8"
+                                    Command="{Binding ReloadConfigCommand}"
+                                    Content="Neu laden" />
+                                <TextBlock VerticalAlignment="Center"
+                                           Foreground="#FFD1D5DB"
+                                           Text="Standarddatei: HyperTool.config.json" />
+                            </WrapPanel>
+                        </Grid>
+                    </TabItem>
                 </TabControl>
             </StackPanel>
         </Border>
@@ -383,7 +515,7 @@
                    Background="#FF1F2937"
                    Foreground="#FFD1D5DB">
             <StatusBarItem>
-                <TextBlock Text="Tray Icon aktiv · Doppelklick zeigt das Fenster · Schritt 5 aktiv" />
+                <TextBlock Text="Tray Icon aktiv · Doppelklick zeigt das Fenster · Schritt 6 aktiv" />
             </StatusBarItem>
         </StatusBar>
     </Grid>

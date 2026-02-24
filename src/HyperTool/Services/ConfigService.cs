@@ -81,6 +81,31 @@ public sealed class ConfigService : IConfigService
         }
     }
 
+    public bool TrySave(string configPath, HyperToolConfig config, out string? errorMessage)
+    {
+        try
+        {
+            var (validated, _, _) = ValidateAndNormalize(config);
+            var success = TryWriteConfig(configPath, validated);
+
+            if (success)
+            {
+                errorMessage = null;
+                Log.Information("Config saved to {ConfigPath}", configPath);
+                return true;
+            }
+
+            errorMessage = "Konfiguration konnte nicht gespeichert werden (Schreibrechte prüfen).";
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Config save failed for {ConfigPath}", configPath);
+            errorMessage = ex.Message;
+            return false;
+        }
+    }
+
     private static bool TryWriteConfig(string configPath, HyperToolConfig config)
     {
         try

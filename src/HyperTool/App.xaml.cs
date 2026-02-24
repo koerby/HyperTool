@@ -2,8 +2,12 @@
 using HyperTool.ViewModels;
 using HyperTool.Views;
 using Serilog;
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Threading;
 
 namespace HyperTool;
 
@@ -20,6 +24,12 @@ public partial class App : System.Windows.Application
 	{
 		base.OnStartup(e);
 
+		if (e.Args.Any(arg => string.Equals(arg, "--restart-hns", StringComparison.OrdinalIgnoreCase)))
+		{
+			RunRestartHnsHelperMode();
+			return;
+		}
+
 		RegisterGlobalExceptionHandlers();
 
 		try
@@ -29,10 +39,11 @@ public partial class App : System.Windows.Application
 
 			IConfigService configService = new ConfigService();
 			IHyperVService hyperVService = new HyperVPowerShellService();
+			IHnsService hnsService = new HnsService();
 			var configPath = Path.Combine(AppContext.BaseDirectory, "HyperTool.config.json");
 			var configResult = configService.LoadOrCreate(configPath);
 
-			var mainViewModel = new MainViewModel(configResult, hyperVService);
+			var mainViewModel = new MainViewModel(configResult, hyperVService, hnsService, configService);
 			var mainWindow = new MainWindow
 			{
 				DataContext = mainViewModel
@@ -211,6 +222,146 @@ public partial class App : System.Windows.Application
 		catch
 		{
 		}
+	}
+
+	private void RunRestartHnsHelperMode()
+	{
+		try
+		{
+			InitializeLogging();
+		}
+		catch
+		{
+		}
+
+		var (success, message) = ExecuteHnsRestart();
+
+		if (success)
+		{
+			ShowAutoCloseInfoWindow("HNS-Dienst wurde erfolgreich neu gestartet.\nDieses Fenster schließt in 3 Sekunden.");
+			Shutdown(0);
+			return;
+		}
+
+		ShowErrorWindowWaitForKey("Fehler beim Neustart des HNS-Dienstes", message);
+		Shutdown(-1);
+	}
+
+	private static (bool Success, string Message) ExecuteHnsRestart()
+	{
+		try
+		{
+			var psi = new ProcessStartInfo
+			{
+				FileName = "powershell.exe",
+				Arguments = "-NoProfile -ExecutionPolicy Bypass -Command \"Restart-Service hns -Force -ErrorAction Stop\"",
+				UseShellExecute = false,
+				CreateNoWindow = true,
+				RedirectStandardError = true,
+				RedirectStandardOutput = true
+			};
+
+			using var process = Process.Start(psi);
+			if (process is null)
+			{
+				return (false, "PowerShell konnte nicht gestartet werden.");
+			}
+
+			process.WaitForExit();
+			var stdErr = process.StandardError.ReadToEnd();
+			var stdOut = process.StandardOutput.ReadToEnd();
+
+			if (process.ExitCode == 0)
+			{
+				Log.Information("HNS restart succeeded. {Output}", stdOut);
+				return (true, "OK");
+			}
+
+			var errorText = string.IsNullOrWhiteSpace(stdErr) ? stdOut : stdErr;
+			return (false, string.IsNullOrWhiteSpace(errorText) ? $"ExitCode {process.ExitCode}" : errorText.Trim());
+		}
+		catch (Exception ex)
+		{
+			Log.Error(ex, "HNS restart helper failed");
+			return (false, ex.Message);
+		}
+	}
+
+	private void ShowAutoCloseInfoWindow(string text)
+	{
+		var textBlock = new TextBlock
+		{
+			Text = text,
+			Margin = new Thickness(16),
+			TextWrapping = TextWrapping.Wrap,
+			FontSize = 14
+		};
+
+		var window = new Window
+		{
+			Title = "HyperTool Elevated Helper",
+			Content = textBlock,
+			Width = 520,
+			Height = 180,
+			WindowStartupLocation = WindowStartupLocation.CenterScreen,
+			ResizeMode = ResizeMode.NoResize
+		};
+
+		var timer = new DispatcherTimer
+		{
+			Interval = TimeSpan.FromSeconds(3)
+		};
+
+		timer.Tick += (_, _) =>
+		{
+			timer.Stop();
+			window.Close();
+		};
+
+		window.Loaded += (_, _) => timer.Start();
+		window.ShowDialog();
+	}
+
+	private void ShowErrorWindowWaitForKey(string title, string details)
+	{
+		var stack = new StackPanel
+		{
+			Margin = new Thickness(16)
+		};
+
+		stack.Children.Add(new TextBlock
+		{
+			Text = title,
+			FontWeight = FontWeights.Bold,
+			FontSize = 15,
+			Margin = new Thickness(0, 0, 0, 8)
+		});
+
+		stack.Children.Add(new TextBlock
+		{
+			Text = details,
+			TextWrapping = TextWrapping.Wrap,
+			Margin = new Thickness(0, 0, 0, 12)
+		});
+
+		stack.Children.Add(new TextBlock
+		{
+			Text = "Beliebige Taste drücken oder Fenster schließen...",
+			FontStyle = FontStyles.Italic
+		});
+
+		var window = new Window
+		{
+			Title = "HyperTool Elevated Helper",
+			Content = stack,
+			Width = 680,
+			Height = 300,
+			WindowStartupLocation = WindowStartupLocation.CenterScreen
+		};
+
+		window.KeyDown += (_, _) => window.Close();
+		window.PreviewKeyDown += (_, _) => window.Close();
+		window.ShowDialog();
 	}
 }
 

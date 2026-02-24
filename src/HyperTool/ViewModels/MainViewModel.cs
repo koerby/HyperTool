@@ -45,6 +45,30 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     private string _busyText = "Bitte warten...";
 
+    [ObservableProperty]
+    private VmDefinition? _selectedVmForConfig;
+
+    [ObservableProperty]
+    private VmDefinition? _selectedDefaultVmForConfig;
+
+    [ObservableProperty]
+    private string _newVmName = string.Empty;
+
+    [ObservableProperty]
+    private string _newVmLabel = string.Empty;
+
+    [ObservableProperty]
+    private bool _hnsEnabled;
+
+    [ObservableProperty]
+    private bool _hnsAutoRestartAfterDefaultSwitch;
+
+    [ObservableProperty]
+    private bool _hnsAutoRestartAfterAnyConnect;
+
+    [ObservableProperty]
+    private string _defaultVmName = string.Empty;
+
     public ObservableCollection<VmDefinition> AvailableVms { get; } = [];
 
     public ObservableCollection<HyperVSwitchInfo> AvailableSwitches { get; } = [];
@@ -54,8 +78,6 @@ public partial class MainViewModel : ViewModelBase
     public ObservableCollection<UiNotification> Notifications { get; } = [];
 
     public string DefaultSwitchName { get; }
-
-    public string DefaultVmName { get; }
 
     public string VmConnectComputerName { get; }
 
@@ -93,19 +115,40 @@ public partial class MainViewModel : ViewModelBase
 
     public IAsyncRelayCommand DeleteCheckpointCommand { get; }
 
+    public IRelayCommand AddVmCommand { get; }
+
+    public IRelayCommand RemoveVmCommand { get; }
+
+    public IRelayCommand SetDefaultVmCommand { get; }
+
+    public IAsyncRelayCommand SaveConfigCommand { get; }
+
+    public IAsyncRelayCommand ReloadConfigCommand { get; }
+
+    public IAsyncRelayCommand RestartHnsCommand { get; }
+
     private readonly IHyperVService _hyperVService;
+    private readonly IHnsService _hnsService;
+    private readonly IConfigService _configService;
+    private readonly string _configPath;
 
     private readonly CancellationTokenSource _lifetimeCancellation = new();
 
-    public MainViewModel(ConfigLoadResult configResult, IHyperVService hyperVService)
+    public MainViewModel(ConfigLoadResult configResult, IHyperVService hyperVService, IHnsService hnsService, IConfigService configService)
     {
         _hyperVService = hyperVService;
+        _hnsService = hnsService;
+        _configService = configService;
+        _configPath = configResult.ConfigPath;
 
         WindowTitle = configResult.Config.Ui.WindowTitle;
         DefaultVmName = configResult.Config.DefaultVmName;
         DefaultSwitchName = configResult.Config.DefaultSwitchName;
         VmConnectComputerName = configResult.Config.VmConnectComputerName;
         ConfigurationNotice = configResult.Notice;
+        HnsEnabled = configResult.Config.Hns.Enabled;
+        HnsAutoRestartAfterDefaultSwitch = configResult.Config.Hns.AutoRestartAfterDefaultSwitch;
+        HnsAutoRestartAfterAnyConnect = configResult.Config.Hns.AutoRestartAfterAnyConnect;
 
         foreach (var vm in configResult.Config.Vms)
         {
@@ -149,6 +192,13 @@ public partial class MainViewModel : ViewModelBase
         ApplyCheckpointCommand = new AsyncRelayCommand(ApplyCheckpointAsync, () => !IsBusy && SelectedVm is not null && SelectedCheckpoint is not null);
         DeleteCheckpointCommand = new AsyncRelayCommand(DeleteCheckpointAsync, () => !IsBusy && SelectedVm is not null && SelectedCheckpoint is not null);
 
+        AddVmCommand = new RelayCommand(AddVm);
+        RemoveVmCommand = new RelayCommand(RemoveSelectedVm);
+        SetDefaultVmCommand = new RelayCommand(SetDefaultVmFromSelection);
+        SaveConfigCommand = new AsyncRelayCommand(SaveConfigAsync, () => !IsBusy);
+        ReloadConfigCommand = new AsyncRelayCommand(ReloadConfigAsync, () => !IsBusy);
+        RestartHnsCommand = new AsyncRelayCommand(RestartHnsAsync, () => !IsBusy);
+
         StartDefaultVmCommand = new AsyncRelayCommand(StartDefaultVmAsync, () => !IsBusy);
         StopDefaultVmCommand = new AsyncRelayCommand(StopDefaultVmAsync, () => !IsBusy);
         ConnectDefaultVmCommand = new AsyncRelayCommand(ConnectDefaultVmAsync, () => !IsBusy);
@@ -157,6 +207,9 @@ public partial class MainViewModel : ViewModelBase
         SelectedVm = AvailableVms.FirstOrDefault(vm =>
             string.Equals(vm.Name, configResult.Config.DefaultVmName, StringComparison.OrdinalIgnoreCase))
             ?? AvailableVms.FirstOrDefault();
+
+        SelectedVmForConfig = SelectedVm;
+        SelectedDefaultVmForConfig = SelectedVm;
 
         _ = InitializeAsync();
     }
@@ -183,11 +236,15 @@ public partial class MainViewModel : ViewModelBase
         StartDefaultVmCommand.NotifyCanExecuteChanged();
         StopDefaultVmCommand.NotifyCanExecuteChanged();
         ConnectDefaultVmCommand.NotifyCanExecuteChanged();
+        SaveConfigCommand.NotifyCanExecuteChanged();
+        ReloadConfigCommand.NotifyCanExecuteChanged();
+        RestartHnsCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnSelectedVmChanged(VmDefinition? value)
     {
         ConnectSelectedSwitchCommand.NotifyCanExecuteChanged();
+        SelectedVmForConfig = value;
 
         if (value is null)
         {
@@ -211,6 +268,11 @@ public partial class MainViewModel : ViewModelBase
     {
         ApplyCheckpointCommand.NotifyCanExecuteChanged();
         DeleteCheckpointCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnSelectedVmForConfigChanged(VmDefinition? value)
+    {
+        RemoveVmCommand.NotifyCanExecuteChanged();
     }
 
     private bool CanExecuteVmAction() => !IsBusy && SelectedVm is not null;
@@ -301,6 +363,14 @@ public partial class MainViewModel : ViewModelBase
         {
             await _hyperVService.ConnectVmNetworkAdapterAsync(SelectedVm.Name, SelectedSwitch.Name, token);
             AddNotification($"'{SelectedVm.Name}' mit '{SelectedSwitch.Name}' verbunden.", "Success");
+
+            if (ShouldAutoRestartHnsAfterConnect(SelectedSwitch.Name))
+            {
+                var hnsResult = await _hnsService.RestartHnsElevatedAsync(token);
+                AddNotification(
+                    hnsResult.Success ? hnsResult.Message : $"HNS Neustart fehlgeschlagen: {hnsResult.Message}",
+                    hnsResult.Success ? "Success" : "Error");
+            }
         });
         await RefreshVmStatusAsync();
     }
@@ -330,8 +400,32 @@ public partial class MainViewModel : ViewModelBase
         {
             await _hyperVService.ConnectVmNetworkAdapterAsync(targetVm, DefaultSwitchName, token);
             AddNotification($"'{targetVm}' mit '{DefaultSwitchName}' verbunden.", "Success");
+
+            if (ShouldAutoRestartHnsAfterConnect(DefaultSwitchName))
+            {
+                var hnsResult = await _hnsService.RestartHnsElevatedAsync(token);
+                AddNotification(
+                    hnsResult.Success ? hnsResult.Message : $"HNS Neustart fehlgeschlagen: {hnsResult.Message}",
+                    hnsResult.Success ? "Success" : "Error");
+            }
         });
         await RefreshVmStatusAsync();
+    }
+
+    private bool ShouldAutoRestartHnsAfterConnect(string connectedSwitch)
+    {
+        if (!HnsEnabled)
+        {
+            return false;
+        }
+
+        if (HnsAutoRestartAfterAnyConnect)
+        {
+            return true;
+        }
+
+        return HnsAutoRestartAfterDefaultSwitch
+               && string.Equals(connectedSwitch, DefaultSwitchName, StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task StartDefaultVmAsync()
@@ -470,6 +564,195 @@ public partial class MainViewModel : ViewModelBase
         });
 
         await LoadCheckpointsAsync();
+    }
+
+    private void AddVm()
+    {
+        var vmName = NewVmName.Trim();
+        if (string.IsNullOrWhiteSpace(vmName))
+        {
+            AddNotification("VM-Name darf nicht leer sein.", "Error");
+            return;
+        }
+
+        if (AvailableVms.Any(vm => string.Equals(vm.Name, vmName, StringComparison.OrdinalIgnoreCase)))
+        {
+            AddNotification("VM existiert bereits in der Konfiguration.", "Warning");
+            return;
+        }
+
+        var vmLabel = string.IsNullOrWhiteSpace(NewVmLabel) ? vmName : NewVmLabel.Trim();
+        var vm = new VmDefinition
+        {
+            Name = vmName,
+            Label = vmLabel
+        };
+
+        AvailableVms.Add(vm);
+        SelectedVmForConfig = vm;
+        SelectedDefaultVmForConfig ??= vm;
+
+        NewVmName = string.Empty;
+        NewVmLabel = string.Empty;
+        AddNotification($"VM '{vmName}' zur Konfiguration hinzugefügt.", "Success");
+    }
+
+    private void RemoveSelectedVm()
+    {
+        if (SelectedVmForConfig is null)
+        {
+            AddNotification("Keine VM zum Entfernen ausgewählt.", "Warning");
+            return;
+        }
+
+        var vmToRemove = SelectedVmForConfig;
+        AvailableVms.Remove(vmToRemove);
+
+        if (SelectedVm == vmToRemove)
+        {
+            SelectedVm = AvailableVms.FirstOrDefault();
+        }
+
+        if (SelectedDefaultVmForConfig == vmToRemove)
+        {
+            SelectedDefaultVmForConfig = AvailableVms.FirstOrDefault();
+            DefaultVmName = SelectedDefaultVmForConfig?.Name ?? string.Empty;
+        }
+
+        SelectedVmForConfig = AvailableVms.FirstOrDefault();
+        AddNotification($"VM '{vmToRemove.Name}' aus Konfiguration entfernt.", "Warning");
+    }
+
+    private void SetDefaultVmFromSelection()
+    {
+        if (SelectedDefaultVmForConfig is null)
+        {
+            AddNotification("Keine Default-VM ausgewählt.", "Warning");
+            return;
+        }
+
+        DefaultVmName = SelectedDefaultVmForConfig.Name;
+        AddNotification($"Default VM gesetzt: '{DefaultVmName}'.", "Info");
+    }
+
+    private async Task SaveConfigAsync()
+    {
+        await ExecuteBusyActionAsync("Konfiguration wird gespeichert...", _ =>
+        {
+            if (AvailableVms.Count == 0)
+            {
+                AddNotification("Mindestens eine VM ist erforderlich.", "Error");
+                return Task.CompletedTask;
+            }
+
+            if (string.IsNullOrWhiteSpace(DefaultVmName))
+            {
+                DefaultVmName = AvailableVms[0].Name;
+            }
+
+            var config = new HyperToolConfig
+            {
+                DefaultVmName = DefaultVmName,
+                DefaultSwitchName = DefaultSwitchName,
+                VmConnectComputerName = VmConnectComputerName,
+                Vms = AvailableVms.Select(vm => new VmDefinition
+                {
+                    Name = vm.Name,
+                    Label = vm.Label
+                }).ToList(),
+                Hns = new HnsSettings
+                {
+                    Enabled = HnsEnabled,
+                    AutoRestartAfterDefaultSwitch = HnsAutoRestartAfterDefaultSwitch,
+                    AutoRestartAfterAnyConnect = HnsAutoRestartAfterAnyConnect
+                },
+                Ui = new UiSettings
+                {
+                    WindowTitle = WindowTitle,
+                    StartMinimized = false,
+                    MinimizeToTray = true
+                }
+            };
+
+            if (_configService.TrySave(_configPath, config, out var errorMessage))
+            {
+                AddNotification("Konfiguration gespeichert.", "Success");
+            }
+            else
+            {
+                AddNotification($"Konfiguration nicht gespeichert: {errorMessage}", "Error");
+            }
+
+            return Task.CompletedTask;
+        });
+    }
+
+    private async Task RestartHnsAsync()
+    {
+        await ExecuteBusyActionAsync("HNS wird mit UAC neu gestartet...", async token =>
+        {
+            var result = await _hnsService.RestartHnsElevatedAsync(token);
+            if (result.Success)
+            {
+                AddNotification(result.Message, "Success");
+                return;
+            }
+
+            AddNotification($"HNS Neustart fehlgeschlagen: {result.Message}", "Error");
+        });
+    }
+
+    private async Task ReloadConfigAsync()
+    {
+        await ExecuteBusyActionAsync("Konfiguration wird neu geladen...", _ =>
+        {
+            var configResult = _configService.LoadOrCreate(_configPath);
+            var config = configResult.Config;
+            var previousSelectionName = SelectedVm?.Name;
+
+            WindowTitle = config.Ui.WindowTitle;
+            ConfigurationNotice = configResult.Notice;
+            HnsEnabled = config.Hns.Enabled;
+            HnsAutoRestartAfterDefaultSwitch = config.Hns.AutoRestartAfterDefaultSwitch;
+            HnsAutoRestartAfterAnyConnect = config.Hns.AutoRestartAfterAnyConnect;
+            DefaultVmName = config.DefaultVmName;
+
+            AvailableVms.Clear();
+            foreach (var vm in config.Vms)
+            {
+                if (vm is null || string.IsNullOrWhiteSpace(vm.Name))
+                {
+                    continue;
+                }
+
+                AvailableVms.Add(new VmDefinition
+                {
+                    Name = vm.Name,
+                    Label = string.IsNullOrWhiteSpace(vm.Label) ? vm.Name : vm.Label
+                });
+            }
+
+            if (string.IsNullOrWhiteSpace(DefaultVmName) && AvailableVms.Count > 0)
+            {
+                DefaultVmName = AvailableVms[0].Name;
+            }
+
+            SelectedVm = AvailableVms.FirstOrDefault(vm =>
+                             string.Equals(vm.Name, previousSelectionName, StringComparison.OrdinalIgnoreCase))
+                         ?? AvailableVms.FirstOrDefault(vm =>
+                             string.Equals(vm.Name, DefaultVmName, StringComparison.OrdinalIgnoreCase))
+                         ?? AvailableVms.FirstOrDefault();
+
+            SelectedVmForConfig = SelectedVm;
+            SelectedDefaultVmForConfig = AvailableVms.FirstOrDefault(vm =>
+                                           string.Equals(vm.Name, DefaultVmName, StringComparison.OrdinalIgnoreCase))
+                                       ?? SelectedVm;
+
+            AddNotification("Konfiguration neu geladen.", "Info");
+            return Task.CompletedTask;
+        });
+
+        await LoadSwitchesAsync();
     }
 
     private async Task ExecuteBusyActionAsync(string busyText, Func<CancellationToken, Task> action, bool showNotificationOnErrorOnly = false)
