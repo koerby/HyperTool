@@ -1,28 +1,60 @@
 # HyperTool
 
-HyperTool ist eine Windows WPF Anwendung zur Steuerung von Hyper-V VMs (Start, Stop, Hard Off, Restart, Konsole, Switch Connect/Disconnect, Snapshots) mit MVVM, Tray-Integration und Logging.
+HyperTool ist ein Windows-Tool zur Steuerung von Hyper-V VMs mit moderner WPF-Oberfläche, Tray-Menü und klaren One-Click-Aktionen.
 
-## UI Stack
+## Überblick
 
-- Framework: WPF (.NET 8)
-- UI Library: MahApps.Metro (Fensterbasis und Controls)
-- Zusätzlich: eigene WPF Styles/Templates für Dark UI
+- VM-Aktionen: Start, Stop, Hard Off, Restart, Konsole öffnen
+- Netzwerk: Switch verbinden/trennen, Default Connect
+- Snapshots: erstellen, laden, anwenden, löschen
+- Tray-Integration: VM starten/stoppen, Konsole öffnen, Snapshot, Switch umstellen
+- Collapsible Notifications Log: eingeklappt/ausgeklappt, Copy/Clear
+- Konfiguration per JSON, Logging mit Serilog
 
-Hinweis: Es wird aktuell nicht WPF-UI und nicht MaterialDesignInXaml verwendet.
+## Tech Stack
+
+- .NET 8, WPF (Windows-only)
+- MVVM mit CommunityToolkit.Mvvm
+- MahApps.Metro als UI-Bibliothek
+- Serilog für Datei-Logging
+- Hyper-V-Operationen über PowerShell
+
+Hinweis: Es wird keine MaterialDesignInXaml oder WPF-UI Library verwendet.
 
 ## Voraussetzungen
 
-- Windows 10/11 mit aktiviertem Hyper-V
-- PowerShell mit funktionierendem Hyper-V Modul (Get-VM muss laufen)
-- .NET SDK 8.x für Entwicklung
-- Für VM-Aktionen: Nutzer mit Hyper-V Berechtigungen
+- Windows 10 oder 11
+- Hyper-V aktiviert
+- PowerShell mit funktionsfähigem Hyper-V Modul (Get-VM)
+- Für Entwicklung: .NET SDK 8.x
 
 ## Projektstruktur
 
 - HyperTool.sln
-- src/HyperTool (WPF App)
-- HyperTool.config.json (Runtime Konfiguration)
-- build.bat (Build/Publish nach dist/HyperTool)
+- src/HyperTool
+- HyperTool.config.json
+- build.bat
+- dist/HyperTool (Publish-Ausgabe)
+
+## Schnellstart (Entwicklung)
+
+1. dotnet restore HyperTool.sln
+2. dotnet build HyperTool.sln -c Debug
+3. dotnet run --project src/HyperTool/HyperTool.csproj
+
+## Build & Publish
+
+Standard:
+
+- build.bat
+
+Varianten:
+
+- build.bat framework-dependent
+- build.bat no-pause
+- build.bat self-contained no-pause
+
+Ausgabe liegt unter dist/HyperTool.
 
 ## Konfiguration
 
@@ -30,73 +62,40 @@ Datei: HyperTool.config.json
 
 Wichtige Felder:
 
-- defaultVmName: optionale Default VM
-- lastSelectedVmName: zuletzt gewählte VM (wird vom UI persistiert)
-- defaultSwitchName: Name des bevorzugten Hyper-V Switches
-- vmConnectComputerName: Zielhost für vmconnect
-- hns: HNS Verhalten
+- defaultVmName: bevorzugte VM
+- lastSelectedVmName: letzte aktive VM
+- defaultSwitchName: bevorzugter Switch
+- vmConnectComputerName: vmconnect Host (z. B. localhost)
+- hns: HNS-Verhalten
 - ui: Tray/Autostart Optionen
 - update: GitHub Updateprüfung
 
-Hinweis: VMs werden zur Laufzeit aus Hyper-V geladen (Auto-Discovery), nicht manuell in der Config gepflegt.
+VMs werden zur Laufzeit automatisch aus Hyper-V geladen (Auto-Discovery).
 
-## Entwicklung starten
+## UI-Verhalten (wichtig)
 
-Im Projektordner:
+- VM-Auswahl erfolgt über Chips im Header
+- Hauptaktionen arbeiten immer auf der aktuell ausgewählten VM
+- Network-Tab zeigt VM-Status + aktuellen Switch
+- Notifications Log:
+	- standardmäßig eingeklappt
+	- eingeklappt: nur letzte Meldung
+	- ausgeklappt: vollständige, scrollbare Liste + Copy/Clear
 
-1. dotnet restore HyperTool.sln
-2. dotnet build HyperTool.sln -c Debug
-3. dotnet run --project src/HyperTool/HyperTool.csproj
+## Logging & Troubleshooting
 
-## Build und Publish
-
-Standard (self-contained):
-
-- build.bat
-
-Optionen:
-
-- build.bat framework-dependent
-- build.bat no-pause
-- build.bat self-contained no-pause
-
-Ausgabe: dist/HyperTool
-
-## Notifications Panel (Collapsible Log)
-
-Aktuelles Verhalten:
-
-- Standardzustand eingeklappt
-- Eingeklappt: Überschrift + letzte Notification (oder Keine Notifications)
-- Aufgeklappt: scrollbare Liste aller Notifications
-- Optionalaktionen im Expanded State: Copy, Clear
-
-### UI Smoke-Check
-
-1. App starten: Log ist eingeklappt.
-2. Aktion ausführen (z. B. Refresh): letzte Notification Zeile aktualisiert sich.
-3. Log ausklappen: komplette Liste erscheint.
-4. Liste bei vielen Einträgen scrollt vertikal.
-5. Copy kopiert alle Einträge, Clear leert die Liste.
-6. Log einklappen: Listencontainer ist ausgeblendet.
-
-## Logs und Fehleranalyse
-
-Primärpfad:
+Logpfade:
 
 - dist/HyperTool/logs
+- Fallback: %LOCALAPPDATA%/HyperTool/logs
 
-Fallback:
+Wenn die App nicht startet:
 
-- %LOCALAPPDATA%/HyperTool/logs
+1. Aus dist/HyperTool starten
+2. Logdateien prüfen
+3. HyperTool.exe manuell in PowerShell starten
 
-Wenn die App scheinbar nicht startet:
+## Rechtehinweis
 
-1. Aus dist/HyperTool starten.
-2. Logs prüfen.
-3. In PowerShell testweise HyperTool.exe starten.
-
-## Rechte
-
-- App selbst läuft ohne Admin.
-- Einzelne Hyper-V oder HNS Aktionen können erhöhte Rechte benötigen.
+- Die App benötigt nicht grundsätzlich Adminrechte.
+- Einzelne Hyper-V/HNS Aktionen können erhöhte Rechte benötigen.

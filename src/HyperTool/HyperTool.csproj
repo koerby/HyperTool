@@ -9,6 +9,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <ApplicationIcon>Assets\HyperTool.ico</ApplicationIcon>
+    <Win32Icon>Assets\HyperTool.ico</Win32Icon>
   </PropertyGroup>
 
   <ItemGroup>
