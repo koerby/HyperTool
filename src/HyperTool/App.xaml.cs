@@ -38,24 +38,7 @@ public partial class App : System.Windows.Application
 				DataContext = mainViewModel
 			};
 
-			_trayService = new TrayService();
-			_trayService.Initialize(
-				showAction: () =>
-				{
-					mainWindow.Show();
-					mainWindow.WindowState = WindowState.Normal;
-					mainWindow.Activate();
-				},
-				hideAction: () => mainWindow.Hide(),
-				startDefaultVmAction: () => mainViewModel.StartDefaultVmCommand.Execute(null),
-				stopDefaultVmAction: () => mainViewModel.StopDefaultVmCommand.Execute(null),
-				connectDefaultVmAction: () => mainViewModel.ConnectDefaultVmCommand.Execute(null),
-				createCheckpointAction: () => mainViewModel.CreateCheckpointCommand.Execute(null),
-				exitAction: () =>
-				{
-					_isExitRequested = true;
-					Shutdown();
-				});
+			TryInitializeTray(mainWindow, mainViewModel);
 
 			mainWindow.StateChanged += (_, _) =>
 			{
@@ -94,6 +77,40 @@ public partial class App : System.Windows.Application
 		catch (Exception ex)
 		{
 			ShowFatalErrorAndExit(ex, "HyperTool konnte beim Start nicht initialisiert werden.");
+		}
+	}
+
+	private void TryInitializeTray(MainWindow mainWindow, MainViewModel mainViewModel)
+	{
+		try
+		{
+			_trayService = new TrayService();
+			_trayService.Initialize(
+				showAction: () =>
+				{
+					mainWindow.Show();
+					mainWindow.WindowState = WindowState.Normal;
+					mainWindow.Activate();
+				},
+				hideAction: () => mainWindow.Hide(),
+				startDefaultVmAction: () => mainViewModel.StartDefaultVmCommand.Execute(null),
+				stopDefaultVmAction: () => mainViewModel.StopDefaultVmCommand.Execute(null),
+				connectDefaultVmAction: () => mainViewModel.ConnectDefaultVmCommand.Execute(null),
+				createCheckpointAction: () => mainViewModel.CreateCheckpointCommand.Execute(null),
+				exitAction: () =>
+				{
+					_isExitRequested = true;
+					Shutdown();
+				});
+		}
+		catch (Exception ex)
+		{
+			Log.Error(ex, "Tray initialization failed. App continues without tray icon.");
+			System.Windows.MessageBox.Show(
+				"Tray-Initialisierung fehlgeschlagen. HyperTool läuft ohne Tray-Icon.\n\n" + ex.Message,
+				"HyperTool - Hinweis",
+				System.Windows.MessageBoxButton.OK,
+				System.Windows.MessageBoxImage.Warning);
 		}
 	}
 
@@ -163,18 +180,37 @@ public partial class App : System.Windows.Application
 		{
 			Log.Fatal(exception, "Fatal startup/runtime error");
 			Log.CloseAndFlush();
+			WriteCrashDump(exception);
 		}
 		catch
 		{
 		}
 
 		System.Windows.MessageBox.Show(
-			$"{userMessage}{Environment.NewLine}{Environment.NewLine}{exception.Message}",
+			$"{userMessage}{Environment.NewLine}{Environment.NewLine}{exception.Message}{Environment.NewLine}{Environment.NewLine}Details:{Environment.NewLine}{exception}",
 			"HyperTool - Fataler Fehler",
 			System.Windows.MessageBoxButton.OK,
 			System.Windows.MessageBoxImage.Error);
 
 		Shutdown(-1);
+	}
+
+	private static void WriteCrashDump(Exception exception)
+	{
+		try
+		{
+			var crashDir = Path.Combine(
+				Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+				"HyperTool",
+				"crash");
+
+			Directory.CreateDirectory(crashDir);
+			var crashFile = Path.Combine(crashDir, $"crash-{DateTime.Now:yyyyMMdd-HHmmss}.txt");
+			File.WriteAllText(crashFile, exception.ToString());
+		}
+		catch
+		{
+		}
 	}
 }
 
