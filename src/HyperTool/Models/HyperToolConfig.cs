@@ -2,21 +2,9 @@ namespace HyperTool.Models;
 
 public sealed class HyperToolConfig
 {
-    public string DefaultVmName { get; set; } = "DER005Z085000_W10_FS20";
+    public string DefaultVmName { get; set; } = string.Empty;
 
-    public List<VmDefinition> Vms { get; set; } =
-    [
-        new VmDefinition
-        {
-            Name = "DER005Z085000_W10_FS20",
-            Label = "FS20"
-        },
-        new VmDefinition
-        {
-            Name = "DER005Z054370_W10_XWP_v6.3SP3_ABT_v6.0_MR2025_03",
-            Label = "XWP/ABT MR2025_03"
-        }
-    ];
+    public List<VmDefinition> Vms { get; set; } = [];
 
     public string DefaultSwitchName { get; set; } = "Default Switch";
 

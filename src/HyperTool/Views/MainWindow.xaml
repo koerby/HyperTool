@@ -65,6 +65,56 @@
             <Setter Property="TextElement.Foreground" Value="White" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="ItemContainerStyle" Value="{StaticResource ReadableComboBoxItemStyle}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <Border x:Name="ComboBorder"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="8" />
+
+                            <Grid>
+                                <ContentPresenter Margin="10,0,36,0"
+                                                  VerticalAlignment="Center"
+                                                  RecognizesAccessKey="True"
+                                                  Content="{TemplateBinding SelectionBoxItem}" />
+                                <ToggleButton x:Name="DropDownToggle"
+                                              Width="30"
+                                              HorizontalAlignment="Right"
+                                              Background="Transparent"
+                                              BorderThickness="0"
+                                              Focusable="False"
+                                              IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+                                    <TextBlock Text="▼"
+                                               Foreground="White"
+                                               FontSize="10"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" />
+                                </ToggleButton>
+                            </Grid>
+
+                            <Popup x:Name="PART_Popup"
+                                   AllowsTransparency="True"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   Placement="Bottom"
+                                   PopupAnimation="Slide"
+                                   StaysOpen="False">
+                                <Border Background="#111A2C"
+                                        BorderBrush="#4D74A5"
+                                        BorderThickness="1"
+                                        CornerRadius="8"
+                                        MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}">
+                                    <ScrollViewer MaxHeight="320" CanContentScroll="True">
+                                        <ItemsPresenter />
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
             <Style.Resources>
                 <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#111A2C" />
                 <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="#FFFFFF" />
@@ -162,8 +212,8 @@
             <RowDefinition Height="*" />
             <RowDefinition Height="12" />
             <RowDefinition Height="220" />
-            <RowDefinition Height="12" />
-            <RowDefinition Height="Auto" />
+            <RowDefinition Height="0" />
+            <RowDefinition Height="0" />
         </Grid.RowDefinitions>
 
         <Border Grid.Row="0" Style="{StaticResource CardBorder}" Padding="14">
@@ -176,6 +226,44 @@
                 <StackPanel>
                     <TextBlock Foreground="{StaticResource TextPrimary}" FontSize="24" FontWeight="SemiBold" Text="HyperTool" />
                     <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="dein nützlicher Hyper V Helfer" />
+
+                    <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding AvailableVms}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Margin="0,0,8,8"
+                                        Padding="10,6"
+                                        Command="{Binding DataContext.SelectVmFromChipCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding}">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource ActionButton}">
+                                            <Setter Property="Background" Value="#36506D" />
+                                            <Setter Property="BorderBrush" Value="#5B84AE" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding RuntimeState}" Value="Running">
+                                                    <Setter Property="Background" Value="#1F8B4A" />
+                                                    <Setter Property="BorderBrush" Value="#49D17A" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding RuntimeState}" Value="Off">
+                                                    <Setter Property="Background" Value="#5A2F42" />
+                                                    <Setter Property="BorderBrush" Value="#B66D8D" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Foreground="White" FontWeight="Bold" Text="●" />
+                                        <TextBlock Margin="6,0,0,0" Foreground="White" Text="{Binding Label}" />
+                                        <TextBlock Margin="8,0,0,0" Foreground="#E2F0FF" Text="{Binding RuntimeState}" />
+                                    </StackPanel>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </StackPanel>
 
                 <Border Grid.Column="1" Padding="10,6" CornerRadius="8" Background="{StaticResource AccentStrong}">
@@ -544,6 +632,11 @@
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="Notifications" />
                     <TextBlock Margin="10,0,0,0" Foreground="{StaticResource TextMuted}" Text="(non-blocking)" />
+                    <Button Margin="12,0,0,0"
+                            Style="{StaticResource ActionButton}"
+                            Padding="8,2"
+                            Command="{Binding ToggleNotificationsCommand}"
+                            Content="{Binding NotificationsToggleText}" />
                     <mah:ProgressRing Margin="16,0,0,0"
                                       Width="16"
                                       Height="16"
@@ -555,32 +648,62 @@
                                Text="{Binding BusyText}" />
                 </StackPanel>
 
-                <ListBox Grid.Row="2"
-                         Style="{StaticResource ReadableListBoxStyle}"
-                         ItemContainerStyle="{StaticResource ReadableListBoxItemStyle}"
-                         ItemsSource="{Binding Notifications}">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <Grid Margin="0,2,0,2">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="90" />
-                                    <ColumnDefinition Width="70" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Foreground="#9DB0CF" Text="{Binding Timestamp, StringFormat={}{0:HH:mm:ss}}" />
-                                <TextBlock Grid.Column="1" Foreground="#BED2F0" Text="{Binding Level}" />
-                                <TextBlock Grid.Column="2" Foreground="White" TextWrapping="Wrap" Text="{Binding Message}" />
-                            </Grid>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
+                <Grid Grid.Row="2">
+                    <Border CornerRadius="8"
+                            Background="#111A2C"
+                            BorderBrush="#36547E"
+                            BorderThickness="1"
+                            Padding="8"
+                            Visibility="{Binding IsNotificationsExpanded, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <ListBox Style="{StaticResource ReadableListBoxStyle}"
+                                 ItemContainerStyle="{StaticResource ReadableListBoxItemStyle}"
+                                 BorderThickness="0"
+                                 ItemsSource="{Binding Notifications}">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,2,0,2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="90" />
+                                            <ColumnDefinition Width="70" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Foreground="#9DB0CF" Text="{Binding Timestamp, StringFormat={}{0:HH:mm:ss}}" />
+                                        <TextBlock Grid.Column="1" Foreground="#BED2F0" Text="{Binding Level}" />
+                                        <TextBlock Grid.Column="2" Foreground="White" TextWrapping="Wrap" Text="{Binding Message}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Border>
+
+                    <Border CornerRadius="8"
+                            Background="#111A2C"
+                            BorderBrush="#36547E"
+                            BorderThickness="1"
+                            Padding="10">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsNotificationsExpanded}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="90" />
+                                <ColumnDefinition Width="70" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Foreground="#9DB0CF" Text="{Binding LatestNotification.Timestamp, StringFormat={}{0:HH:mm:ss}}" />
+                            <TextBlock Grid.Column="1" Foreground="#BED2F0" Text="{Binding LatestNotification.Level}" />
+                            <TextBlock Grid.Column="2" Foreground="White" TextWrapping="Wrap" Text="{Binding LatestNotification.Message}" />
+                        </Grid>
+                    </Border>
+                </Grid>
             </Grid>
         </Border>
-
-        <StatusBar Grid.Row="8" Background="{StaticResource PanelBackground}" Foreground="{StaticResource TextMuted}">
-            <StatusBarItem>
-                <TextBlock Text="HyperTool · Sidebar Navigation aktiv · UI Refresh" />
-            </StatusBarItem>
-        </StatusBar>
     </Grid>
 </mah:MetroWindow>

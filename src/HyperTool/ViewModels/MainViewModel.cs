@@ -4,6 +4,7 @@ using HyperTool.Models;
 using HyperTool.Services;
 using Serilog;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.Diagnostics;
 using System.Reflection;
 
@@ -98,6 +99,9 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     private int _selectedMenuIndex;
 
+    [ObservableProperty]
+    private bool _isNotificationsExpanded;
+
     public ObservableCollection<VmDefinition> AvailableVms { get; } = [];
 
     public ObservableCollection<HyperVSwitchInfo> AvailableSwitches { get; } = [];
@@ -111,6 +115,10 @@ public partial class MainViewModel : ViewModelBase
     public string VmConnectComputerName { get; }
 
     public bool HasConfigurationNotice => !string.IsNullOrWhiteSpace(ConfigurationNotice);
+
+    public UiNotification? LatestNotification => Notifications.FirstOrDefault();
+
+    public string NotificationsToggleText => IsNotificationsExpanded ? "Log einklappen" : "Log aufklappen";
 
     public IAsyncRelayCommand StartDefaultVmCommand { get; }
 
@@ -159,6 +167,10 @@ public partial class MainViewModel : ViewModelBase
     public IAsyncRelayCommand CheckForUpdatesCommand { get; }
 
     public IRelayCommand OpenReleasePageCommand { get; }
+
+    public IRelayCommand ToggleNotificationsCommand { get; }
+
+    public IRelayCommand<VmDefinition> SelectVmFromChipCommand { get; }
 
     private readonly IHyperVService _hyperVService;
     private readonly IHnsService _hnsService;
@@ -250,6 +262,8 @@ public partial class MainViewModel : ViewModelBase
         RestartHnsCommand = new AsyncRelayCommand(RestartHnsAsync, () => !IsBusy);
         CheckForUpdatesCommand = new AsyncRelayCommand(CheckForUpdatesAsync, () => !IsBusy);
         OpenReleasePageCommand = new RelayCommand(OpenReleasePage);
+        ToggleNotificationsCommand = new RelayCommand(ToggleNotifications);
+        SelectVmFromChipCommand = new RelayCommand<VmDefinition>(SelectVmFromChip);
 
         StartDefaultVmCommand = new AsyncRelayCommand(StartDefaultVmAsync, () => !IsBusy);
         StopDefaultVmCommand = new AsyncRelayCommand(StopDefaultVmAsync, () => !IsBusy);
@@ -263,7 +277,15 @@ public partial class MainViewModel : ViewModelBase
         SelectedVmForConfig = SelectedVm;
         SelectedDefaultVmForConfig = SelectedVm;
 
+        IsNotificationsExpanded = false;
+        Notifications.CollectionChanged += OnNotificationsChanged;
+
         _ = InitializeAsync();
+    }
+
+    partial void OnIsNotificationsExpandedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(NotificationsToggleText));
     }
 
     partial void OnConfigurationNoticeChanged(string? value)
@@ -357,8 +379,10 @@ public partial class MainViewModel : ViewModelBase
                 .GroupBy(vm => vm.Name, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(group => group.Key, group => group.First().Label, StringComparer.OrdinalIgnoreCase);
 
+            var orderedVms = vms.OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase).ToList();
+
             AvailableVms.Clear();
-            foreach (var vmInfo in vms.OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase))
+            foreach (var vmInfo in orderedVms)
             {
                 var label = existingLabels.TryGetValue(vmInfo.Name, out var existingLabel) && !string.IsNullOrWhiteSpace(existingLabel)
                     ? existingLabel
@@ -367,7 +391,9 @@ public partial class MainViewModel : ViewModelBase
                 AvailableVms.Add(new VmDefinition
                 {
                     Name = vmInfo.Name,
-                    Label = label
+                    Label = label,
+                    RuntimeState = vmInfo.State,
+                    RuntimeSwitchName = string.IsNullOrWhiteSpace(vmInfo.CurrentSwitchName) ? "-" : vmInfo.CurrentSwitchName
                 });
             }
 
@@ -578,11 +604,51 @@ public partial class MainViewModel : ViewModelBase
         await ExecuteBusyActionAsync("VM-Status wird aktualisiert...", async token =>
         {
             var vms = await _hyperVService.GetVmsAsync(token);
+            UpdateVmRuntimeStates(vms);
+
             var vmInfo = vms.FirstOrDefault(item => string.Equals(item.Name, SelectedVm.Name, StringComparison.OrdinalIgnoreCase));
             SelectedVmState = vmInfo?.State ?? "Unbekannt";
             SelectedVmCurrentSwitch = string.IsNullOrWhiteSpace(vmInfo?.CurrentSwitchName) ? "-" : vmInfo.CurrentSwitchName;
             StatusText = vmInfo is null ? "VM nicht gefunden" : $"{vmInfo.Name}: {vmInfo.State}";
         }, showNotificationOnErrorOnly: true);
+    }
+
+    private void UpdateVmRuntimeStates(IReadOnlyList<HyperVVmInfo> runtimeVms)
+    {
+        if (runtimeVms.Count == 0 || AvailableVms.Count == 0)
+        {
+            return;
+        }
+
+        var labelsByName = AvailableVms
+            .GroupBy(vm => vm.Name, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First().Label, StringComparer.OrdinalIgnoreCase);
+
+        var selectedName = SelectedVm?.Name;
+        var defaultName = DefaultVmName;
+
+        var rebuilt = runtimeVms
+            .OrderBy(vm => vm.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(vm => new VmDefinition
+            {
+                Name = vm.Name,
+                Label = labelsByName.TryGetValue(vm.Name, out var label) && !string.IsNullOrWhiteSpace(label) ? label : vm.Name,
+                RuntimeState = vm.State,
+                RuntimeSwitchName = string.IsNullOrWhiteSpace(vm.CurrentSwitchName) ? "-" : vm.CurrentSwitchName
+            })
+            .ToList();
+
+        AvailableVms.Clear();
+        foreach (var vm in rebuilt)
+        {
+            AvailableVms.Add(vm);
+        }
+
+        SelectedVm = AvailableVms.FirstOrDefault(vm => string.Equals(vm.Name, selectedName, StringComparison.OrdinalIgnoreCase))
+                     ?? AvailableVms.FirstOrDefault();
+        SelectedVmForConfig = SelectedVm;
+        SelectedDefaultVmForConfig = AvailableVms.FirstOrDefault(vm => string.Equals(vm.Name, defaultName, StringComparison.OrdinalIgnoreCase))
+                                   ?? SelectedVm;
     }
 
     private async Task LoadCheckpointsAsync()
@@ -1011,6 +1077,30 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    private void ToggleNotifications()
+    {
+        IsNotificationsExpanded = !IsNotificationsExpanded;
+    }
+
+    private void SelectVmFromChip(VmDefinition? vm)
+    {
+        if (vm is null)
+        {
+            return;
+        }
+
+        var selected = AvailableVms.FirstOrDefault(item => string.Equals(item.Name, vm.Name, StringComparison.OrdinalIgnoreCase));
+        if (selected is not null)
+        {
+            SelectedVm = selected;
+        }
+    }
+
+    private void OnNotificationsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(LatestNotification));
+    }
+
     private static string ResolveAppVersion()
     {
         var informationalVersion = Assembly.GetExecutingAssembly()
@@ -1067,7 +1157,7 @@ public partial class MainViewModel : ViewModelBase
         };
 
         Notifications.Insert(0, entry);
-        while (Notifications.Count > 8)
+        while (Notifications.Count > 200)
         {
             Notifications.RemoveAt(Notifications.Count - 1);
         }
