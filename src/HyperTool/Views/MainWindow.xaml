@@ -608,6 +608,7 @@
                                             <GroupBox Margin="0,14,0,0" Header="System" Foreground="{StaticResource TextPrimary}" BorderBrush="#36547E">
                                                 <StackPanel Margin="8">
                                                     <CheckBox Margin="0,0,0,8" Foreground="{StaticResource TextPrimary}" IsChecked="{Binding UiEnableTrayIcon}" Content="Tasktray-Icon aktiv" />
+                                                    <CheckBox Margin="0,0,0,8" Foreground="{StaticResource TextPrimary}" IsChecked="{Binding UiStartMinimized}" Content="Beim Start minimiert (nur Tray)" />
                                                     <CheckBox Margin="0,0,0,8" Foreground="{StaticResource TextPrimary}" IsChecked="{Binding UiStartWithWindows}" Content="Mit Windows starten" />
                                                 </StackPanel>
                                             </GroupBox>
@@ -653,6 +654,7 @@
                                 <TextBlock Margin="0,6,0,12" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Text="{Binding UpdateStatus, StringFormat=Update-Status: {0}}" />
                                 <WrapPanel>
                                     <Button Style="{StaticResource ActionButton}" Command="{Binding CheckForUpdatesCommand}" Content="🛰 Update prüfen" />
+                                    <Button Style="{StaticResource ActionButton}" Command="{Binding InstallUpdateCommand}" Content="⬇ Update installieren" />
                                     <Button Margin="0" Style="{StaticResource ActionButton}" Command="{Binding OpenReleasePageCommand}" Content="🌐 Release öffnen" />
                                 </WrapPanel>
                             </StackPanel>

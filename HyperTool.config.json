@@ -14,11 +14,12 @@
     "startMinimized": false,
     "minimizeToTray": true,
     "enableTrayIcon": true,
-    "startWithWindows": false
+    "startWithWindows": false,
+    "trayVmNames": []
   },
   "update": {
     "checkOnStartup": true,
     "gitHubOwner": "koerby",
-    "gitHubRepo": "hyperVswitcher"
+    "gitHubRepo": "HyperTool"
   }
 }

@@ -10,6 +10,7 @@ public interface ITrayService : IDisposable
         Func<IReadOnlyList<VmDefinition>> getVms,
         Func<IReadOnlyList<HyperVSwitchInfo>> getSwitches,
         Func<Task> refreshTrayDataAction,
+        Func<Task> reloadConfigAction,
         Func<string, Task> startVmAction,
         Func<string, Task> stopVmAction,
         Func<string, Task> openConsoleAction,

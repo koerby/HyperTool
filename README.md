@@ -53,8 +53,11 @@ Varianten:
 - build.bat framework-dependent
 - build.bat no-pause
 - build.bat self-contained no-pause
+- build.bat installer version=1.2.0
 
 Ausgabe liegt unter dist/HyperTool.
+
+Installer-Ausgabe liegt unter dist/installer (benötigt Inno Setup 6 / ISCC).
 
 ## Konfiguration
 
@@ -69,6 +72,8 @@ Wichtige Felder:
 - hns: HNS-Verhalten
 - ui: Tray/Autostart Optionen
 - update: GitHub Updateprüfung
+- ui.trayVmNames: optionale Liste der VM-Namen, die im Tray-Menü erscheinen sollen (leer = alle)
+- ui.startMinimized: App startet minimiert (in Verbindung mit Tray ideal für Hintergrundbetrieb)
 
 VMs werden zur Laufzeit automatisch aus Hyper-V geladen (Auto-Discovery).
 
@@ -99,3 +104,10 @@ Wenn die App nicht startet:
 
 - Die App benötigt nicht grundsätzlich Adminrechte.
 - Einzelne Hyper-V/HNS Aktionen können erhöhte Rechte benötigen.
+
+## Update- und Installer-Flow
+
+- HyperTool prüft GitHub Releases anhand der Versionsnummer (SemVer inkl. Prerelease).
+- Wenn im Release ein Installer-Asset (`.exe`/`.msi`) erkannt wird, ist im Info-Tab der Button `Update installieren` nutzbar.
+- Der Installer wird nach `%TEMP%\HyperTool\updates` geladen und direkt gestartet.
+- Für eigene Releases: erst `build.bat ...`, dann `build-installer.bat version=x.y.z`, anschließend Setup-Datei als Release-Asset auf GitHub anhängen.

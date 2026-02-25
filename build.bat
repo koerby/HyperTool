@@ -8,14 +8,16 @@ set "CONFIG=Release"
 set "RUNTIME=win-x64"
 set "SELF_CONTAINED=true"
 set "NO_PAUSE=false"
-set "VERSION=1.0.0"
+set "CREATE_INSTALLER=false"
+set "VERSION=1.2.0"
 set "VERSION_ARG="
-set "VERSION_PROMPT=Bitte Version eingeben (Default 1.0.0): "
+set "VERSION_PROMPT=Bitte Version eingeben (Default 1.2.0): "
 
 for %%A in (%*) do (
     if /I "%%~A"=="self-contained" set "SELF_CONTAINED=true"
     if /I "%%~A"=="framework-dependent" set "SELF_CONTAINED=false"
     if /I "%%~A"=="no-pause" set "NO_PAUSE=true"
+    if /I "%%~A"=="installer" set "CREATE_INSTALLER=true"
     echo %%~A | findstr /I /B "version=" >nul && set "VERSION_ARG=%%~A"
 )
 
@@ -27,7 +29,7 @@ if not defined VERSION_ARG (
     set /p "VERSION=!VERSION_PROMPT!"
 )
 
-if not defined VERSION set "VERSION=1.0.0"
+if not defined VERSION set "VERSION=1.2.0"
 
 echo ==========================================
 echo HyperTool Build Script
@@ -35,6 +37,7 @@ echo ROOT: %ROOT%
 echo CONFIG: %CONFIG%
 echo RUNTIME: %RUNTIME%
 echo SELF_CONTAINED: %SELF_CONTAINED%
+echo CREATE_INSTALLER: %CREATE_INSTALLER%
 echo VERSION: %VERSION%
 echo ==========================================
 echo.
@@ -58,6 +61,12 @@ if errorlevel 1 goto :fail
 echo [4/4] Copy default config...
 copy /Y "%ROOT%HyperTool.config.json" "%DIST_DIR%\HyperTool.config.json" >nul
 if errorlevel 1 goto :fail
+
+if /I "%CREATE_INSTALLER%"=="true" (
+    echo [5/5] Erzeuge Installer...
+    call "%ROOT%build-installer.bat" version=%VERSION% no-pause
+    if errorlevel 1 goto :fail
+)
 
 if not exist "%DIST_DIR%\HyperTool.exe" goto :fail
 

@@ -207,6 +207,27 @@ public sealed class ConfigService : IConfigService
         config.Ui ??= new UiSettings();
         config.Update ??= new UpdateSettings();
 
+        if (config.Ui.TrayVmNames is null)
+        {
+            config.Ui.TrayVmNames = [];
+            wasUpdated = true;
+        }
+        else
+        {
+            var normalizedTrayVmNames = config.Ui.TrayVmNames
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Select(name => name.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (normalizedTrayVmNames.Count != config.Ui.TrayVmNames.Count)
+            {
+                wasUpdated = true;
+            }
+
+            config.Ui.TrayVmNames = normalizedTrayVmNames;
+        }
+
         if (string.IsNullOrWhiteSpace(config.Ui.WindowTitle))
         {
             config.Ui.WindowTitle = "HyperTool";
@@ -221,7 +242,7 @@ public sealed class ConfigService : IConfigService
 
         if (string.IsNullOrWhiteSpace(config.Update.GitHubRepo))
         {
-            config.Update.GitHubRepo = "hyperVswitcher";
+            config.Update.GitHubRepo = "HyperTool";
             wasUpdated = true;
         }
 

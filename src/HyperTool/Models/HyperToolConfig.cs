@@ -41,6 +41,8 @@ public sealed class UiSettings
     public bool EnableTrayIcon { get; set; } = true;
 
     public bool StartWithWindows { get; set; }
+
+    public List<string> TrayVmNames { get; set; } = [];
 }
 
 public sealed class UpdateSettings
@@ -49,5 +51,5 @@ public sealed class UpdateSettings
 
     public string GitHubOwner { get; set; } = "koerby";
 
-    public string GitHubRepo { get; set; } = "hyperVswitcher";
+    public string GitHubRepo { get; set; } = "HyperTool";
 }

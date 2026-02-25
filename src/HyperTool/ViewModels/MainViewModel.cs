@@ -6,6 +6,7 @@ using Serilog;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Diagnostics;
+using System.Net.Http;
 using System.Reflection;
 using System.Windows;
 
@@ -80,6 +81,9 @@ public partial class MainViewModel : ViewModelBase
     private bool _uiEnableTrayIcon = true;
 
     [ObservableProperty]
+    private bool _uiStartMinimized;
+
+    [ObservableProperty]
     private bool _uiStartWithWindows;
 
     [ObservableProperty]
@@ -89,7 +93,7 @@ public partial class MainViewModel : ViewModelBase
     private string _githubOwner = "koerby";
 
     [ObservableProperty]
-    private string _githubRepo = "hyperVswitcher";
+    private string _githubRepo = "HyperTool";
 
     [ObservableProperty]
     private string _appVersion = "0.0.0";
@@ -99,6 +103,15 @@ public partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _releaseUrl = string.Empty;
+
+    [ObservableProperty]
+    private string _installerDownloadUrl = string.Empty;
+
+    [ObservableProperty]
+    private string _installerFileName = string.Empty;
+
+    [ObservableProperty]
+    private bool _updateInstallAvailable;
 
     [ObservableProperty]
     private int _selectedMenuIndex;
@@ -190,6 +203,8 @@ public partial class MainViewModel : ViewModelBase
 
     public IAsyncRelayCommand CheckForUpdatesCommand { get; }
 
+    public IAsyncRelayCommand InstallUpdateCommand { get; }
+
     public IRelayCommand OpenReleasePageCommand { get; }
 
     public IRelayCommand ToggleLogCommand { get; }
@@ -220,6 +235,8 @@ public partial class MainViewModel : ViewModelBase
     private readonly string _configPath;
 
     private readonly CancellationTokenSource _lifetimeCancellation = new();
+    private List<string> _trayVmNames = [];
+    private static readonly HttpClient UpdateDownloadClient = new();
 
     public MainViewModel(
         ConfigLoadResult configResult,
@@ -246,10 +263,12 @@ public partial class MainViewModel : ViewModelBase
         HnsAutoRestartAfterDefaultSwitch = configResult.Config.Hns.AutoRestartAfterDefaultSwitch;
         HnsAutoRestartAfterAnyConnect = configResult.Config.Hns.AutoRestartAfterAnyConnect;
         UiEnableTrayIcon = configResult.Config.Ui.EnableTrayIcon;
+        UiStartMinimized = configResult.Config.Ui.StartMinimized;
         UiStartWithWindows = configResult.Config.Ui.StartWithWindows;
         UpdateCheckOnStartup = configResult.Config.Update.CheckOnStartup;
         GithubOwner = configResult.Config.Update.GitHubOwner;
         GithubRepo = configResult.Config.Update.GitHubRepo;
+        _trayVmNames = NormalizeTrayVmNames(configResult.Config.Ui.TrayVmNames);
         AppVersion = ResolveAppVersion();
         UpdateStatus = "Noch nicht geprüft";
 
@@ -288,6 +307,7 @@ public partial class MainViewModel : ViewModelBase
         ReloadConfigCommand = new AsyncRelayCommand(ReloadConfigAsync, () => !IsBusy);
         RestartHnsCommand = new AsyncRelayCommand(RestartHnsAsync, () => !IsBusy);
         CheckForUpdatesCommand = new AsyncRelayCommand(CheckForUpdatesAsync, () => !IsBusy);
+        InstallUpdateCommand = new AsyncRelayCommand(InstallUpdateAsync, () => !IsBusy && UpdateInstallAvailable && !string.IsNullOrWhiteSpace(InstallerDownloadUrl));
         OpenReleasePageCommand = new RelayCommand(OpenReleasePage);
         ToggleLogCommand = new RelayCommand(ToggleLog);
         SelectVmFromChipCommand = new RelayCommand<VmDefinition>(SelectVmFromChip);
@@ -351,6 +371,7 @@ public partial class MainViewModel : ViewModelBase
         ReloadConfigCommand.NotifyCanExecuteChanged();
         RestartHnsCommand.NotifyCanExecuteChanged();
         CheckForUpdatesCommand.NotifyCanExecuteChanged();
+        InstallUpdateCommand.NotifyCanExecuteChanged();
         StartVmByNameCommand.NotifyCanExecuteChanged();
         StopVmByNameCommand.NotifyCanExecuteChanged();
         TurnOffVmByNameCommand.NotifyCanExecuteChanged();
@@ -379,6 +400,16 @@ public partial class MainViewModel : ViewModelBase
 
         _ = RefreshVmStatusAsync();
         _ = LoadCheckpointsAsync();
+    }
+
+    partial void OnUpdateInstallAvailableChanged(bool value)
+    {
+        InstallUpdateCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnInstallerDownloadUrlChanged(string value)
+    {
+        InstallUpdateCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnSelectedVmStateChanged(string value)
@@ -953,10 +984,11 @@ public partial class MainViewModel : ViewModelBase
                 Ui = new UiSettings
                 {
                     WindowTitle = "HyperTool",
-                    StartMinimized = false,
+                    StartMinimized = UiStartMinimized,
                     MinimizeToTray = true,
                     EnableTrayIcon = UiEnableTrayIcon,
-                    StartWithWindows = UiStartWithWindows
+                    StartWithWindows = UiStartWithWindows,
+                    TrayVmNames = [.. _trayVmNames]
                 },
                 Update = new UpdateSettings
                 {
@@ -1003,7 +1035,15 @@ public partial class MainViewModel : ViewModelBase
 
     public IReadOnlyList<VmDefinition> GetTrayVms()
     {
-        return AvailableVms
+        IEnumerable<VmDefinition> trayVms = AvailableVms;
+
+        if (_trayVmNames.Count > 0)
+        {
+            var allowedVmNames = new HashSet<string>(_trayVmNames, StringComparer.OrdinalIgnoreCase);
+            trayVms = trayVms.Where(vm => allowedVmNames.Contains(vm.Name));
+        }
+
+        return trayVms
             .Select(vm => new VmDefinition
             {
                 Name = vm.Name,
@@ -1023,9 +1063,14 @@ public partial class MainViewModel : ViewModelBase
             .ToList();
     }
 
-    public Task ReloadTrayDataAsync()
+    public Task RefreshTrayDataAsync()
     {
         return LoadSwitchesAsync();
+    }
+
+    public Task ReloadTrayDataAsync()
+    {
+        return ReloadConfigAsync();
     }
 
     public async Task StartVmFromTrayAsync(string vmName)
@@ -1117,7 +1162,9 @@ public partial class MainViewModel : ViewModelBase
             DefaultVmName = config.DefaultVmName;
             LastSelectedVmName = config.LastSelectedVmName;
             UiEnableTrayIcon = config.Ui.EnableTrayIcon;
+            UiStartMinimized = config.Ui.StartMinimized;
             UiStartWithWindows = config.Ui.StartWithWindows;
+            _trayVmNames = NormalizeTrayVmNames(config.Ui.TrayVmNames);
             UpdateCheckOnStartup = config.Update.CheckOnStartup;
             GithubOwner = config.Update.GitHubOwner;
             GithubRepo = config.Update.GitHubRepo;
@@ -1132,6 +1179,20 @@ public partial class MainViewModel : ViewModelBase
 
         await LoadVmsFromHyperVAsync();
         await LoadSwitchesAsync();
+    }
+
+    private static List<string> NormalizeTrayVmNames(IEnumerable<string>? vmNames)
+    {
+        if (vmNames is null)
+        {
+            return [];
+        }
+
+        return vmNames
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private async Task PersistSelectedVmAsync(string vmName)
@@ -1272,6 +1333,9 @@ public partial class MainViewModel : ViewModelBase
 
             UpdateStatus = result.Message;
             ReleaseUrl = result.ReleaseUrl ?? string.Empty;
+            InstallerDownloadUrl = result.InstallerDownloadUrl ?? string.Empty;
+            InstallerFileName = result.InstallerFileName ?? string.Empty;
+            UpdateInstallAvailable = result.HasUpdate && !string.IsNullOrWhiteSpace(InstallerDownloadUrl);
 
             if (!result.Success)
             {
@@ -1279,8 +1343,69 @@ public partial class MainViewModel : ViewModelBase
                 return;
             }
 
+            if (result.HasUpdate && !UpdateInstallAvailable)
+            {
+                AddNotification("Update gefunden, aber kein Installer-Asset im Release erkannt. Bitte Release-Seite öffnen.", "Warning");
+            }
+
             AddNotification(result.Message, result.HasUpdate ? "Success" : "Info");
         });
+    }
+
+    private async Task InstallUpdateAsync()
+    {
+        if (string.IsNullOrWhiteSpace(InstallerDownloadUrl))
+        {
+            AddNotification("Kein Installer-Download verfügbar.", "Warning");
+            return;
+        }
+
+        await ExecuteBusyActionAsync("Update wird heruntergeladen...", async token =>
+        {
+            var targetDirectory = Path.Combine(Path.GetTempPath(), "HyperTool", "updates");
+            Directory.CreateDirectory(targetDirectory);
+
+            var fileName = ResolveInstallerFileName(InstallerDownloadUrl, InstallerFileName);
+            var installerPath = Path.Combine(targetDirectory, fileName);
+
+            using var response = await UpdateDownloadClient.GetAsync(InstallerDownloadUrl, token);
+            response.EnsureSuccessStatusCode();
+
+            await using (var fileStream = new FileStream(installerPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                await response.Content.CopyToAsync(fileStream, token);
+            }
+
+            AddNotification($"Installer heruntergeladen: {installerPath}", "Success");
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = installerPath,
+                UseShellExecute = true
+            });
+
+            AddNotification("Installer gestartet. HyperTool wird beendet.", "Info");
+            Application.Current?.Shutdown();
+        });
+    }
+
+    private static string ResolveInstallerFileName(string downloadUrl, string? fileName)
+    {
+        if (!string.IsNullOrWhiteSpace(fileName))
+        {
+            return fileName.Trim();
+        }
+
+        if (Uri.TryCreate(downloadUrl, UriKind.Absolute, out var uri))
+        {
+            var name = Path.GetFileName(uri.LocalPath);
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                return name;
+            }
+        }
+
+        return "HyperTool-Setup.exe";
     }
 
     private void OpenReleasePage()

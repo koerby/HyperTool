@@ -16,6 +16,7 @@ public sealed class TrayService : ITrayService
         Func<IReadOnlyList<VmDefinition>> getVms,
         Func<IReadOnlyList<HyperVSwitchInfo>> getSwitches,
         Func<Task> refreshTrayDataAction,
+        Func<Task> reloadConfigAction,
         Func<string, Task> startVmAction,
         Func<string, Task> stopVmAction,
         Func<string, Task> openConsoleAction,
@@ -47,6 +48,7 @@ public sealed class TrayService : ITrayService
                 createSnapshotAction,
                 connectVmToSwitchAction,
                 refreshTrayDataAction,
+                reloadConfigAction,
                 exitAction);
         };
 
@@ -62,6 +64,7 @@ public sealed class TrayService : ITrayService
             createSnapshotAction,
             connectVmToSwitchAction,
             refreshTrayDataAction,
+            reloadConfigAction,
             exitAction);
 
         _notifyIcon = new NotifyIcon
@@ -88,37 +91,41 @@ public sealed class TrayService : ITrayService
         Func<string, Task> createSnapshotAction,
         Func<string, string, Task> connectVmToSwitchAction,
         Func<Task> refreshTrayDataAction,
+        Func<Task> reloadConfigAction,
         Action exitAction)
     {
         contextMenu.Items.Clear();
-        contextMenu.Items.Add("Show", null, (_, _) => showAction());
-        contextMenu.Items.Add("Hide", null, (_, _) => hideAction());
+        contextMenu.Items.Add("Show", null, (_, _) => ExecuteMenuAction(contextMenu, () =>
+        {
+            showAction();
+            return Task.CompletedTask;
+        }, "show"));
+        contextMenu.Items.Add("Hide", null, (_, _) => ExecuteMenuAction(contextMenu, () =>
+        {
+            hideAction();
+            return Task.CompletedTask;
+        }, "hide"));
         contextMenu.Items.Add(new ToolStripSeparator());
 
         var vms = getVms();
         var switches = getSwitches();
 
-        contextMenu.Items.Add(BuildVmActionsMenu(vms, startVmAction, stopVmAction, openConsoleAction, createSnapshotAction));
-        contextMenu.Items.Add(BuildSwitchActionMenu(vms, switches, connectVmToSwitchAction));
+        contextMenu.Items.Add(BuildVmActionsMenu(contextMenu, vms, startVmAction, stopVmAction, openConsoleAction, createSnapshotAction));
+        contextMenu.Items.Add(BuildSwitchActionMenu(contextMenu, vms, switches, connectVmToSwitchAction));
 
         contextMenu.Items.Add(new ToolStripSeparator());
-        contextMenu.Items.Add("Daten aktualisieren", null, async (_, _) =>
+        contextMenu.Items.Add("Aktualisieren", null, (_, _) => ExecuteMenuAction(contextMenu, reloadConfigAction, "reload"));
+
+        contextMenu.Items.Add(new ToolStripSeparator());
+        contextMenu.Items.Add("Exit", null, (_, _) => ExecuteMenuAction(contextMenu, () =>
         {
-            try
-            {
-                await refreshTrayDataAction();
-            }
-            catch (Exception ex)
-            {
-                Log.Warning(ex, "Manual tray data refresh failed.");
-            }
-        });
-
-        contextMenu.Items.Add(new ToolStripSeparator());
-        contextMenu.Items.Add("Exit", null, (_, _) => exitAction());
+            exitAction();
+            return Task.CompletedTask;
+        }, "exit"));
     }
 
     private static ToolStripMenuItem BuildVmActionsMenu(
+        ContextMenuStrip contextMenu,
         IReadOnlyList<VmDefinition> vms,
         Func<string, Task> startAction,
         Func<string, Task> stopAction,
@@ -139,10 +146,10 @@ public sealed class TrayService : ITrayService
             var vmLabel = string.IsNullOrWhiteSpace(vm.Label) ? vmName : vm.Label;
             var vmMenu = new ToolStripMenuItem(vmLabel);
 
-            vmMenu.DropDownItems.Add("Start", null, async (_, _) => await startAction(vmName));
-            vmMenu.DropDownItems.Add("Stop", null, async (_, _) => await stopAction(vmName));
-            vmMenu.DropDownItems.Add("Konsole öffnen", null, async (_, _) => await openConsoleAction(vmName));
-            vmMenu.DropDownItems.Add("Snapshot erstellen", null, async (_, _) => await snapshotAction(vmName));
+            vmMenu.DropDownItems.Add("Start", null, (_, _) => ExecuteMenuAction(contextMenu, () => startAction(vmName), $"start-{vmName}"));
+            vmMenu.DropDownItems.Add("Stop", null, (_, _) => ExecuteMenuAction(contextMenu, () => stopAction(vmName), $"stop-{vmName}"));
+            vmMenu.DropDownItems.Add("Konsole öffnen", null, (_, _) => ExecuteMenuAction(contextMenu, () => openConsoleAction(vmName), $"console-{vmName}"));
+            vmMenu.DropDownItems.Add("Snapshot erstellen", null, (_, _) => ExecuteMenuAction(contextMenu, () => snapshotAction(vmName), $"snapshot-{vmName}"));
 
             menu.DropDownItems.Add(vmMenu);
         }
@@ -151,6 +158,7 @@ public sealed class TrayService : ITrayService
     }
 
     private static ToolStripMenuItem BuildSwitchActionMenu(
+        ContextMenuStrip contextMenu,
         IReadOnlyList<VmDefinition> vms,
         IReadOnlyList<HyperVSwitchInfo> switches,
         Func<string, string, Task> connectAction)
@@ -178,13 +186,26 @@ public sealed class TrayService : ITrayService
             foreach (var vmSwitch in switches)
             {
                 var switchName = vmSwitch.Name;
-                vmMenu.DropDownItems.Add(switchName, null, async (_, _) => await connectAction(vmName, switchName));
+                vmMenu.DropDownItems.Add(switchName, null, (_, _) => ExecuteMenuAction(contextMenu, () => connectAction(vmName, switchName), $"connect-{vmName}-{switchName}"));
             }
 
             menu.DropDownItems.Add(vmMenu);
         }
 
         return menu;
+    }
+
+    private static async void ExecuteMenuAction(ContextMenuStrip contextMenu, Func<Task> action, string actionName)
+    {
+        try
+        {
+            contextMenu.Close();
+            await action();
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Tray menu action failed: {ActionName}", actionName);
+        }
     }
 
     public void Dispose()
