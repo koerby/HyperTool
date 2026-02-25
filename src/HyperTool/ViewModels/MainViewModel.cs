@@ -81,9 +81,6 @@ public partial class MainViewModel : ViewModelBase
     private string _vmConnectComputerName = "";
 
     [ObservableProperty]
-    private string _backupExportPath = string.Empty;
-
-    [ObservableProperty]
     private string _lastSelectedVmName = string.Empty;
 
     [ObservableProperty]
@@ -238,8 +235,6 @@ public partial class MainViewModel : ViewModelBase
 
     public IRelayCommand CopyNotificationsCommand { get; }
 
-    public IRelayCommand SelectBackupExportPathCommand { get; }
-
     public IAsyncRelayCommand<string> StartVmByNameCommand { get; }
 
     public IAsyncRelayCommand<string> StopVmByNameCommand { get; }
@@ -286,7 +281,6 @@ public partial class MainViewModel : ViewModelBase
         LastSelectedVmName = configResult.Config.LastSelectedVmName;
         DefaultSwitchName = configResult.Config.DefaultSwitchName;
         VmConnectComputerName = NormalizeVmConnectComputerName(configResult.Config.VmConnectComputerName);
-        BackupExportPath = NormalizeBackupExportPath(configResult.Config.BackupExportPath);
         ConfigurationNotice = configResult.Notice;
         HnsEnabled = configResult.Config.Hns.Enabled;
         HnsAutoRestartAfterDefaultSwitch = configResult.Config.Hns.AutoRestartAfterDefaultSwitch;
@@ -320,7 +314,7 @@ public partial class MainViewModel : ViewModelBase
         TurnOffSelectedVmCommand = new AsyncRelayCommand(TurnOffSelectedVmAsync, CanExecuteStopVmAction);
         RestartSelectedVmCommand = new AsyncRelayCommand(RestartSelectedVmAsync, CanExecuteRestartVmAction);
         OpenConsoleCommand = new AsyncRelayCommand(OpenConsoleAsync, CanExecuteStopVmAction);
-        ExportSelectedVmCommand = new AsyncRelayCommand(ExportSelectedVmAsync, CanExecuteVmAction);
+        ExportSelectedVmCommand = new AsyncRelayCommand(ExportSelectedVmAsync, () => !IsBusy && SelectedVmForConfig is not null);
         ImportVmCommand = new AsyncRelayCommand(ImportVmAsync, () => !IsBusy);
 
         LoadSwitchesCommand = new AsyncRelayCommand(RefreshSwitchesAsync, () => !IsBusy);
@@ -346,7 +340,6 @@ public partial class MainViewModel : ViewModelBase
         SelectVmFromChipCommand = new RelayCommand<VmDefinition>(SelectVmFromChip);
         ClearNotificationsCommand = new RelayCommand(ClearNotifications);
         CopyNotificationsCommand = new RelayCommand(CopyNotificationsToClipboard);
-        SelectBackupExportPathCommand = new RelayCommand(SelectBackupExportPath, () => !IsBusy);
 
         StartVmByNameCommand = new AsyncRelayCommand<string>(StartVmByNameAsync, _ => !IsBusy);
         StopVmByNameCommand = new AsyncRelayCommand<string>(StopVmByNameAsync, _ => !IsBusy);
@@ -415,7 +408,6 @@ public partial class MainViewModel : ViewModelBase
         RestartVmByNameCommand.NotifyCanExecuteChanged();
         OpenConsoleByNameCommand.NotifyCanExecuteChanged();
         CreateSnapshotByNameCommand.NotifyCanExecuteChanged();
-        SelectBackupExportPathCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnSelectedMenuIndexChanged(int value)
@@ -429,7 +421,6 @@ public partial class MainViewModel : ViewModelBase
     partial void OnSelectedVmChanged(VmDefinition? value)
     {
         ConnectSelectedSwitchCommand.NotifyCanExecuteChanged();
-        ExportSelectedVmCommand.NotifyCanExecuteChanged();
         SelectedVmForConfig = value;
         OnPropertyChanged(nameof(SelectedVmDisplayName));
         NotifyTrayStateChanged();
@@ -527,6 +518,7 @@ public partial class MainViewModel : ViewModelBase
     partial void OnSelectedVmForConfigChanged(VmDefinition? value)
     {
         RemoveVmCommand.NotifyCanExecuteChanged();
+        ExportSelectedVmCommand.NotifyCanExecuteChanged();
     }
 
     private bool CanExecuteVmAction() => !IsBusy && SelectedVm is not null;
@@ -718,31 +710,27 @@ public partial class MainViewModel : ViewModelBase
 
     private async Task ExportSelectedVmAsync()
     {
-        if (SelectedVm is null)
+        if (SelectedVmForConfig is null)
         {
             return;
         }
 
-        var exportBasePath = NormalizeBackupExportPath(BackupExportPath);
-        if (string.IsNullOrWhiteSpace(exportBasePath))
-        {
-            var selectedFolder = PickFolderPath($"Zielordner für Backup-Export von '{SelectedVm.Name}' auswählen");
-            if (string.IsNullOrWhiteSpace(selectedFolder))
-            {
-                AddNotification("VM-Export abgebrochen.", "Info");
-                return;
-            }
+        var vmName = SelectedVmForConfig.Name;
 
-            exportBasePath = selectedFolder;
+        var selectedFolder = PickFolderPath($"Zielordner für Backup-Export von '{vmName}' auswählen");
+        if (string.IsNullOrWhiteSpace(selectedFolder))
+        {
+            AddNotification("VM-Export abgebrochen.", "Info");
+            return;
         }
 
-        var exportPath = Path.Combine(exportBasePath, $"{SelectedVm.Name}-{DateTime.Now:yyyyMMdd-HHmmss}");
+        var exportPath = Path.Combine(selectedFolder, $"{vmName}-{DateTime.Now:yyyyMMdd-HHmmss}");
         Directory.CreateDirectory(exportPath);
 
-        await ExecuteBusyActionAsync($"VM '{SelectedVm.Name}' wird exportiert...", async token =>
+        await ExecuteBusyActionAsync($"VM '{vmName}' wird exportiert...", async token =>
         {
-            await _hyperVService.ExportVmAsync(SelectedVm.Name, exportPath, token);
-            AddNotification($"VM '{SelectedVm.Name}' exportiert nach: {exportPath}", "Success");
+            await _hyperVService.ExportVmAsync(vmName, exportPath, token);
+            AddNotification($"VM '{vmName}' exportiert nach: {exportPath}", "Success");
         });
     }
 
@@ -1220,7 +1208,6 @@ public partial class MainViewModel : ViewModelBase
                 LastSelectedVmName = SelectedVm?.Name ?? LastSelectedVmName,
                 DefaultSwitchName = DefaultSwitchName,
                 VmConnectComputerName = NormalizeVmConnectComputerName(VmConnectComputerName),
-                BackupExportPath = NormalizeBackupExportPath(BackupExportPath),
                 Hns = new HnsSettings
                 {
                     Enabled = HnsEnabled,
@@ -1448,7 +1435,6 @@ public partial class MainViewModel : ViewModelBase
             DefaultVmName = config.DefaultVmName;
             LastSelectedVmName = config.LastSelectedVmName;
             VmConnectComputerName = NormalizeVmConnectComputerName(config.VmConnectComputerName);
-            BackupExportPath = NormalizeBackupExportPath(config.BackupExportPath);
             UiEnableTrayIcon = config.Ui.EnableTrayIcon;
             UiStartMinimized = config.Ui.StartMinimized;
             UiStartWithWindows = config.Ui.StartWithWindows;
@@ -1496,11 +1482,6 @@ public partial class MainViewModel : ViewModelBase
         }
 
         return normalized;
-    }
-
-    private static string NormalizeBackupExportPath(string? backupExportPath)
-    {
-        return backupExportPath?.Trim() ?? string.Empty;
     }
 
     private static string NormalizeUiTheme(string? theme)
@@ -1638,18 +1619,6 @@ public partial class MainViewModel : ViewModelBase
         var text = lines.Length == 0 ? "Keine Notifications vorhanden." : string.Join(Environment.NewLine, lines);
         System.Windows.Clipboard.SetText(text);
         AddNotification("Notifications in Zwischenablage kopiert.", "Info");
-    }
-
-    private void SelectBackupExportPath()
-    {
-        var selectedFolder = PickFolderPath("Backup-Zielordner auswählen");
-        if (string.IsNullOrWhiteSpace(selectedFolder))
-        {
-            return;
-        }
-
-        BackupExportPath = NormalizeBackupExportPath(selectedFolder);
-        AddNotification($"Backup-Pfad gesetzt: {BackupExportPath}", "Info");
     }
 
     private async Task CheckForUpdatesAsync()

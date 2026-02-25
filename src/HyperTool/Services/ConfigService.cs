@@ -208,13 +208,6 @@ public sealed class ConfigService : IConfigService
             wasUpdated = true;
         }
 
-        var normalizedBackupExportPath = config.BackupExportPath?.Trim() ?? string.Empty;
-        if (!string.Equals(config.BackupExportPath, normalizedBackupExportPath, StringComparison.Ordinal))
-        {
-            config.BackupExportPath = normalizedBackupExportPath;
-            wasUpdated = true;
-        }
-
         config.Hns ??= new HnsSettings();
         config.Ui ??= new UiSettings();
         config.Update ??= new UpdateSettings();
