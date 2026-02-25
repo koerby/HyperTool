@@ -218,6 +218,8 @@ public partial class MainViewModel : ViewModelBase
 
     public IRelayCommand ToggleLogCommand { get; }
 
+    public IRelayCommand OpenHelpCommand { get; }
+
     public IRelayCommand<VmDefinition> SelectVmFromChipCommand { get; }
 
     public IRelayCommand ClearNotificationsCommand { get; }
@@ -320,6 +322,7 @@ public partial class MainViewModel : ViewModelBase
         InstallUpdateCommand = new AsyncRelayCommand(InstallUpdateAsync, () => !IsBusy && UpdateInstallAvailable && !string.IsNullOrWhiteSpace(InstallerDownloadUrl));
         OpenReleasePageCommand = new RelayCommand(OpenReleasePage);
         ToggleLogCommand = new RelayCommand(ToggleLog);
+        OpenHelpCommand = new RelayCommand(OpenHelp);
         SelectVmFromChipCommand = new RelayCommand<VmDefinition>(SelectVmFromChip);
         ClearNotificationsCommand = new RelayCommand(ClearNotifications);
         CopyNotificationsCommand = new RelayCommand(CopyNotificationsToClipboard);
@@ -1464,6 +1467,11 @@ public partial class MainViewModel : ViewModelBase
     private void ToggleLog()
     {
         IsLogExpanded = !IsLogExpanded;
+    }
+
+    private void OpenHelp()
+    {
+        SelectedMenuIndex = 4;
     }
 
     private void SelectVmFromChip(VmDefinition? vm)
