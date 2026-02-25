@@ -129,15 +129,27 @@ public sealed class HyperVPowerShellService : IHyperVService
         }
     }
 
-    public Task ApplyCheckpointAsync(string vmName, string checkpointName, CancellationToken cancellationToken) =>
-        InvokeNonQueryAsync(
-            $"Restore-VMCheckpoint -VMCheckpoint (Get-VMCheckpoint -VMName {ToPsSingleQuoted(vmName)} -Name {ToPsSingleQuoted(checkpointName)}) -Confirm:$false",
-            cancellationToken);
+    public Task ApplyCheckpointAsync(string vmName, string checkpointName, CancellationToken cancellationToken)
+    {
+        var script = $"$vmName = {ToPsSingleQuoted(vmName)}; " +
+                     $"$checkpointName = {ToPsSingleQuoted(checkpointName)}; " +
+                     "$checkpoint = Get-VMCheckpoint -VMName $vmName | Where-Object { $_.Name -ceq $checkpointName } | Select-Object -First 1; " +
+                     "if ($null -eq $checkpoint) { throw \"Checkpoint '$checkpointName' wurde auf VM '$vmName' nicht gefunden.\" }; " +
+                     "Restore-VMCheckpoint -VMCheckpoint $checkpoint -Confirm:$false";
 
-    public Task RemoveCheckpointAsync(string vmName, string checkpointName, CancellationToken cancellationToken) =>
-        InvokeNonQueryAsync(
-            $"Remove-VMCheckpoint -VMName {ToPsSingleQuoted(vmName)} -Name {ToPsSingleQuoted(checkpointName)} -Confirm:$false",
-            cancellationToken);
+        return InvokeNonQueryAsync(script, cancellationToken);
+    }
+
+    public Task RemoveCheckpointAsync(string vmName, string checkpointName, CancellationToken cancellationToken)
+    {
+        var script = $"$vmName = {ToPsSingleQuoted(vmName)}; " +
+                     $"$checkpointName = {ToPsSingleQuoted(checkpointName)}; " +
+                     "$checkpoint = Get-VMCheckpoint -VMName $vmName | Where-Object { $_.Name -ceq $checkpointName } | Select-Object -First 1; " +
+                     "if ($null -eq $checkpoint) { throw \"Checkpoint '$checkpointName' wurde auf VM '$vmName' nicht gefunden.\" }; " +
+                     "Remove-VMCheckpoint -VMCheckpoint $checkpoint -Confirm:$false";
+
+        return InvokeNonQueryAsync(script, cancellationToken);
+    }
 
     public Task OpenVmConnectAsync(string vmName, string computerName, CancellationToken cancellationToken)
     {
