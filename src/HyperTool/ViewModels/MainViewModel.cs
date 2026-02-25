@@ -394,6 +394,7 @@ public partial class MainViewModel : ViewModelBase
         ConnectSelectedSwitchCommand.NotifyCanExecuteChanged();
         DisconnectSwitchCommand.NotifyCanExecuteChanged();
         RefreshVmStatusCommand.NotifyCanExecuteChanged();
+        CreateCheckpointCommand.NotifyCanExecuteChanged();
         LoadCheckpointsCommand.NotifyCanExecuteChanged();
         ApplyCheckpointCommand.NotifyCanExecuteChanged();
         DeleteCheckpointCommand.NotifyCanExecuteChanged();
@@ -424,6 +425,7 @@ public partial class MainViewModel : ViewModelBase
     partial void OnSelectedVmChanged(VmDefinition? value)
     {
         ConnectSelectedSwitchCommand.NotifyCanExecuteChanged();
+        CreateCheckpointCommand.NotifyCanExecuteChanged();
         SelectedVmForConfig = value;
         OnPropertyChanged(nameof(SelectedVmDisplayName));
         NotifyTrayStateChanged();
