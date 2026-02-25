@@ -252,6 +252,7 @@ public partial class MainViewModel : ViewModelBase
 
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private List<string> _trayVmNames = [];
+    private int _selectedVmChangeSuppressionDepth;
     private static readonly HttpClient UpdateDownloadClient = new();
 
     public event EventHandler? TrayStateChanged;
@@ -424,6 +425,11 @@ public partial class MainViewModel : ViewModelBase
             NetworkSwitchStatusHint = "Keine VM ausgewählt.";
             AvailableCheckpoints.Clear();
             SelectedCheckpoint = null;
+            return;
+        }
+
+        if (_selectedVmChangeSuppressionDepth > 0)
+        {
             return;
         }
 
@@ -633,8 +639,8 @@ public partial class MainViewModel : ViewModelBase
                 ? LastSelectedVmName
                 : DefaultVmName;
 
-            SelectedVm = AvailableVms.FirstOrDefault(vm => string.Equals(vm.Name, preferredVmName, StringComparison.OrdinalIgnoreCase))
-                         ?? AvailableVms.FirstOrDefault();
+            SetSelectedVmInternal(AvailableVms.FirstOrDefault(vm => string.Equals(vm.Name, preferredVmName, StringComparison.OrdinalIgnoreCase))
+                                  ?? AvailableVms.FirstOrDefault());
             SelectedVmForConfig = SelectedVm;
             SelectedDefaultVmForConfig = AvailableVms.FirstOrDefault(vm => string.Equals(vm.Name, DefaultVmName, StringComparison.OrdinalIgnoreCase))
                                        ?? SelectedVm;
@@ -978,8 +984,8 @@ public partial class MainViewModel : ViewModelBase
             AvailableVms.Add(vm);
         }
 
-        SelectedVm = AvailableVms.FirstOrDefault(vm => string.Equals(vm.Name, selectedName, StringComparison.OrdinalIgnoreCase))
-                     ?? AvailableVms.FirstOrDefault();
+        SetSelectedVmInternal(AvailableVms.FirstOrDefault(vm => string.Equals(vm.Name, selectedName, StringComparison.OrdinalIgnoreCase))
+                      ?? AvailableVms.FirstOrDefault());
         SelectedVmForConfig = SelectedVm;
         SelectedDefaultVmForConfig = AvailableVms.FirstOrDefault(vm => string.Equals(vm.Name, defaultName, StringComparison.OrdinalIgnoreCase))
                                    ?? SelectedVm;
@@ -1339,11 +1345,24 @@ public partial class MainViewModel : ViewModelBase
     {
         var currentSelectedVm = SelectedVm;
 
-        SelectedVm = AvailableVms.FirstOrDefault(vm =>
-                        string.Equals(vm.Name, vmName, StringComparison.OrdinalIgnoreCase))
-                    ?? currentSelectedVm;
+        SetSelectedVmInternal(AvailableVms.FirstOrDefault(vm =>
+                                string.Equals(vm.Name, vmName, StringComparison.OrdinalIgnoreCase))
+                            ?? currentSelectedVm);
 
         await RefreshVmStatusAsync();
+    }
+
+    private void SetSelectedVmInternal(VmDefinition? vm)
+    {
+        _selectedVmChangeSuppressionDepth++;
+        try
+        {
+            SelectedVm = vm;
+        }
+        finally
+        {
+            _selectedVmChangeSuppressionDepth--;
+        }
     }
 
     private async Task ReloadConfigAsync()
