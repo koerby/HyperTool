@@ -434,7 +434,28 @@ public partial class MainViewModel : ViewModelBase
         _ = PersistSelectedVmAsync(value.Name);
 
         _ = EnsureSelectedVmSwitchSelectionAsync();
+        _ = RefreshSelectedVmStatusAfterSelectionAsync(value.Name);
         _ = LoadCheckpointsAsync();
+    }
+
+    private async Task RefreshSelectedVmStatusAfterSelectionAsync(string selectedVmName)
+    {
+        for (var attempt = 0; attempt < 6; attempt++)
+        {
+            if (SelectedVm is null
+                || !string.Equals(SelectedVm.Name, selectedVmName, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            if (!IsBusy)
+            {
+                await RefreshVmStatusAsync();
+                return;
+            }
+
+            await Task.Delay(200);
+        }
     }
 
     private async Task HandleNetworkTabActivatedAsync()
