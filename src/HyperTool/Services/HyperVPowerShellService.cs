@@ -81,13 +81,12 @@ public sealed class HyperVPowerShellService : IHyperVService
 
     public async Task<IReadOnlyList<HyperVCheckpointInfo>> GetCheckpointsAsync(string vmName, CancellationToken cancellationToken)
     {
-        var script = $"""
-            @(Get-VMCheckpoint -VMName {ToPsSingleQuoted(vmName)} | Select-Object Name, CreationTime, CheckpointType) | ConvertTo-Json -Depth 4 -Compress
-            """;
+        var script = $"@(Get-VMCheckpoint -VMName {ToPsSingleQuoted(vmName)} | ForEach-Object {{ [pscustomobject]@{{ Id = $_.VMCheckpointId.ToString(); Name = $_.Name; CreationTime = $_.CreationTime.ToString('o'); CheckpointType = $_.CheckpointType.ToString() }} }}) | ConvertTo-Json -Depth 4 -Compress";
 
         var rows = await InvokeJsonArrayAsync(script, cancellationToken);
         return rows.Select(row => new HyperVCheckpointInfo
         {
+            Id = GetString(row, "Id"),
             Name = GetString(row, "Name"),
             Created = GetDateTime(row, "CreationTime"),
             Type = GetString(row, "CheckpointType")
@@ -129,22 +128,28 @@ public sealed class HyperVPowerShellService : IHyperVService
         }
     }
 
-    public Task ApplyCheckpointAsync(string vmName, string checkpointName, CancellationToken cancellationToken)
+    public Task ApplyCheckpointAsync(string vmName, string checkpointName, string? checkpointId, CancellationToken cancellationToken)
     {
         var script = $"$vmName = {ToPsSingleQuoted(vmName)}; " +
                      $"$checkpointName = {ToPsSingleQuoted(checkpointName)}; " +
-                     "$checkpoint = Get-VMCheckpoint -VMName $vmName | Where-Object { $_.Name -ceq $checkpointName } | Select-Object -First 1; " +
+                     $"$checkpointId = {ToPsSingleQuoted(checkpointId ?? string.Empty)}; " +
+                     "$checkpoint = $null; " +
+                     "if (-not [string]::IsNullOrWhiteSpace($checkpointId)) { $checkpoint = Get-VMCheckpoint -VMName $vmName | Where-Object { $_.VMCheckpointId.ToString() -ceq $checkpointId } | Select-Object -First 1 }; " +
+                     "if ($null -eq $checkpoint) { $checkpoint = Get-VMCheckpoint -VMName $vmName | Where-Object { $_.Name -ceq $checkpointName } | Select-Object -First 1 }; " +
                      "if ($null -eq $checkpoint) { throw \"Checkpoint '$checkpointName' wurde auf VM '$vmName' nicht gefunden.\" }; " +
                      "Restore-VMCheckpoint -VMCheckpoint $checkpoint -Confirm:$false";
 
         return InvokeNonQueryAsync(script, cancellationToken);
     }
 
-    public Task RemoveCheckpointAsync(string vmName, string checkpointName, CancellationToken cancellationToken)
+    public Task RemoveCheckpointAsync(string vmName, string checkpointName, string? checkpointId, CancellationToken cancellationToken)
     {
         var script = $"$vmName = {ToPsSingleQuoted(vmName)}; " +
                      $"$checkpointName = {ToPsSingleQuoted(checkpointName)}; " +
-                     "$checkpoint = Get-VMCheckpoint -VMName $vmName | Where-Object { $_.Name -ceq $checkpointName } | Select-Object -First 1; " +
+                     $"$checkpointId = {ToPsSingleQuoted(checkpointId ?? string.Empty)}; " +
+                     "$checkpoint = $null; " +
+                     "if (-not [string]::IsNullOrWhiteSpace($checkpointId)) { $checkpoint = Get-VMCheckpoint -VMName $vmName | Where-Object { $_.VMCheckpointId.ToString() -ceq $checkpointId } | Select-Object -First 1 }; " +
+                     "if ($null -eq $checkpoint) { $checkpoint = Get-VMCheckpoint -VMName $vmName | Where-Object { $_.Name -ceq $checkpointName } | Select-Object -First 1 }; " +
                      "if ($null -eq $checkpoint) { throw \"Checkpoint '$checkpointName' wurde auf VM '$vmName' nicht gefunden.\" }; " +
                      "Remove-VMCheckpoint -VMCheckpoint $checkpoint -Confirm:$false";
 

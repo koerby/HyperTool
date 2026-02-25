@@ -1123,7 +1123,7 @@ public partial class MainViewModel : ViewModelBase
 
         await ExecuteBusyActionAsync("Checkpoint wird wiederhergestellt...", async token =>
         {
-            await _hyperVService.ApplyCheckpointAsync(SelectedVm.Name, SelectedCheckpoint.Name, token);
+            await _hyperVService.ApplyCheckpointAsync(SelectedVm.Name, SelectedCheckpoint.Name, SelectedCheckpoint.Id, token);
             AddNotification($"Checkpoint '{SelectedCheckpoint.Name}' auf '{SelectedVm.Name}' wiederhergestellt.", "Warning");
         });
 
@@ -1139,9 +1139,10 @@ public partial class MainViewModel : ViewModelBase
         }
 
         var checkpointName = SelectedCheckpoint.Name;
+        var checkpointId = SelectedCheckpoint.Id;
         await ExecuteBusyActionAsync("Checkpoint wird gelöscht...", async token =>
         {
-            await _hyperVService.RemoveCheckpointAsync(SelectedVm.Name, checkpointName, token);
+            await _hyperVService.RemoveCheckpointAsync(SelectedVm.Name, checkpointName, checkpointId, token);
             AddNotification($"Checkpoint '{checkpointName}' von '{SelectedVm.Name}' gelöscht.", "Warning");
         });
 
