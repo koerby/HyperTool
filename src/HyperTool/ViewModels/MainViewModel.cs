@@ -6,6 +6,7 @@ using Serilog;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Diagnostics;
+using System.IO;
 using System.Net.Http;
 using System.Reflection;
 using System.Windows;
@@ -1385,7 +1386,7 @@ public partial class MainViewModel : ViewModelBase
             });
 
             AddNotification("Installer gestartet. HyperTool wird beendet.", "Info");
-            Application.Current?.Shutdown();
+            System.Windows.Application.Current?.Shutdown();
         });
     }
 

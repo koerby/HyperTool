@@ -55,8 +55,8 @@ public sealed class GitHubUpdateService : IUpdateService
                     return (false, false, "Keine Versionsinformation im neuesten Release gefunden.", null, htmlUrl, installerAsset?.DownloadUrl, installerAsset?.Name);
                 }
 
-                var result = CompareVersions(currentVersion, latestTag, htmlUrl);
-                return (result.Success, result.HasUpdate, result.Message, result.LatestVersion, result.ReleaseUrl, installerAsset?.DownloadUrl, installerAsset?.Name);
+                var releaseComparison = CompareVersions(currentVersion, latestTag, htmlUrl);
+                return (releaseComparison.Success, releaseComparison.HasUpdate, releaseComparison.Message, releaseComparison.LatestVersion, releaseComparison.ReleaseUrl, installerAsset?.DownloadUrl, installerAsset?.Name);
             }
 
             if (releaseResponse.StatusCode != System.Net.HttpStatusCode.NotFound)
@@ -90,9 +90,9 @@ public sealed class GitHubUpdateService : IUpdateService
                 return (false, false, "Tag-Information ohne Versionsnamen gefunden.", null, releasePageUrl, null, null);
             }
 
-            var result = CompareVersions(currentVersion, tagName, $"{repoUrl}/tags");
-            var prefix = result.HasUpdate ? "Update verfügbar (Tag): " : "Kein neuer Release gefunden, letzter Tag: ";
-            return (result.Success, result.HasUpdate, prefix + tagName, tagName, result.ReleaseUrl, null, null);
+            var tagComparison = CompareVersions(currentVersion, tagName, $"{repoUrl}/tags");
+            var prefix = tagComparison.HasUpdate ? "Update verfügbar (Tag): " : "Kein neuer Release gefunden, letzter Tag: ";
+            return (tagComparison.Success, tagComparison.HasUpdate, prefix + tagName, tagName, tagComparison.ReleaseUrl, null, null);
         }
         catch (Exception ex)
         {
