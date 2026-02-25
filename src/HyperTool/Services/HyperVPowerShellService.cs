@@ -2,6 +2,7 @@ using HyperTool.Models;
 using Serilog;
 using System.Diagnostics;
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 
 namespace HyperTool.Services;
@@ -81,7 +82,7 @@ public sealed class HyperVPowerShellService : IHyperVService
 
     public async Task<IReadOnlyList<HyperVCheckpointInfo>> GetCheckpointsAsync(string vmName, CancellationToken cancellationToken)
     {
-        var script = $"@(Get-VMCheckpoint -VMName {ToPsSingleQuoted(vmName)} | ForEach-Object {{ [pscustomobject]@{{ Id = $_.VMCheckpointId.ToString(); Name = $_.Name; CreationTime = $_.CreationTime.ToString('o'); CheckpointType = $_.CheckpointType.ToString() }} }}) | ConvertTo-Json -Depth 4 -Compress";
+        var script = $"@(Get-VMCheckpoint -VMName {ToPsSingleQuoted(vmName)} | ForEach-Object {{ [pscustomobject]@{{ Id = if ($null -ne $_.VMCheckpointId) {{ $_.VMCheckpointId.ToString() }} elseif ($null -ne $_.Id) {{ $_.Id.ToString() }} else {{ '' }}; Name = if ($null -ne $_.Name) {{ $_.Name }} else {{ '' }}; CreationTime = if ($null -ne $_.CreationTime) {{ $_.CreationTime.ToString('o') }} else {{ '' }}; CheckpointType = if ($null -ne $_.CheckpointType) {{ $_.CheckpointType.ToString() }} else {{ '' }} }} }}) | ConvertTo-Json -Depth 4 -Compress";
 
         var rows = await InvokeJsonArrayAsync(script, cancellationToken);
         return rows.Select(row => new HyperVCheckpointInfo
@@ -237,7 +238,11 @@ public sealed class HyperVPowerShellService : IHyperVService
 
     private static async Task<string> InvokePowerShellAsync(string script, CancellationToken cancellationToken)
     {
-        var wrappedScript = $"$ErrorActionPreference = 'Stop'; Import-Module Hyper-V -ErrorAction Stop; {script}";
+        var wrappedScript = "$ErrorActionPreference = 'Stop'; " +
+                            "[Console]::InputEncoding = [System.Text.Encoding]::UTF8; " +
+                            "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; " +
+                            "$OutputEncoding = [System.Text.Encoding]::UTF8; " +
+                            $"Import-Module Hyper-V -ErrorAction Stop; {script}";
         var processStartInfo = new ProcessStartInfo
         {
             FileName = "powershell.exe",
@@ -253,6 +258,8 @@ public sealed class HyperVPowerShellService : IHyperVService
         processStartInfo.ArgumentList.Add("Bypass");
         processStartInfo.ArgumentList.Add("-Command");
         processStartInfo.ArgumentList.Add(wrappedScript);
+        processStartInfo.StandardOutputEncoding = Encoding.UTF8;
+        processStartInfo.StandardErrorEncoding = Encoding.UTF8;
 
         using var process = Process.Start(processStartInfo);
         if (process is null)
