@@ -188,7 +188,6 @@ public partial class App : System.Windows.Application
 				refreshTrayDataAction: () => mainViewModel.RefreshTrayDataAsync(),
 				subscribeTrayStateChanged: handler => mainViewModel.TrayStateChanged += handler,
 				unsubscribeTrayStateChanged: handler => mainViewModel.TrayStateChanged -= handler,
-				reloadConfigAction: () => mainViewModel.ReloadTrayDataAsync(),
 				startVmAction: vmName => mainViewModel.StartVmFromTrayAsync(vmName),
 				stopVmAction: vmName => mainViewModel.StopVmFromTrayAsync(vmName),
 				openConsoleAction: vmName => mainViewModel.OpenConsoleFromTrayAsync(vmName),

@@ -16,7 +16,6 @@ public sealed class TrayService : ITrayService
     private Func<IReadOnlyList<VmDefinition>>? _getVms;
     private Func<IReadOnlyList<HyperVSwitchInfo>>? _getSwitches;
     private Func<Task>? _refreshTrayDataAction;
-    private Func<Task>? _reloadConfigAction;
     private Func<string, Task>? _startVmAction;
     private Func<string, Task>? _stopVmAction;
     private Func<string, Task>? _openConsoleAction;
@@ -25,6 +24,8 @@ public sealed class TrayService : ITrayService
     private Action? _exitAction;
     private EventHandler? _trayStateChangedHandler;
     private Action<EventHandler>? _unsubscribeTrayStateChanged;
+    private bool _isContextMenuOpen;
+    private bool _hasPendingMenuRefresh;
 
     public void Initialize(
         Action showAction,
@@ -34,7 +35,6 @@ public sealed class TrayService : ITrayService
         Func<Task> refreshTrayDataAction,
         Action<EventHandler> subscribeTrayStateChanged,
         Action<EventHandler> unsubscribeTrayStateChanged,
-        Func<Task> reloadConfigAction,
         Func<string, Task> startVmAction,
         Func<string, Task> stopVmAction,
         Func<string, Task> openConsoleAction,
@@ -47,7 +47,6 @@ public sealed class TrayService : ITrayService
         _getVms = getVms;
         _getSwitches = getSwitches;
         _refreshTrayDataAction = refreshTrayDataAction;
-        _reloadConfigAction = reloadConfigAction;
         _startVmAction = startVmAction;
         _stopVmAction = stopVmAction;
         _openConsoleAction = openConsoleAction;
@@ -57,21 +56,19 @@ public sealed class TrayService : ITrayService
         _unsubscribeTrayStateChanged = unsubscribeTrayStateChanged;
 
         _contextMenu = new ContextMenuStrip();
-        _contextMenu.Opening += async (_, _) =>
+        _contextMenu.Opening += (_, _) =>
         {
-            try
-            {
-                if (_refreshTrayDataAction is not null)
-                {
-                    await _refreshTrayDataAction();
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Warning(ex, "Tray data refresh failed.");
-            }
-
+            _isContextMenuOpen = true;
             UpdateTrayMenu();
+        };
+        _contextMenu.Closed += (_, _) =>
+        {
+            _isContextMenuOpen = false;
+            if (_hasPendingMenuRefresh)
+            {
+                _hasPendingMenuRefresh = false;
+                UpdateTrayMenuThreadSafe();
+            }
         };
 
         _trayStateChangedHandler = (_, _) => UpdateTrayMenuThreadSafe();
@@ -98,7 +95,6 @@ public sealed class TrayService : ITrayService
             || _hideAction is null
             || _getVms is null
             || _getSwitches is null
-            || _reloadConfigAction is null
             || _startVmAction is null
             || _stopVmAction is null
             || _openConsoleAction is null
@@ -132,7 +128,15 @@ public sealed class TrayService : ITrayService
         _contextMenu.Items.Add(BuildSwitchActionMenu(vms, switches));
 
         _contextMenu.Items.Add(new ToolStripSeparator());
-        _contextMenu.Items.Add("Aktualisieren", null, (_, _) => ExecuteMenuAction(_reloadConfigAction, "reload"));
+        _contextMenu.Items.Add("Aktualisieren", null, (_, _) => ExecuteMenuAction(async () =>
+        {
+            if (_refreshTrayDataAction is not null)
+            {
+                await _refreshTrayDataAction();
+            }
+
+            UpdateTrayMenuThreadSafe();
+        }, "refresh"));
 
         _contextMenu.Items.Add(new ToolStripSeparator());
         _contextMenu.Items.Add("Exit", null, (_, _) => ExecuteMenuAction(() =>
@@ -262,14 +266,8 @@ public sealed class TrayService : ITrayService
 
     private async void ExecuteMenuAction(Func<Task> action, string actionName)
     {
-        if (_contextMenu is null)
-        {
-            return;
-        }
-
         try
         {
-            _contextMenu.Close();
             await action();
         }
         catch (Exception ex)
@@ -304,6 +302,12 @@ public sealed class TrayService : ITrayService
     {
         if (_contextMenu is null)
         {
+            return;
+        }
+
+        if (_isContextMenuOpen)
+        {
+            _hasPendingMenuRefresh = true;
             return;
         }
 

@@ -39,7 +39,7 @@ public sealed class HyperVPowerShellService : IHyperVService
         InvokeNonQueryAsync($"Start-VM -VMName {ToPsSingleQuoted(vmName)} -Confirm:$false", cancellationToken);
 
     public Task StopVmGracefulAsync(string vmName, CancellationToken cancellationToken) =>
-        InvokeNonQueryAsync($"Stop-VM -VMName {ToPsSingleQuoted(vmName)} -Shutdown -Confirm:$false", cancellationToken);
+        InvokeNonQueryAsync($"Stop-VM -VMName {ToPsSingleQuoted(vmName)} -Confirm:$false", cancellationToken);
 
     public Task TurnOffVmAsync(string vmName, CancellationToken cancellationToken) =>
         InvokeNonQueryAsync($"Stop-VM -VMName {ToPsSingleQuoted(vmName)} -TurnOff -Confirm:$false", cancellationToken);

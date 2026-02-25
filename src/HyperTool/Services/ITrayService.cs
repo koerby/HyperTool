@@ -12,7 +12,6 @@ public interface ITrayService : IDisposable
         Func<Task> refreshTrayDataAction,
         Action<EventHandler> subscribeTrayStateChanged,
         Action<EventHandler> unsubscribeTrayStateChanged,
-        Func<Task> reloadConfigAction,
         Func<string, Task> startVmAction,
         Func<string, Task> stopVmAction,
         Func<string, Task> openConsoleAction,
