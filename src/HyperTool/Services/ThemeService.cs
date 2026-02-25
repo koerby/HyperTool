@@ -33,46 +33,23 @@ public sealed class ThemeService : IThemeService
             : DarkThemeUri;
 
         var mergedDictionaries = app.Resources.MergedDictionaries;
-        var activeThemeDictionary = mergedDictionaries.FirstOrDefault(dictionary =>
-            dictionary.Source is not null
-            && (dictionary.Source.OriginalString.EndsWith("Theme.Dark.xaml", StringComparison.OrdinalIgnoreCase)
-                || dictionary.Source.OriginalString.EndsWith("Theme.Light.xaml", StringComparison.OrdinalIgnoreCase)));
+        var activeThemeDictionaryIndex = mergedDictionaries
+            .Select((dictionary, index) => new { dictionary, index })
+            .FirstOrDefault(item =>
+                item.dictionary.Source is not null
+                && (item.dictionary.Source.OriginalString.EndsWith("Theme.Dark.xaml", StringComparison.OrdinalIgnoreCase)
+                    || item.dictionary.Source.OriginalString.EndsWith("Theme.Light.xaml", StringComparison.OrdinalIgnoreCase)))
+            ?.index;
 
-        if (activeThemeDictionary is null)
+        var targetThemeDictionary = new ResourceDictionary { Source = targetDictionaryUri };
+
+        if (activeThemeDictionaryIndex is null)
         {
-            mergedDictionaries.Add(new ResourceDictionary { Source = targetDictionaryUri });
-            return;
+            mergedDictionaries.Add(targetThemeDictionary);
         }
-
-        var sourceDictionary = new ResourceDictionary { Source = targetDictionaryUri };
-
-        foreach (var entry in sourceDictionary.Keys)
+        else
         {
-            if (entry is null)
-            {
-                continue;
-            }
-
-            if (sourceDictionary[entry] is not System.Windows.Media.SolidColorBrush sourceBrush)
-            {
-                activeThemeDictionary[entry] = sourceDictionary[entry];
-                continue;
-            }
-
-            if (activeThemeDictionary[entry] is System.Windows.Media.SolidColorBrush targetBrush)
-            {
-                if (targetBrush.IsFrozen)
-                {
-                    targetBrush = targetBrush.CloneCurrentValue();
-                    activeThemeDictionary[entry] = targetBrush;
-                }
-
-                targetBrush.Color = sourceBrush.Color;
-            }
-            else
-            {
-                activeThemeDictionary[entry] = sourceBrush.Clone();
-            }
+            mergedDictionaries[activeThemeDictionaryIndex.Value] = targetThemeDictionary;
         }
 
         Log.Information("Theme applied: {Theme}", normalizedTheme);

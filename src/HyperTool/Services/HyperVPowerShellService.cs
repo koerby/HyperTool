@@ -215,6 +215,13 @@ public sealed class HyperVPowerShellService : IHyperVService
         if (process.ExitCode != 0)
         {
             var message = string.IsNullOrWhiteSpace(standardError) ? standardOutput : standardError;
+
+            if (IsHyperVPermissionError(message))
+            {
+                throw new UnauthorizedAccessException(
+                    "Keine Berechtigung für Hyper-V. Bitte HyperTool als Administrator starten oder den Benutzer zur Gruppe 'Hyper-V-Administratoren' hinzufügen.");
+            }
+
             throw new InvalidOperationException($"Hyper-V PowerShell command failed:{Environment.NewLine}{message.Trim()}");
         }
 
@@ -254,5 +261,19 @@ public sealed class HyperVPowerShellService : IHyperVService
             JsonValueKind.String when DateTime.TryParse(value.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var parsed) => parsed,
             _ => DateTime.MinValue
         };
+    }
+
+    private static bool IsHyperVPermissionError(string? message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        return message.Contains("erforderliche Berechtigung", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("authorization policy", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("required permission", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("access is denied", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("virtualizationexception", StringComparison.OrdinalIgnoreCase);
     }
 }

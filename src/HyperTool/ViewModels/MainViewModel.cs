@@ -489,6 +489,13 @@ public partial class MainViewModel : ViewModelBase
             try
             {
                 await LoadVmsFromHyperVAsync();
+
+                if (StatusText.Equals("Keine Berechtigung", StringComparison.OrdinalIgnoreCase))
+                {
+                    lastException = new UnauthorizedAccessException("Keine Berechtigung für Hyper-V.");
+                    break;
+                }
+
                 if (AvailableVms.Count > 0)
                 {
                     return;
@@ -507,7 +514,11 @@ public partial class MainViewModel : ViewModelBase
 
         if (lastException is not null)
         {
-            AddNotification($"Hyper-V scheint nicht verfügbar: {lastException.Message}", "Warning");
+            var message = lastException is UnauthorizedAccessException
+                ? "Hyper-V Zugriff verweigert. Bitte HyperTool als Administrator starten oder Benutzerrechte für Hyper-V setzen."
+                : $"Hyper-V scheint nicht verfügbar: {lastException.Message}";
+
+            AddNotification(message, "Warning");
             StatusText = "Hyper-V nicht verfügbar";
             return;
         }
@@ -1524,6 +1535,12 @@ public partial class MainViewModel : ViewModelBase
         try
         {
             await action(_lifetimeCancellation.Token);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Log.Warning(ex, "Aktion fehlgeschlagen (Berechtigung): {BusyText}", busyText);
+            AddNotification(ex.Message, "Warning");
+            StatusText = "Keine Berechtigung";
         }
         catch (Exception ex)
         {
