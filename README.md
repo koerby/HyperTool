@@ -54,6 +54,8 @@ Varianten:
 - build.bat no-pause
 - build.bat self-contained no-pause
 - build.bat installer version=1.2.0
+- build-installer.bat (fragt Version interaktiv ab)
+- build-installer.bat version=1.2.0
 
 Ausgabe liegt unter dist/HyperTool.
 

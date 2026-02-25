@@ -7,6 +7,7 @@ cd /d "%ROOT%"
 set "VERSION=1.2.0"
 set "NO_PAUSE=false"
 set "VERSION_ARG="
+set "VERSION_PROMPT=Bitte Version eingeben (Default 1.2.0): "
 
 for %%A in (%*) do (
     if /I "%%~A"=="no-pause" set "NO_PAUSE=true"
@@ -16,6 +17,12 @@ for %%A in (%*) do (
 if defined VERSION_ARG (
     for /f "tokens=1,* delims==" %%K in ("%VERSION_ARG%") do set "VERSION=%%L"
 )
+
+if not defined VERSION_ARG (
+    set /p "VERSION=!VERSION_PROMPT!"
+)
+
+if not defined VERSION set "VERSION=1.2.0"
 
 if not exist "%ROOT%dist\HyperTool\HyperTool.exe" (
     echo DIST-Build nicht gefunden. Fuehre zuerst build.bat aus.
