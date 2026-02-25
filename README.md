@@ -63,7 +63,9 @@ Installer-Ausgabe liegt unter dist/installer (benötigt Inno Setup 6 / ISCC).
 
 ## Konfiguration
 
-Datei: HyperTool.config.json
+Datei: `%LOCALAPPDATA%/HyperTool/HyperTool.config.json`
+
+Beim ersten Start wird eine eventuell vorhandene Legacy-Datei aus dem Installationsordner automatisch nach `%LOCALAPPDATA%` migriert.
 
 Wichtige Felder:
 

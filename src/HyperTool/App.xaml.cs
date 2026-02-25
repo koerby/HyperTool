@@ -42,7 +42,8 @@ public partial class App : System.Windows.Application
 			IHnsService hnsService = new HnsService();
 			IStartupService startupService = new StartupService();
 			IUpdateService updateService = new GitHubUpdateService();
-			var configPath = Path.Combine(AppContext.BaseDirectory, "HyperTool.config.json");
+			var configPath = ResolveConfigPath();
+			TryMigrateLegacyConfig(configPath);
 			var configResult = configService.LoadOrCreate(configPath);
 			var uiConfig = configResult.Config.Ui;
 
@@ -105,6 +106,53 @@ public partial class App : System.Windows.Application
 		catch (Exception ex)
 		{
 			ShowFatalErrorAndExit(ex, "HyperTool konnte beim Start nicht initialisiert werden.");
+		}
+	}
+
+	private static string ResolveConfigPath()
+	{
+		try
+		{
+			var localAppDataDirectory = Path.Combine(
+				Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+				"HyperTool");
+
+			Directory.CreateDirectory(localAppDataDirectory);
+			return Path.Combine(localAppDataDirectory, "HyperTool.config.json");
+		}
+		catch
+		{
+			return Path.Combine(AppContext.BaseDirectory, "HyperTool.config.json");
+		}
+	}
+
+	private static void TryMigrateLegacyConfig(string targetConfigPath)
+	{
+		try
+		{
+			var legacyConfigPath = Path.Combine(AppContext.BaseDirectory, "HyperTool.config.json");
+			if (string.Equals(legacyConfigPath, targetConfigPath, StringComparison.OrdinalIgnoreCase))
+			{
+				return;
+			}
+
+			if (!File.Exists(legacyConfigPath) || File.Exists(targetConfigPath))
+			{
+				return;
+			}
+
+			var targetDirectory = Path.GetDirectoryName(targetConfigPath);
+			if (!string.IsNullOrWhiteSpace(targetDirectory))
+			{
+				Directory.CreateDirectory(targetDirectory);
+			}
+
+			File.Copy(legacyConfigPath, targetConfigPath, overwrite: false);
+			Log.Information("Legacy config migrated from {LegacyConfigPath} to {TargetConfigPath}", legacyConfigPath, targetConfigPath);
+		}
+		catch (Exception ex)
+		{
+			Log.Warning(ex, "Legacy config migration failed.");
 		}
 	}
 
