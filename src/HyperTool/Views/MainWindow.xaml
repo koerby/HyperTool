@@ -539,26 +539,12 @@
                             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                 <Grid Margin="4">
                                     <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="12" />
                                         <RowDefinition Height="*" />
                                         <RowDefinition Height="12" />
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
 
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="140" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="12" />
-                                            <ColumnDefinition Width="180" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" Text="Default VM" />
-                                        <ComboBox Grid.Column="1" Style="{StaticResource ReadableComboBoxStyle}" DisplayMemberPath="Label" ItemsSource="{Binding AvailableVms}" SelectedItem="{Binding SelectedDefaultVmForConfig}" />
-                                        <Button Grid.Column="3" Margin="0" Style="{StaticResource ActionButton}" Command="{Binding SetDefaultVmCommand}" Content="⭐ Setze Default" />
-                                    </Grid>
-
-                                    <Grid Grid.Row="2">
+                                    <Grid Grid.Row="0">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="2*" />
                                             <ColumnDefinition Width="12" />
@@ -574,13 +560,24 @@
                                                 <DataTemplate>
                                                     <Grid Margin="0,2,0,2">
                                                         <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="34" />
                                                             <ColumnDefinition Width="220" />
                                                             <ColumnDefinition Width="120" />
                                                             <ColumnDefinition Width="*" />
                                                         </Grid.ColumnDefinitions>
-                                                        <TextBlock Foreground="{DynamicResource TextPrimary}" Text="{Binding Name}" />
-                                                        <TextBlock Grid.Column="1" Foreground="{DynamicResource TextMuted}" Text="{Binding RuntimeState}" />
-                                                        <TextBlock Grid.Column="2" Foreground="{DynamicResource TextMuted}" Text="{Binding RuntimeSwitchName}" />
+                                                        <CheckBox VerticalAlignment="Center"
+                                                                  Command="{Binding DataContext.SetDefaultVmByCheckCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                  CommandParameter="{Binding}">
+                                                            <CheckBox.IsChecked>
+                                                                <MultiBinding Converter="{StaticResource StringEqualsConverter}">
+                                                                    <Binding Path="Name" />
+                                                                    <Binding Path="DataContext.DefaultVmName" RelativeSource="{RelativeSource AncestorType=Window}" />
+                                                                </MultiBinding>
+                                                            </CheckBox.IsChecked>
+                                                        </CheckBox>
+                                                        <TextBlock Grid.Column="1" Foreground="{DynamicResource TextPrimary}" Text="{Binding Name}" />
+                                                        <TextBlock Grid.Column="2" Foreground="{DynamicResource TextMuted}" Text="{Binding RuntimeState}" />
+                                                        <TextBlock Grid.Column="3" Foreground="{DynamicResource TextMuted}" Text="{Binding RuntimeSwitchName}" />
                                                     </Grid>
                                                 </DataTemplate>
                                             </ListBox.ItemTemplate>
@@ -601,7 +598,6 @@
 
                                             <GroupBox Margin="0,14,0,0" Header="HNS" Foreground="{DynamicResource TextPrimary}" BorderBrush="{DynamicResource InputBorder}">
                                                 <StackPanel Margin="8">
-                                                    <CheckBox Margin="0,0,0,6" Foreground="{DynamicResource TextPrimary}" IsChecked="{Binding HnsEnabled}" Content="HNS-Flow aktivieren" />
                                                     <CheckBox Margin="0,0,0,6" Foreground="{DynamicResource TextPrimary}" IsChecked="{Binding HnsAutoRestartAfterDefaultSwitch}" Content="Auto-Restart nach Default-Switch Connect" />
                                                     <CheckBox Margin="0,0,0,10" Foreground="{DynamicResource TextPrimary}" IsChecked="{Binding HnsAutoRestartAfterAnyConnect}" Content="Auto-Restart nach jedem Connect" />
                                                     <Button Margin="0" Style="{StaticResource ActionButton}" Command="{Binding RestartHnsCommand}" Content="⚙ HNS neu starten" />
@@ -669,7 +665,7 @@
                                         </StackPanel>
                                     </Grid>
 
-                                    <WrapPanel Grid.Row="4">
+                                    <WrapPanel Grid.Row="2">
                                         <Button Style="{StaticResource ActionButton}" Command="{Binding SaveConfigCommand}" Content="💾 Speichern" />
                                         <Button Style="{StaticResource ActionButton}" Command="{Binding ReloadConfigCommand}" Content="⟳ Neu laden" />
                                         <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource TextMuted}" Text="{Binding ConfigPath, StringFormat=Aktive Config: {0}}" />
