@@ -10,6 +10,43 @@
                  WindowStartupLocation="CenterOwner"
                  ResizeMode="CanResize"
                  Background="{DynamicResource PageBackground}">
+    <mah:MetroWindow.Resources>
+        <Style x:Key="HelpQuickActionButtonStyle" TargetType="Button">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
+            <Setter Property="Background" Value="{DynamicResource PanelBackground}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource PanelBorder}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="Margin" Value="0,0,10,0" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder"
+                                CornerRadius="8"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="2" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="{DynamicResource NavHoverBackground}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="{DynamicResource Accent}" />
+                                <Setter Property="Foreground" Value="{DynamicResource AccentText}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.65" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </mah:MetroWindow.Resources>
+
     <Grid Margin="14" Background="{DynamicResource PageBackground}">
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
@@ -67,9 +104,9 @@
                     <StackPanel>
                         <TextBlock Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" Text="Schnellzugriffe" />
                         <WrapPanel Margin="0,8,0,0">
-                            <Button Style="{DynamicResource ActionButton}" Click="OpenLogsButton_Click" Content="📄 Logs öffnen" />
-                            <Button Style="{DynamicResource ActionButton}" Click="OpenConfigButton_Click" Content="⚙ Config öffnen" />
-                            <Button Margin="0" Style="{DynamicResource ActionButton}" Click="OpenRepoButton_Click" Content="🌐 GitHub Repo" />
+                            <Button Style="{StaticResource HelpQuickActionButtonStyle}" Click="OpenLogsButton_Click" Content="📄 Logs öffnen" />
+                            <Button Style="{StaticResource HelpQuickActionButtonStyle}" Click="OpenConfigButton_Click" Content="⚙ Config öffnen" />
+                            <Button Margin="0" Style="{StaticResource HelpQuickActionButtonStyle}" Click="OpenRepoButton_Click" Content="🌐 GitHub Repo" />
                         </WrapPanel>
                     </StackPanel>
                 </Border>

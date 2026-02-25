@@ -16,6 +16,8 @@ public interface IHyperVService
 
     Task<IReadOnlyList<HyperVSwitchInfo>> GetVmSwitchesAsync(CancellationToken cancellationToken);
 
+    Task<string?> GetVmCurrentSwitchNameAsync(string vmName, CancellationToken cancellationToken);
+
     Task ConnectVmNetworkAdapterAsync(string vmName, string switchName, CancellationToken cancellationToken);
 
     Task DisconnectVmNetworkAdapterAsync(string vmName, CancellationToken cancellationToken);

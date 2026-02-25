@@ -15,6 +15,8 @@ namespace HyperTool.ViewModels;
 
 public partial class MainViewModel : ViewModelBase
 {
+    private const string NotConnectedSwitchDisplay = "Nicht verbunden";
+
     [ObservableProperty]
     private string _windowTitle = "HyperTool";
 
@@ -46,7 +48,7 @@ public partial class MainViewModel : ViewModelBase
     private string _selectedVmState = "Unbekannt";
 
     [ObservableProperty]
-    private string _selectedVmCurrentSwitch = "-";
+    private string _selectedVmCurrentSwitch = NotConnectedSwitchDisplay;
 
     [ObservableProperty]
     private string _busyText = "Bitte warten...";
@@ -129,6 +131,9 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     private bool _areSwitchesLoaded;
 
+    [ObservableProperty]
+    private string _networkSwitchStatusHint = string.Empty;
+
     public ObservableCollection<VmDefinition> AvailableVms { get; } = [];
 
     public ObservableCollection<HyperVSwitchInfo> AvailableSwitches { get; } = [];
@@ -185,6 +190,8 @@ public partial class MainViewModel : ViewModelBase
     public IAsyncRelayCommand OpenConsoleCommand { get; }
 
     public IAsyncRelayCommand LoadSwitchesCommand { get; }
+
+    public IAsyncRelayCommand RefreshSwitchesCommand { get; }
 
     public IAsyncRelayCommand ConnectSelectedSwitchCommand { get; }
 
@@ -247,6 +254,8 @@ public partial class MainViewModel : ViewModelBase
     private List<string> _trayVmNames = [];
     private static readonly HttpClient UpdateDownloadClient = new();
 
+    public event EventHandler? TrayStateChanged;
+
     public MainViewModel(
         ConfigLoadResult configResult,
         IHyperVService hyperVService,
@@ -301,7 +310,8 @@ public partial class MainViewModel : ViewModelBase
         RestartSelectedVmCommand = new AsyncRelayCommand(RestartSelectedVmAsync, CanExecuteRestartVmAction);
         OpenConsoleCommand = new AsyncRelayCommand(OpenConsoleAsync, CanExecuteStopVmAction);
 
-        LoadSwitchesCommand = new AsyncRelayCommand(LoadSwitchesAsync, () => !IsBusy);
+        LoadSwitchesCommand = new AsyncRelayCommand(RefreshSwitchesAsync, () => !IsBusy);
+        RefreshSwitchesCommand = new AsyncRelayCommand(RefreshSwitchesAsync, () => !IsBusy);
         ConnectSelectedSwitchCommand = new AsyncRelayCommand(ConnectSelectedSwitchAsync, () => !IsBusy && SelectedVm is not null && SelectedSwitch is not null && AreSwitchesLoaded);
         DisconnectSwitchCommand = new AsyncRelayCommand(DisconnectSwitchAsync, CanExecuteVmAction);
         RefreshVmStatusCommand = new AsyncRelayCommand(RefreshRuntimeDataAsync, () => !IsBusy);
@@ -368,6 +378,7 @@ public partial class MainViewModel : ViewModelBase
         RestartSelectedVmCommand.NotifyCanExecuteChanged();
         OpenConsoleCommand.NotifyCanExecuteChanged();
         LoadSwitchesCommand.NotifyCanExecuteChanged();
+        RefreshSwitchesCommand.NotifyCanExecuteChanged();
         ConnectSelectedSwitchCommand.NotifyCanExecuteChanged();
         DisconnectSwitchCommand.NotifyCanExecuteChanged();
         RefreshVmStatusCommand.NotifyCanExecuteChanged();
@@ -390,26 +401,53 @@ public partial class MainViewModel : ViewModelBase
         CreateSnapshotByNameCommand.NotifyCanExecuteChanged();
     }
 
+    partial void OnSelectedMenuIndexChanged(int value)
+    {
+        if (value == 1)
+        {
+            _ = HandleNetworkTabActivatedAsync();
+        }
+    }
+
     partial void OnSelectedVmChanged(VmDefinition? value)
     {
         ConnectSelectedSwitchCommand.NotifyCanExecuteChanged();
         SelectedVmForConfig = value;
         OnPropertyChanged(nameof(SelectedVmDisplayName));
+        NotifyTrayStateChanged();
 
         if (value is null)
         {
             SelectedVmState = "Unbekannt";
-            SelectedVmCurrentSwitch = "-";
+            SelectedVmCurrentSwitch = NotConnectedSwitchDisplay;
+            SelectedSwitch = null;
+            NetworkSwitchStatusHint = "Keine VM ausgewählt.";
             AvailableCheckpoints.Clear();
             SelectedCheckpoint = null;
             return;
         }
 
         LastSelectedVmName = value.Name;
+        SelectedVmState = string.IsNullOrWhiteSpace(value.RuntimeState) ? "Unbekannt" : value.RuntimeState;
+        SelectedVmCurrentSwitch = NormalizeSwitchDisplayName(value.RuntimeSwitchName);
+        SyncSelectedSwitchWithCurrentVm(showNotificationOnMissingSwitch: false);
         _ = PersistSelectedVmAsync(value.Name);
 
-        _ = RefreshVmStatusAsync();
+        _ = EnsureSelectedVmSwitchSelectionAsync();
         _ = LoadCheckpointsAsync();
+    }
+
+    private async Task HandleNetworkTabActivatedAsync()
+    {
+        await EnsureSelectedVmSwitchSelectionAsync();
+
+        if (!AreSwitchesLoaded)
+        {
+            await RefreshSwitchesAsync();
+            return;
+        }
+
+        SyncSelectedSwitchWithCurrentVm(showNotificationOnMissingSwitch: false);
     }
 
     partial void OnUpdateInstallAvailableChanged(bool value)
@@ -469,7 +507,7 @@ public partial class MainViewModel : ViewModelBase
     private async Task InitializeAsync()
     {
         await LoadVmsFromHyperVWithRetryAsync();
-        await LoadSwitchesAsync();
+        await RefreshSwitchesAsync();
         await RefreshVmStatusAsync();
         await LoadCheckpointsAsync();
 
@@ -539,7 +577,7 @@ public partial class MainViewModel : ViewModelBase
                 SelectedVmForConfig = null;
                 SelectedDefaultVmForConfig = null;
                 SelectedVmState = "Unbekannt";
-                SelectedVmCurrentSwitch = "-";
+                SelectedVmCurrentSwitch = NotConnectedSwitchDisplay;
                 return;
             }
 
@@ -561,7 +599,7 @@ public partial class MainViewModel : ViewModelBase
                     Name = vmInfo.Name,
                     Label = label,
                     RuntimeState = vmInfo.State,
-                    RuntimeSwitchName = string.IsNullOrWhiteSpace(vmInfo.CurrentSwitchName) ? "-" : vmInfo.CurrentSwitchName
+                    RuntimeSwitchName = NormalizeSwitchDisplayName(vmInfo.CurrentSwitchName)
                 });
             }
 
@@ -579,6 +617,7 @@ public partial class MainViewModel : ViewModelBase
             SelectedVmForConfig = SelectedVm;
             SelectedDefaultVmForConfig = AvailableVms.FirstOrDefault(vm => string.Equals(vm.Name, DefaultVmName, StringComparison.OrdinalIgnoreCase))
                                        ?? SelectedVm;
+            NotifyTrayStateChanged();
 
             AddNotification($"{AvailableVms.Count} Hyper-V VM(s) automatisch geladen.", "Info");
         }, showNotificationOnErrorOnly: true);
@@ -633,7 +672,7 @@ public partial class MainViewModel : ViewModelBase
         });
     }
 
-    private async Task LoadSwitchesAsync()
+    private async Task RefreshSwitchesAsync()
     {
         AreSwitchesLoaded = false;
 
@@ -647,10 +686,9 @@ public partial class MainViewModel : ViewModelBase
                 AvailableSwitches.Add(vmSwitch);
             }
 
-            SelectedSwitch = AvailableSwitches.FirstOrDefault(item => string.Equals(item.Name, DefaultSwitchName, StringComparison.OrdinalIgnoreCase))
-                             ?? AvailableSwitches.FirstOrDefault();
-
             AreSwitchesLoaded = true;
+            SyncSelectedSwitchWithCurrentVm(showNotificationOnMissingSwitch: true);
+            NotifyTrayStateChanged();
 
             AddNotification($"{AvailableSwitches.Count} Switch(es) geladen.", "Info");
         });
@@ -659,8 +697,98 @@ public partial class MainViewModel : ViewModelBase
     private async Task RefreshRuntimeDataAsync()
     {
         await LoadVmsFromHyperVWithRetryAsync();
-        await LoadSwitchesAsync();
+        await RefreshSwitchesAsync();
         await RefreshVmStatusAsync();
+    }
+
+    private async Task EnsureSelectedVmSwitchSelectionAsync()
+    {
+        if (SelectedVm is null)
+        {
+            SelectedSwitch = null;
+            NetworkSwitchStatusHint = "Keine VM ausgewählt.";
+            return;
+        }
+
+        try
+        {
+            var vmSwitchName = await _hyperVService.GetVmCurrentSwitchNameAsync(SelectedVm.Name, _lifetimeCancellation.Token);
+            SelectedVmCurrentSwitch = NormalizeSwitchDisplayName(vmSwitchName);
+
+            var selectedVmEntry = AvailableVms.FirstOrDefault(vm =>
+                string.Equals(vm.Name, SelectedVm.Name, StringComparison.OrdinalIgnoreCase));
+
+            if (selectedVmEntry is not null)
+            {
+                selectedVmEntry.RuntimeSwitchName = SelectedVmCurrentSwitch;
+            }
+
+            SyncSelectedSwitchWithCurrentVm(showNotificationOnMissingSwitch: true);
+            NotifyTrayStateChanged();
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Aktiver Switch für VM {VmName} konnte nicht gelesen werden.", SelectedVm.Name);
+        }
+    }
+
+    private void SyncSelectedSwitchWithCurrentVm(bool showNotificationOnMissingSwitch)
+    {
+        if (!AreSwitchesLoaded)
+        {
+            SelectedSwitch = null;
+            NetworkSwitchStatusHint = "Switch-Liste noch nicht geladen.";
+            ConnectSelectedSwitchCommand.NotifyCanExecuteChanged();
+            return;
+        }
+
+        if (AvailableSwitches.Count == 0)
+        {
+            SelectedSwitch = null;
+            NetworkSwitchStatusHint = "Keine Switches verfügbar.";
+            ConnectSelectedSwitchCommand.NotifyCanExecuteChanged();
+            return;
+        }
+
+        if (IsNotConnectedSwitchDisplay(SelectedVmCurrentSwitch))
+        {
+            SelectedSwitch = null;
+            NetworkSwitchStatusHint = NotConnectedSwitchDisplay;
+            ConnectSelectedSwitchCommand.NotifyCanExecuteChanged();
+            return;
+        }
+
+        var matchingSwitch = AvailableSwitches.FirstOrDefault(item =>
+            string.Equals(item.Name, SelectedVmCurrentSwitch, StringComparison.OrdinalIgnoreCase));
+
+        if (matchingSwitch is null)
+        {
+            SelectedSwitch = null;
+            NetworkSwitchStatusHint = $"Aktiver Switch '{SelectedVmCurrentSwitch}' ist nicht in der aktuellen Liste.";
+            if (showNotificationOnMissingSwitch)
+            {
+                AddNotification(NetworkSwitchStatusHint, "Warning");
+            }
+
+            ConnectSelectedSwitchCommand.NotifyCanExecuteChanged();
+            return;
+        }
+
+        SelectedSwitch = matchingSwitch;
+        NetworkSwitchStatusHint = $"Aktiver Switch: {matchingSwitch.Name}";
+        ConnectSelectedSwitchCommand.NotifyCanExecuteChanged();
+    }
+
+    private static string NormalizeSwitchDisplayName(string? switchName)
+    {
+        return string.IsNullOrWhiteSpace(switchName) ? NotConnectedSwitchDisplay : switchName.Trim();
+    }
+
+    private static bool IsNotConnectedSwitchDisplay(string? switchName)
+    {
+        return string.IsNullOrWhiteSpace(switchName)
+               || string.Equals(switchName, "-", StringComparison.Ordinal)
+               || string.Equals(switchName, NotConnectedSwitchDisplay, StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task ConnectSelectedSwitchAsync()
@@ -791,7 +919,9 @@ public partial class MainViewModel : ViewModelBase
 
             var vmInfo = vms.FirstOrDefault(item => string.Equals(item.Name, SelectedVm.Name, StringComparison.OrdinalIgnoreCase));
             SelectedVmState = vmInfo?.State ?? "Unbekannt";
-            SelectedVmCurrentSwitch = string.IsNullOrWhiteSpace(vmInfo?.CurrentSwitchName) ? "-" : vmInfo.CurrentSwitchName;
+            SelectedVmCurrentSwitch = NormalizeSwitchDisplayName(vmInfo?.CurrentSwitchName);
+            SyncSelectedSwitchWithCurrentVm(showNotificationOnMissingSwitch: false);
+            NotifyTrayStateChanged();
             StatusText = vmInfo is null ? "VM nicht gefunden" : $"{vmInfo.Name}: {vmInfo.State}";
         }, showNotificationOnErrorOnly: true);
     }
@@ -817,7 +947,7 @@ public partial class MainViewModel : ViewModelBase
                 Name = vm.Name,
                 Label = labelsByName.TryGetValue(vm.Name, out var label) && !string.IsNullOrWhiteSpace(label) ? label : vm.Name,
                 RuntimeState = vm.State,
-                RuntimeSwitchName = string.IsNullOrWhiteSpace(vm.CurrentSwitchName) ? "-" : vm.CurrentSwitchName
+                RuntimeSwitchName = NormalizeSwitchDisplayName(vm.CurrentSwitchName)
             })
             .ToList();
 
@@ -832,6 +962,7 @@ public partial class MainViewModel : ViewModelBase
         SelectedVmForConfig = SelectedVm;
         SelectedDefaultVmForConfig = AvailableVms.FirstOrDefault(vm => string.Equals(vm.Name, defaultName, StringComparison.OrdinalIgnoreCase))
                                    ?? SelectedVm;
+        NotifyTrayStateChanged();
     }
 
     private async Task LoadCheckpointsAsync()
@@ -1085,9 +1216,50 @@ public partial class MainViewModel : ViewModelBase
             .ToList();
     }
 
-    public Task RefreshTrayDataAsync()
+    public (string VmName, string CurrentSwitchName, bool IsConnected) GetTrayTargetVmSwitchContext()
     {
-        return LoadSwitchesAsync();
+        var targetVm = AvailableVms.FirstOrDefault(vm =>
+                          string.Equals(vm.Name, DefaultVmName, StringComparison.OrdinalIgnoreCase))
+                       ?? SelectedVm
+                       ?? AvailableVms.FirstOrDefault();
+
+        if (targetVm is null)
+        {
+            return ("-", NotConnectedSwitchDisplay, false);
+        }
+
+        var currentSwitch = NormalizeSwitchDisplayName(targetVm.RuntimeSwitchName);
+        return (targetVm.Name, currentSwitch, !IsNotConnectedSwitchDisplay(currentSwitch));
+    }
+
+    public async Task RefreshTrayDataAsync()
+    {
+        if (IsBusy)
+        {
+            return;
+        }
+
+        try
+        {
+            var token = _lifetimeCancellation.Token;
+            var runtimeVms = await _hyperVService.GetVmsAsync(token);
+            UpdateVmRuntimeStates(runtimeVms);
+
+            var switches = await _hyperVService.GetVmSwitchesAsync(token);
+            AvailableSwitches.Clear();
+            foreach (var vmSwitch in switches.OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase))
+            {
+                AvailableSwitches.Add(vmSwitch);
+            }
+
+            AreSwitchesLoaded = true;
+            SyncSelectedSwitchWithCurrentVm(showNotificationOnMissingSwitch: false);
+            NotifyTrayStateChanged();
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Tray runtime refresh failed.");
+        }
     }
 
     public Task ReloadTrayDataAsync()
@@ -1202,7 +1374,8 @@ public partial class MainViewModel : ViewModelBase
         });
 
         await LoadVmsFromHyperVAsync();
-        await LoadSwitchesAsync();
+        await RefreshSwitchesAsync();
+        NotifyTrayStateChanged();
     }
 
     private static List<string> NormalizeTrayVmNames(IEnumerable<string>? vmNames)
@@ -1501,6 +1674,11 @@ public partial class MainViewModel : ViewModelBase
     {
         OnPropertyChanged(nameof(LatestNotification));
         OnPropertyChanged(nameof(LastNotificationText));
+    }
+
+    private void NotifyTrayStateChanged()
+    {
+        TrayStateChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public void PublishNotification(string message, string level = "Info")

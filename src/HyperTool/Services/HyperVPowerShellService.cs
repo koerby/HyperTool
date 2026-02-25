@@ -61,6 +61,14 @@ public sealed class HyperVPowerShellService : IHyperVService
         }).ToList();
     }
 
+    public async Task<string?> GetVmCurrentSwitchNameAsync(string vmName, CancellationToken cancellationToken)
+    {
+        var script = $"$adapter = Get-VMNetworkAdapter -VMName {ToPsSingleQuoted(vmName)} -ErrorAction SilentlyContinue | Select-Object -First 1; if ($null -eq $adapter -or $null -eq $adapter.SwitchName) {{ '' }} else {{ $adapter.SwitchName }}";
+
+        var value = await InvokePowerShellAsync(script, cancellationToken);
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
     public Task ConnectVmNetworkAdapterAsync(string vmName, string switchName, CancellationToken cancellationToken) =>
         InvokeNonQueryAsync(
             $"Connect-VMNetworkAdapter -VMName {ToPsSingleQuoted(vmName)} -SwitchName {ToPsSingleQuoted(switchName)}",
