@@ -215,8 +215,6 @@ public partial class MainViewModel : ViewModelBase
 
     public IRelayCommand SetDefaultVmCommand { get; }
 
-    public IRelayCommand<VmDefinition> SetDefaultVmByCheckCommand { get; }
-
     public IAsyncRelayCommand SaveConfigCommand { get; }
 
     public IAsyncRelayCommand ReloadConfigCommand { get; }
@@ -334,7 +332,6 @@ public partial class MainViewModel : ViewModelBase
         AddVmCommand = new RelayCommand(AddVm);
         RemoveVmCommand = new RelayCommand(RemoveSelectedVm);
         SetDefaultVmCommand = new RelayCommand(SetDefaultVmFromSelection);
-        SetDefaultVmByCheckCommand = new RelayCommand<VmDefinition>(SetDefaultVmByCheck);
         SaveConfigCommand = new AsyncRelayCommand(SaveConfigAsync, () => !IsBusy);
         ReloadConfigCommand = new AsyncRelayCommand(ReloadConfigAsync, () => !IsBusy);
         RestartHnsCommand = new AsyncRelayCommand(RestartHnsAsync, () => !IsBusy);
@@ -1189,26 +1186,15 @@ public partial class MainViewModel : ViewModelBase
 
     private void SetDefaultVmFromSelection()
     {
-        if (SelectedDefaultVmForConfig is null)
+        var targetVm = SelectedVmForConfig ?? SelectedDefaultVmForConfig;
+        if (targetVm is null)
         {
             AddNotification("Keine Default-VM ausgewählt.", "Warning");
             return;
         }
 
-        DefaultVmName = SelectedDefaultVmForConfig.Name;
-        AddNotification($"Default VM gesetzt: '{DefaultVmName}'.", "Info");
-    }
-
-    private void SetDefaultVmByCheck(VmDefinition? vm)
-    {
-        if (vm is null)
-        {
-            return;
-        }
-
-        DefaultVmName = vm.Name;
-        SelectedDefaultVmForConfig = vm;
-        SelectedVmForConfig = vm;
+        DefaultVmName = targetVm.Name;
+        SelectedDefaultVmForConfig = targetVm;
         AddNotification($"Default VM gesetzt: '{DefaultVmName}'.", "Info");
     }
 
