@@ -29,7 +29,6 @@ WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
-SetupIconFile={#MySourceDir}\HyperTool.exe
 UninstallDisplayIcon={app}\HyperTool.exe
 
 [Languages]

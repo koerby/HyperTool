@@ -37,11 +37,7 @@ set "OUT_DIR=%ROOT%dist\installer"
 if not exist "%OUT_DIR%" mkdir "%OUT_DIR%"
 
 echo Erzeuge Installer fuer Version %VERSION%...
-"%ISCC%" \
-  /DMyAppVersion=%VERSION% \
-  /DMySourceDir="%ROOT%dist\HyperTool" \
-  /DMyOutputDir="%OUT_DIR%" \
-  "%ROOT%installer\HyperTool.iss"
+"%ISCC%" /DMyAppVersion=%VERSION% /DMySourceDir="%ROOT%dist\HyperTool" /DMyOutputDir="%OUT_DIR%" "%ROOT%installer\HyperTool.iss"
 
 if errorlevel 1 (
     echo Installer-Erstellung fehlgeschlagen.
