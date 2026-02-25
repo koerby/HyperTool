@@ -325,7 +325,7 @@ public partial class MainViewModel : ViewModelBase
         DisconnectSwitchCommand = new AsyncRelayCommand(DisconnectSwitchAsync, CanExecuteVmAction);
         RefreshVmStatusCommand = new AsyncRelayCommand(RefreshRuntimeDataAsync, () => !IsBusy);
 
-        LoadCheckpointsCommand = new AsyncRelayCommand(LoadCheckpointsAsync, CanExecuteVmAction);
+        LoadCheckpointsCommand = new AsyncRelayCommand(LoadCheckpointsAsync, () => SelectedVm is not null);
         ApplyCheckpointCommand = new AsyncRelayCommand(ApplyCheckpointAsync, () => !IsBusy && SelectedVm is not null && SelectedCheckpoint is not null);
         DeleteCheckpointCommand = new AsyncRelayCommand(DeleteCheckpointAsync, () => !IsBusy && SelectedVm is not null && SelectedCheckpoint is not null);
 
@@ -398,6 +398,7 @@ public partial class MainViewModel : ViewModelBase
         LoadCheckpointsCommand.NotifyCanExecuteChanged();
         ApplyCheckpointCommand.NotifyCanExecuteChanged();
         DeleteCheckpointCommand.NotifyCanExecuteChanged();
+        LoadCheckpointsCommand.NotifyCanExecuteChanged();
         StartDefaultVmCommand.NotifyCanExecuteChanged();
         StopDefaultVmCommand.NotifyCanExecuteChanged();
         ConnectDefaultVmCommand.NotifyCanExecuteChanged();
@@ -1053,9 +1054,17 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
-        await ExecuteBusyActionAsync("Checkpoints werden geladen...", async token =>
+        var vmName = SelectedVm.Name;
+
+        try
         {
-            var checkpoints = await _hyperVService.GetCheckpointsAsync(SelectedVm.Name, token);
+            var checkpoints = await _hyperVService.GetCheckpointsAsync(vmName, _lifetimeCancellation.Token);
+
+            if (SelectedVm is null
+                || !string.Equals(SelectedVm.Name, vmName, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
 
             AvailableCheckpoints.Clear();
             foreach (var checkpoint in checkpoints.OrderByDescending(item => item.Created))
@@ -1064,8 +1073,18 @@ public partial class MainViewModel : ViewModelBase
             }
 
             SelectedCheckpoint = AvailableCheckpoints.FirstOrDefault();
-            AddNotification($"{AvailableCheckpoints.Count} Checkpoint(s) für '{SelectedVm.Name}' geladen.", "Info");
-        }, showNotificationOnErrorOnly: true);
+            AddNotification($"{AvailableCheckpoints.Count} Checkpoint(s) für '{vmName}' geladen.", "Info");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Log.Warning(ex, "Checkpoint laden fehlgeschlagen (Berechtigung) für VM {VmName}", vmName);
+            AddNotification(ex.Message, "Warning");
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Checkpoint laden fehlgeschlagen für VM {VmName}", vmName);
+            AddNotification($"Fehler beim Laden der Checkpoints: {ex.Message}", "Error");
+        }
     }
 
     private async Task CreateCheckpointAsync()
