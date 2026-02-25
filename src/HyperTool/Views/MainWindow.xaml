@@ -196,7 +196,18 @@
             <RowDefinition Height="12" />
             <RowDefinition Height="*" />
             <RowDefinition Height="12" />
-            <RowDefinition Height="220" />
+            <RowDefinition>
+                <RowDefinition.Style>
+                    <Style TargetType="RowDefinition">
+                        <Setter Property="Height" Value="92" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding DataContext.IsLogExpanded, ElementName=RootWindow}" Value="True">
+                                <Setter Property="Height" Value="300" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </RowDefinition.Style>
+            </RowDefinition>
             <RowDefinition Height="0" />
             <RowDefinition Height="0" />
         </Grid.RowDefinitions>
@@ -758,12 +769,17 @@
                                    Text="{Binding BusyText}" />
                     </StackPanel>
 
-                    <Button Grid.Column="1"
-                            Margin="12,0,0,0"
-                            Style="{StaticResource ActionButton}"
+                        <WrapPanel Grid.Column="1" Margin="12,0,0,0">
+                        <Button Style="{StaticResource ActionButton}"
+                            Padding="8,2"
+                            Command="{Binding OpenLogFileCommand}"
+                            Content="📄 Logdatei öffnen" />
+                        <Button Style="{StaticResource ActionButton}"
+                            Margin="0"
                             Padding="8,2"
                             Command="{Binding ToggleLogCommand}"
                             Content="{Binding LogToggleText}" />
+                        </WrapPanel>
                 </Grid>
 
                 <Border Grid.Row="2"
@@ -823,7 +839,7 @@
                             BorderBrush="{DynamicResource InputBorder}"
                             BorderThickness="1"
                             Padding="8"
-                            MaxHeight="240">
+                            MaxHeight="280">
                         <ListBox Style="{StaticResource ReadableListBoxStyle}"
                                  ItemContainerStyle="{StaticResource ReadableListBoxItemStyle}"
                                  BorderThickness="0"

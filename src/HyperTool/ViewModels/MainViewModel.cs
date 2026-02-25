@@ -229,6 +229,8 @@ public partial class MainViewModel : ViewModelBase
 
     public IRelayCommand ToggleLogCommand { get; }
 
+    public IRelayCommand OpenLogFileCommand { get; }
+
     public IRelayCommand<VmDefinition> SelectVmFromChipCommand { get; }
 
     public IRelayCommand ClearNotificationsCommand { get; }
@@ -337,6 +339,7 @@ public partial class MainViewModel : ViewModelBase
         InstallUpdateCommand = new AsyncRelayCommand(InstallUpdateAsync, () => !IsBusy && UpdateInstallAvailable && !string.IsNullOrWhiteSpace(InstallerDownloadUrl));
         OpenReleasePageCommand = new RelayCommand(OpenReleasePage);
         ToggleLogCommand = new RelayCommand(ToggleLog);
+        OpenLogFileCommand = new RelayCommand(OpenLogFile);
         SelectVmFromChipCommand = new RelayCommand<VmDefinition>(SelectVmFromChip);
         ClearNotificationsCommand = new RelayCommand(ClearNotifications);
         CopyNotificationsCommand = new RelayCommand(CopyNotificationsToClipboard);
@@ -1735,6 +1738,31 @@ public partial class MainViewModel : ViewModelBase
         IsLogExpanded = !IsLogExpanded;
     }
 
+    private void OpenLogFile()
+    {
+        var logFilePath = ResolveLatestLogFilePath();
+        if (string.IsNullOrWhiteSpace(logFilePath))
+        {
+            AddNotification("Keine Logdatei gefunden.", "Warning");
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = logFilePath,
+                UseShellExecute = true
+            });
+
+            AddNotification($"Logdatei geöffnet: {logFilePath}", "Info");
+        }
+        catch (Exception ex)
+        {
+            AddNotification($"Logdatei konnte nicht geöffnet werden: {ex.Message}", "Error");
+        }
+    }
+
     private void SelectVmFromChip(VmDefinition? vm)
     {
         if (vm is null)
@@ -1847,5 +1875,35 @@ public partial class MainViewModel : ViewModelBase
         return dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK
             ? dialog.SelectedPath
             : null;
+    }
+
+    private static string? ResolveLatestLogFilePath()
+    {
+        var logDirectoryCandidates = new[]
+        {
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "HyperTool", "logs"),
+            Path.Combine(AppContext.BaseDirectory, "logs"),
+            Path.Combine(Path.GetTempPath(), "HyperTool", "logs")
+        };
+
+        foreach (var directory in logDirectoryCandidates)
+        {
+            if (!Directory.Exists(directory))
+            {
+                continue;
+            }
+
+            var latestLog = new DirectoryInfo(directory)
+                .EnumerateFiles("hypertool-*.log", SearchOption.TopDirectoryOnly)
+                .OrderByDescending(file => file.LastWriteTimeUtc)
+                .FirstOrDefault();
+
+            if (latestLog is not null)
+            {
+                return latestLog.FullName;
+            }
+        }
+
+        return null;
     }
 }
