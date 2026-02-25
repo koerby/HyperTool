@@ -44,4 +44,13 @@
     <SolidColorBrush x:Key="SystemMenuTextBrush" Color="#FFFFFF" />
     <SolidColorBrush x:Key="SystemHighlightBrush" Color="#39C3FF" />
     <SolidColorBrush x:Key="SystemHighlightTextBrush" Color="#041321" />
+
+    <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#111A2C" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#39C3FF" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#041321" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#111A2C" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.MenuBrushKey}" Color="#111A2C" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.MenuTextBrushKey}" Color="#FFFFFF" />
 </ResourceDictionary>

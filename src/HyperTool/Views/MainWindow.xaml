@@ -110,16 +110,6 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
-            <Style.Resources>
-                <StaticResource x:Key="{x:Static SystemColors.WindowBrushKey}" ResourceKey="SystemWindowBrush" />
-                <StaticResource x:Key="{x:Static SystemColors.WindowTextBrushKey}" ResourceKey="SystemWindowTextBrush" />
-                <StaticResource x:Key="{x:Static SystemColors.HighlightBrushKey}" ResourceKey="SystemHighlightBrush" />
-                <StaticResource x:Key="{x:Static SystemColors.HighlightTextBrushKey}" ResourceKey="SystemHighlightTextBrush" />
-                <StaticResource x:Key="{x:Static SystemColors.ControlBrushKey}" ResourceKey="SystemControlBrush" />
-                <StaticResource x:Key="{x:Static SystemColors.ControlTextBrushKey}" ResourceKey="SystemControlTextBrush" />
-                <StaticResource x:Key="{x:Static SystemColors.MenuBrushKey}" ResourceKey="SystemMenuBrush" />
-                <StaticResource x:Key="{x:Static SystemColors.MenuTextBrushKey}" ResourceKey="SystemMenuTextBrush" />
-            </Style.Resources>
         </Style>
 
         <Style x:Key="ReadableTextBoxStyle" TargetType="TextBox">
