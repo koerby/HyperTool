@@ -740,6 +740,14 @@
                                         </StackPanel>
                                     </Border>
 
+                                    <Border Margin="0,10,0,0" Style="{StaticResource CardBorder}" Padding="10" Background="{StaticResource OverlayBackground}">
+                                        <StackPanel>
+                                            <TextBlock Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="Wo finde ich Logs?" />
+                                            <TextBlock Margin="0,8,0,0" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Standardpfad: %LOCALAPPDATA%\HyperTool\logs\hypertool-YYYYMMDD.log" />
+                                            <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Wenn dort nicht geschrieben werden kann, nutzt HyperTool automatisch Fallbacks (Installationsordner oder %TEMP%)." />
+                                        </StackPanel>
+                                    </Border>
+
                                     <WrapPanel Margin="0,12,0,0">
                                         <Button Style="{StaticResource ActionButton}" Command="{Binding CheckForUpdatesCommand}" Content="🛰 Update prüfen" />
                                         <Button Style="{StaticResource ActionButton}" Command="{Binding InstallUpdateCommand}" Content="⬇ Update installieren" />

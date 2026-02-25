@@ -92,9 +92,25 @@ public partial class MainWindow : MetroWindow
 
     private void SetBrushColor(string key, string hexColor)
     {
-        if (Resources[key] is System.Windows.Media.SolidColorBrush brush)
+        var color = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hexColor);
+
+        if (Resources[key] is System.Windows.Media.SolidColorBrush localBrush)
         {
-            brush.Color = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hexColor);
+            if (localBrush.IsFrozen)
+            {
+                localBrush = localBrush.CloneCurrentValue();
+                Resources[key] = localBrush;
+            }
+
+            localBrush.Color = color;
+            return;
+        }
+
+        if (System.Windows.Application.Current?.Resources[key] is System.Windows.Media.SolidColorBrush appBrush)
+        {
+            var mutableBrush = appBrush.IsFrozen ? appBrush.CloneCurrentValue() : appBrush.Clone();
+            mutableBrush.Color = color;
+            Resources[key] = mutableBrush;
         }
     }
 }

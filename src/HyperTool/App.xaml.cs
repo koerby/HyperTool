@@ -124,23 +124,6 @@ public partial class App : System.Windows.Application
 				"HyperTool",
 				"HyperTool.config.json");
 
-			var legacyConfigPath = Path.Combine(AppContext.BaseDirectory, "HyperTool.config.json");
-
-			if (File.Exists(legacyConfigPath) && File.Exists(localAppDataConfigPath))
-			{
-				var legacyLastWriteTimeUtc = File.GetLastWriteTimeUtc(legacyConfigPath);
-				var localLastWriteTimeUtc = File.GetLastWriteTimeUtc(localAppDataConfigPath);
-
-				return legacyLastWriteTimeUtc > localLastWriteTimeUtc
-					? legacyConfigPath
-					: localAppDataConfigPath;
-			}
-
-			if (File.Exists(legacyConfigPath))
-			{
-				return legacyConfigPath;
-			}
-
 			var localAppDataDirectory = Path.GetDirectoryName(localAppDataConfigPath);
 			if (!string.IsNullOrWhiteSpace(localAppDataDirectory))
 			{
@@ -234,20 +217,15 @@ public partial class App : System.Windows.Application
 
 	private static string InitializeLogging()
 	{
-		var logsDirectory = Path.Combine(AppContext.BaseDirectory, "logs");
+		var logDirectoryCandidates = new[]
+		{
+			Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "HyperTool", "logs"),
+			Path.Combine(AppContext.BaseDirectory, "logs"),
+			Path.Combine(Path.GetTempPath(), "HyperTool", "logs")
+		};
 
-		try
-		{
-			Directory.CreateDirectory(logsDirectory);
-		}
-		catch
-		{
-			logsDirectory = Path.Combine(
-				Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-				"HyperTool",
-				"logs");
-			Directory.CreateDirectory(logsDirectory);
-		}
+		var logsDirectory = logDirectoryCandidates.FirstOrDefault(IsWritableDirectory)
+			?? throw new InvalidOperationException("Kein beschreibbares Logverzeichnis gefunden.");
 
 		var logFilePath = Path.Combine(logsDirectory, "hypertool-.log");
 
@@ -260,6 +238,26 @@ public partial class App : System.Windows.Application
 			.CreateLogger();
 
 		return logFilePath;
+	}
+
+	private static bool IsWritableDirectory(string directoryPath)
+	{
+		try
+		{
+			Directory.CreateDirectory(directoryPath);
+
+			var probePath = Path.Combine(directoryPath, $".write-test-{Guid.NewGuid():N}.tmp");
+			using (File.Create(probePath))
+			{
+			}
+
+			File.Delete(probePath);
+			return true;
+		}
+		catch
+		{
+			return false;
+		}
 	}
 
 	private void RegisterGlobalExceptionHandlers()
