@@ -135,7 +135,7 @@ public sealed class HyperVPowerShellService : IHyperVService
                      $"$checkpointName = {ToPsSingleQuoted(checkpointName)}; " +
                      $"$checkpointId = {ToPsSingleQuoted(checkpointId ?? string.Empty)}; " +
                      "$checkpoint = $null; " +
-                     "if (-not [string]::IsNullOrWhiteSpace($checkpointId)) { $checkpoint = Get-VMCheckpoint -VMName $vmName | Where-Object { $_.VMCheckpointId.ToString() -ceq $checkpointId } | Select-Object -First 1 }; " +
+                     "if (-not [string]::IsNullOrWhiteSpace($checkpointId)) { $checkpoint = Get-VMCheckpoint -VMName $vmName | Where-Object { ((if ($null -ne $_.VMCheckpointId) { $_.VMCheckpointId.ToString() } elseif ($null -ne $_.Id) { $_.Id.ToString() } else { '' })) -ceq $checkpointId } | Select-Object -First 1 }; " +
                      "if ($null -eq $checkpoint) { $checkpoint = Get-VMCheckpoint -VMName $vmName | Where-Object { $_.Name -ceq $checkpointName } | Select-Object -First 1 }; " +
                      "if ($null -eq $checkpoint) { throw \"Checkpoint '$checkpointName' wurde auf VM '$vmName' nicht gefunden.\" }; " +
                      "Restore-VMCheckpoint -VMCheckpoint $checkpoint -Confirm:$false";
@@ -149,7 +149,7 @@ public sealed class HyperVPowerShellService : IHyperVService
                      $"$checkpointName = {ToPsSingleQuoted(checkpointName)}; " +
                      $"$checkpointId = {ToPsSingleQuoted(checkpointId ?? string.Empty)}; " +
                      "$checkpoint = $null; " +
-                     "if (-not [string]::IsNullOrWhiteSpace($checkpointId)) { $checkpoint = Get-VMCheckpoint -VMName $vmName | Where-Object { $_.VMCheckpointId.ToString() -ceq $checkpointId } | Select-Object -First 1 }; " +
+                     "if (-not [string]::IsNullOrWhiteSpace($checkpointId)) { $checkpoint = Get-VMCheckpoint -VMName $vmName | Where-Object { ((if ($null -ne $_.VMCheckpointId) { $_.VMCheckpointId.ToString() } elseif ($null -ne $_.Id) { $_.Id.ToString() } else { '' })) -ceq $checkpointId } | Select-Object -First 1 }; " +
                      "if ($null -eq $checkpoint) { $checkpoint = Get-VMCheckpoint -VMName $vmName | Where-Object { $_.Name -ceq $checkpointName } | Select-Object -First 1 }; " +
                      "if ($null -eq $checkpoint) { throw \"Checkpoint '$checkpointName' wurde auf VM '$vmName' nicht gefunden.\" }; " +
                      "Remove-VMCheckpoint -VMCheckpoint $checkpoint -Confirm:$false";
