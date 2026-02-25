@@ -4,6 +4,7 @@
   "vms": [],
   "defaultSwitchName": "Default Switch",
   "vmConnectComputerName": "localhost",
+  "backupExportPath": "",
   "hns": {
     "enabled": false,
     "autoRestartAfterDefaultSwitch": false,

@@ -5,6 +5,7 @@ HyperTool ist ein Windows-Tool zur Steuerung von Hyper-V VMs mit moderner WPF-Ob
 ## Überblick
 
 - VM-Aktionen: Start, Stop, Hard Off, Restart, Konsole öffnen
+- VM-Backup: Exportieren und Importieren von Hyper-V VMs
 - Netzwerk: Switch verbinden/trennen, Default Connect
 - Snapshots: erstellen, laden, anwenden, löschen
 - Tray-Integration: VM starten/stoppen, Konsole öffnen, Snapshot, Switch umstellen

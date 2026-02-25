@@ -408,6 +408,8 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="12" />
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="12" />
+                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -422,6 +424,9 @@
                                 <Button Grid.Row="2" Grid.Column="0" Style="{StaticResource ActionButton}" Command="{Binding RestartSelectedVmCommand}" Content="↻ Restart" />
                                 <Button Grid.Row="2" Grid.Column="1" Style="{StaticResource ActionButton}" Command="{Binding OpenConsoleCommand}" Content="🖥 Open Console" />
                                 <Button Grid.Row="2" Grid.Column="2" Margin="0" Style="{StaticResource ActionButton}" Command="{Binding RefreshVmStatusCommand}" Content="⟳ Refresh" />
+
+                                <Button Grid.Row="4" Grid.Column="0" Style="{StaticResource ActionButton}" Command="{Binding ExportSelectedVmCommand}" Content="💾 Export VM (Backup)" />
+                                <Button Grid.Row="4" Grid.Column="1" Style="{StaticResource ActionButton}" Command="{Binding ImportVmCommand}" Content="📥 Import VM" />
                             </Grid>
                         </TabItem>
 
@@ -523,7 +528,7 @@
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Grid.Column="0" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" Text="Beschreibung" />
                                         <TextBox Grid.Column="1" Style="{StaticResource ReadableTextBoxStyle}" Text="{Binding NewCheckpointDescription, UpdateSourceTrigger=PropertyChanged}" />
-                                        <Button Grid.Column="3" Style="{StaticResource ActionButton}" Command="{Binding ApplyCheckpointCommand}" Content="✅ Apply" />
+                                        <Button Grid.Column="3" Style="{StaticResource ActionButton}" Command="{Binding ApplyCheckpointCommand}" Content="✅ Restore" />
                                         <Button Grid.Column="5" Margin="0" Style="{StaticResource ActionButton}" Command="{Binding DeleteCheckpointCommand}" Content="🗑 Delete" />
                                     </Grid>
 
@@ -626,6 +631,24 @@
                                                         <TextBox Grid.Column="1"
                                                                  Style="{StaticResource ReadableTextBoxStyle}"
                                                                  Text="{Binding VmConnectComputerName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    </Grid>
+                                                    <Grid Margin="0,8,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="120" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="8" />
+                                                            <ColumnDefinition Width="130" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource TextPrimary}" Text="Backup Pfad" />
+                                                        <TextBox Grid.Column="1"
+                                                                 Style="{StaticResource ReadableTextBoxStyle}"
+                                                                 ToolTip="Wenn gesetzt, exportiert Backup ohne Ordnerdialog in diesen Pfad."
+                                                                 Text="{Binding BackupExportPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                        <Button Grid.Column="3"
+                                                                Margin="0"
+                                                                Style="{StaticResource ActionButton}"
+                                                                Command="{Binding SelectBackupExportPathCommand}"
+                                                                Content="📁 Auswählen" />
                                                     </Grid>
                                                 </StackPanel>
                                             </GroupBox>

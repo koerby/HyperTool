@@ -101,9 +101,32 @@ public sealed class HyperVPowerShellService : IHyperVService
             Log.Information("Checkpoint description currently informational only for VM {VmName}: {Description}", vmName, description);
         }
 
-        await InvokeNonQueryAsync(
-            $"Checkpoint-VM -VMName {ToPsSingleQuoted(vmName)} -SnapshotName {ToPsSingleQuoted(checkpointName)} -Confirm:$false",
-            cancellationToken);
+        try
+        {
+            await InvokeNonQueryAsync(
+                $"Checkpoint-VM -VMName {ToPsSingleQuoted(vmName)} -SnapshotName {ToPsSingleQuoted(checkpointName)} -Confirm:$false",
+                cancellationToken);
+        }
+        catch (InvalidOperationException ex) when (IsProductionCheckpointError(ex.Message))
+        {
+            Log.Warning(ex,
+                "Production checkpoint creation failed for VM {VmName}. Retrying once with temporary Standard checkpoint type.",
+                vmName);
+
+            var vmNameQuoted = ToPsSingleQuoted(vmName);
+            var checkpointNameQuoted = ToPsSingleQuoted(checkpointName);
+            var fallbackScript = $"$vmName = {vmNameQuoted}; " +
+                                 "$vm = Get-VM -Name $vmName; " +
+                                 "$originalType = $vm.CheckpointType; " +
+                                 "try { " +
+                                 "Set-VM -Name $vmName -CheckpointType Standard; " +
+                                 $"Checkpoint-VM -VMName $vmName -SnapshotName {checkpointNameQuoted} -Confirm:$false; " +
+                                 "} finally { " +
+                                 "if ($null -ne $originalType) { Set-VM -Name $vmName -CheckpointType $originalType } " +
+                                 "}";
+
+            await InvokeNonQueryAsync(fallbackScript, cancellationToken);
+        }
     }
 
     public Task ApplyCheckpointAsync(string vmName, string checkpointName, CancellationToken cancellationToken) =>
@@ -140,6 +163,32 @@ public sealed class HyperVPowerShellService : IHyperVService
         }
 
         return Task.CompletedTask;
+    }
+
+    public Task ExportVmAsync(string vmName, string destinationPath, CancellationToken cancellationToken) =>
+        InvokeNonQueryAsync(
+            $"Export-VM -Name {ToPsSingleQuoted(vmName)} -Path {ToPsSingleQuoted(destinationPath)} -Confirm:$false",
+            cancellationToken);
+
+    public async Task<string> ImportVmAsync(string importPath, CancellationToken cancellationToken)
+    {
+        var script = $"$importPath = {ToPsSingleQuoted(importPath)}; " +
+                     "if (-not (Test-Path -LiteralPath $importPath)) { throw \"Import-Pfad nicht gefunden: $importPath\" }; " +
+                     "$configPath = $importPath; " +
+                     "if (Test-Path -LiteralPath $importPath -PathType Container) { " +
+                     "$configFile = Get-ChildItem -LiteralPath $importPath -Recurse -File | " +
+                     "Where-Object { $_.Extension -in '.vmcx', '.xml' } | " +
+                     "Sort-Object LastWriteTime -Descending | " +
+                     "Select-Object -First 1; " +
+                     "if ($null -eq $configFile) { throw \"Keine VM-Konfigurationsdatei (.vmcx/.xml) im Ordner gefunden.\" }; " +
+                     "$configPath = $configFile.FullName; " +
+                     "}; " +
+                     "$importedVm = Import-VM -Path $configPath -Confirm:$false; " +
+                     "if ($null -eq $importedVm) { throw \"Import-VM hat keine VM zurückgegeben.\" }; " +
+                     "$importedVm.Name";
+
+        var importedName = await InvokePowerShellAsync(script, cancellationToken);
+        return importedName.Trim();
     }
 
     private async Task InvokeNonQueryAsync(string script, CancellationToken cancellationToken)
@@ -283,5 +332,19 @@ public sealed class HyperVPowerShellService : IHyperVService
                || message.Contains("required permission", StringComparison.OrdinalIgnoreCase)
                || message.Contains("access is denied", StringComparison.OrdinalIgnoreCase)
                || message.Contains("virtualizationexception", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsProductionCheckpointError(string? message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        return message.Contains("production checkpoint", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("Produktionsprüfpunkt", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("VSS", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("Die Erstellung eines Prüfpunkts ist fehlgeschlagen", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("failed to create checkpoint", StringComparison.OrdinalIgnoreCase);
     }
 }

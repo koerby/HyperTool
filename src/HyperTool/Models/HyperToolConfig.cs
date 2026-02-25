@@ -12,6 +12,8 @@ public sealed class HyperToolConfig
 
     public string VmConnectComputerName { get; set; } = Environment.MachineName;
 
+    public string BackupExportPath { get; set; } = string.Empty;
+
     public HnsSettings Hns { get; set; } = new();
 
     public UiSettings Ui { get; set; } = new();

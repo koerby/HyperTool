@@ -31,4 +31,8 @@ public interface IHyperVService
     Task RemoveCheckpointAsync(string vmName, string checkpointName, CancellationToken cancellationToken);
 
     Task OpenVmConnectAsync(string vmName, string computerName, CancellationToken cancellationToken);
+
+    Task ExportVmAsync(string vmName, string destinationPath, CancellationToken cancellationToken);
+
+    Task<string> ImportVmAsync(string importPath, CancellationToken cancellationToken);
 }
