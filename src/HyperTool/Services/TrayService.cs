@@ -15,7 +15,6 @@ public sealed class TrayService : ITrayService
     private Action? _hideAction;
     private Func<IReadOnlyList<VmDefinition>>? _getVms;
     private Func<IReadOnlyList<HyperVSwitchInfo>>? _getSwitches;
-    private Func<(string VmName, string CurrentSwitchName, bool IsConnected)>? _getSwitchTargetContext;
     private Func<Task>? _refreshTrayDataAction;
     private Func<Task>? _reloadConfigAction;
     private Func<string, Task>? _startVmAction;
@@ -32,7 +31,6 @@ public sealed class TrayService : ITrayService
         Action hideAction,
         Func<IReadOnlyList<VmDefinition>> getVms,
         Func<IReadOnlyList<HyperVSwitchInfo>> getSwitches,
-        Func<(string VmName, string CurrentSwitchName, bool IsConnected)> getSwitchTargetContext,
         Func<Task> refreshTrayDataAction,
         Action<EventHandler> subscribeTrayStateChanged,
         Action<EventHandler> unsubscribeTrayStateChanged,
@@ -48,7 +46,6 @@ public sealed class TrayService : ITrayService
         _hideAction = hideAction;
         _getVms = getVms;
         _getSwitches = getSwitches;
-        _getSwitchTargetContext = getSwitchTargetContext;
         _refreshTrayDataAction = refreshTrayDataAction;
         _reloadConfigAction = reloadConfigAction;
         _startVmAction = startVmAction;
@@ -101,7 +98,6 @@ public sealed class TrayService : ITrayService
             || _hideAction is null
             || _getVms is null
             || _getSwitches is null
-            || _getSwitchTargetContext is null
             || _reloadConfigAction is null
             || _startVmAction is null
             || _stopVmAction is null
@@ -129,18 +125,11 @@ public sealed class TrayService : ITrayService
 
         _contextMenu.Items.Add(new ToolStripSeparator());
 
-        var targetContext = _getSwitchTargetContext();
-        var statusText = $"VM: {targetContext.VmName} | Switch: {targetContext.CurrentSwitchName}";
-        _contextMenu.Items.Add(new ToolStripMenuItem(statusText)
-        {
-            Enabled = false
-        });
-
         var vms = _getVms();
         var switches = _getSwitches();
 
         _contextMenu.Items.Add(BuildVmActionsMenu(vms));
-        _contextMenu.Items.Add(BuildSwitchActionMenu(vms, switches, targetContext));
+        _contextMenu.Items.Add(BuildSwitchActionMenu(vms, switches));
 
         _contextMenu.Items.Add(new ToolStripSeparator());
         _contextMenu.Items.Add("Aktualisieren", null, (_, _) => ExecuteMenuAction(_reloadConfigAction, "reload"));
@@ -182,14 +171,11 @@ public sealed class TrayService : ITrayService
 
     private ToolStripMenuItem BuildSwitchActionMenu(
         IReadOnlyList<VmDefinition> vms,
-        IReadOnlyList<HyperVSwitchInfo> switches,
-        (string VmName, string CurrentSwitchName, bool IsConnected) targetContext)
+        IReadOnlyList<HyperVSwitchInfo> switches)
     {
         var menu = new ToolStripMenuItem("Switch umstellen");
-        menu.DropDownItems.Add(new ToolStripMenuItem("Steuerung: Default VM aus Config") { Enabled = false });
-        menu.DropDownItems.Add(new ToolStripSeparator());
 
-        if (vms.Count == 0 || string.IsNullOrWhiteSpace(targetContext.VmName) || targetContext.VmName == "-")
+        if (vms.Count == 0)
         {
             menu.DropDownItems.Add(new ToolStripMenuItem("Keine VM verfügbar") { Enabled = false });
             return menu;
@@ -201,55 +187,77 @@ public sealed class TrayService : ITrayService
             return menu;
         }
 
-        var currentSwitchInList = switches.Any(vmSwitch =>
-            string.Equals(vmSwitch.Name, targetContext.CurrentSwitchName, StringComparison.OrdinalIgnoreCase));
-
-        foreach (var vmSwitch in switches)
+        foreach (var vm in vms)
         {
-            var switchName = vmSwitch.Name;
-            var item = new ToolStripMenuItem(switchName)
-            {
-                CheckOnClick = true,
-                Checked = targetContext.IsConnected
-                          && string.Equals(targetContext.CurrentSwitchName, switchName, StringComparison.OrdinalIgnoreCase)
-            };
+            var vmName = vm.Name;
+            var vmLabel = string.IsNullOrWhiteSpace(vm.Label) ? vmName : vm.Label;
+            var vmMenu = new ToolStripMenuItem(vmLabel);
+            var vmCurrentSwitch = NormalizeSwitchDisplayName(vm.RuntimeSwitchName);
+            var isNotConnected = IsNotConnectedSwitchDisplay(vmCurrentSwitch);
+            var currentSwitchInList = switches.Any(vmSwitch =>
+                string.Equals(vmSwitch.Name, vmCurrentSwitch, StringComparison.OrdinalIgnoreCase));
 
-            item.Click += (_, _) => ExecuteMenuAction(async () =>
+            foreach (var vmSwitch in switches)
             {
-                await _connectVmToSwitchAction!(targetContext.VmName, switchName);
-                if (_refreshTrayDataAction is not null)
+                var switchName = vmSwitch.Name;
+                var item = new ToolStripMenuItem(switchName)
                 {
-                    await _refreshTrayDataAction();
-                }
+                    CheckOnClick = true,
+                    Checked = !isNotConnected
+                              && string.Equals(vmCurrentSwitch, switchName, StringComparison.OrdinalIgnoreCase)
+                };
 
-                UpdateTrayMenu();
-            }, $"connect-{targetContext.VmName}-{switchName}");
+                item.Click += (_, _) => ExecuteMenuAction(async () =>
+                {
+                    await _connectVmToSwitchAction!(vmName, switchName);
+                    if (_refreshTrayDataAction is not null)
+                    {
+                        await _refreshTrayDataAction();
+                    }
 
-            menu.DropDownItems.Add(item);
-        }
+                    UpdateTrayMenu();
+                }, $"connect-{vmName}-{switchName}");
 
-        if (!targetContext.IsConnected)
-        {
-            menu.DropDownItems.Add(new ToolStripSeparator());
-            menu.DropDownItems.Add(new ToolStripMenuItem("Nicht verbunden")
+                vmMenu.DropDownItems.Add(item);
+            }
+
+            if (isNotConnected)
             {
-                Enabled = false,
-                CheckOnClick = true,
-                Checked = true
-            });
-        }
-        else if (!currentSwitchInList)
-        {
-            menu.DropDownItems.Add(new ToolStripSeparator());
-            menu.DropDownItems.Add(new ToolStripMenuItem($"Aktiver Switch fehlt: {targetContext.CurrentSwitchName}")
+                vmMenu.DropDownItems.Add(new ToolStripSeparator());
+                vmMenu.DropDownItems.Add(new ToolStripMenuItem("Nicht verbunden")
+                {
+                    Enabled = false,
+                    CheckOnClick = true,
+                    Checked = true
+                });
+            }
+            else if (!currentSwitchInList)
             {
-                Enabled = false,
-                CheckOnClick = true,
-                Checked = true
-            });
+                vmMenu.DropDownItems.Add(new ToolStripSeparator());
+                vmMenu.DropDownItems.Add(new ToolStripMenuItem($"Aktiver Switch fehlt: {vmCurrentSwitch}")
+                {
+                    Enabled = false,
+                    CheckOnClick = true,
+                    Checked = true
+                });
+            }
+
+            menu.DropDownItems.Add(vmMenu);
         }
 
         return menu;
+    }
+
+    private static string NormalizeSwitchDisplayName(string? switchName)
+    {
+        return string.IsNullOrWhiteSpace(switchName) ? "Nicht verbunden" : switchName.Trim();
+    }
+
+    private static bool IsNotConnectedSwitchDisplay(string? switchName)
+    {
+        return string.IsNullOrWhiteSpace(switchName)
+               || string.Equals(switchName, "-", StringComparison.Ordinal)
+               || string.Equals(switchName, "Nicht verbunden", StringComparison.OrdinalIgnoreCase);
     }
 
     private async void ExecuteMenuAction(Func<Task> action, string actionName)

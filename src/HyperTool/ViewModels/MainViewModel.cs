@@ -1200,7 +1200,8 @@ public partial class MainViewModel : ViewModelBase
             .Select(vm => new VmDefinition
             {
                 Name = vm.Name,
-                Label = vm.Label
+                Label = vm.Label,
+                RuntimeSwitchName = vm.RuntimeSwitchName
             })
             .ToList();
     }
@@ -1214,22 +1215,6 @@ public partial class MainViewModel : ViewModelBase
                 SwitchType = vmSwitch.SwitchType
             })
             .ToList();
-    }
-
-    public (string VmName, string CurrentSwitchName, bool IsConnected) GetTrayTargetVmSwitchContext()
-    {
-        var targetVm = AvailableVms.FirstOrDefault(vm =>
-                          string.Equals(vm.Name, DefaultVmName, StringComparison.OrdinalIgnoreCase))
-                       ?? SelectedVm
-                       ?? AvailableVms.FirstOrDefault();
-
-        if (targetVm is null)
-        {
-            return ("-", NotConnectedSwitchDisplay, false);
-        }
-
-        var currentSwitch = NormalizeSwitchDisplayName(targetVm.RuntimeSwitchName);
-        return (targetVm.Name, currentSwitch, !IsNotConnectedSwitchDisplay(currentSwitch));
     }
 
     public async Task RefreshTrayDataAsync()

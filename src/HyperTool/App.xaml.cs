@@ -185,7 +185,6 @@ public partial class App : System.Windows.Application
 				hideAction: () => mainWindow.Hide(),
 				getVms: () => mainViewModel.GetTrayVms(),
 				getSwitches: () => mainViewModel.GetTraySwitches(),
-				getSwitchTargetContext: () => mainViewModel.GetTrayTargetVmSwitchContext(),
 				refreshTrayDataAction: () => mainViewModel.RefreshTrayDataAsync(),
 				subscribeTrayStateChanged: handler => mainViewModel.TrayStateChanged += handler,
 				unsubscribeTrayStateChanged: handler => mainViewModel.TrayStateChanged -= handler,
