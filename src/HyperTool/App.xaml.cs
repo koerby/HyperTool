@@ -113,12 +113,41 @@ public partial class App : System.Windows.Application
 	{
 		try
 		{
-			var localAppDataDirectory = Path.Combine(
-				Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-				"HyperTool");
+			var overridePath = Environment.GetEnvironmentVariable("HYPERTOOL_CONFIG_PATH");
+			if (!string.IsNullOrWhiteSpace(overridePath))
+			{
+				return overridePath.Trim();
+			}
 
-			Directory.CreateDirectory(localAppDataDirectory);
-			return Path.Combine(localAppDataDirectory, "HyperTool.config.json");
+			var localAppDataConfigPath = Path.Combine(
+				Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+				"HyperTool",
+				"HyperTool.config.json");
+
+			var legacyConfigPath = Path.Combine(AppContext.BaseDirectory, "HyperTool.config.json");
+
+			if (File.Exists(legacyConfigPath) && File.Exists(localAppDataConfigPath))
+			{
+				var legacyLastWriteTimeUtc = File.GetLastWriteTimeUtc(legacyConfigPath);
+				var localLastWriteTimeUtc = File.GetLastWriteTimeUtc(localAppDataConfigPath);
+
+				return legacyLastWriteTimeUtc > localLastWriteTimeUtc
+					? legacyConfigPath
+					: localAppDataConfigPath;
+			}
+
+			if (File.Exists(legacyConfigPath))
+			{
+				return legacyConfigPath;
+			}
+
+			var localAppDataDirectory = Path.GetDirectoryName(localAppDataConfigPath);
+			if (!string.IsNullOrWhiteSpace(localAppDataDirectory))
+			{
+				Directory.CreateDirectory(localAppDataDirectory);
+			}
+
+			return localAppDataConfigPath;
 		}
 		catch
 		{

@@ -234,6 +234,13 @@ public sealed class ConfigService : IConfigService
             wasUpdated = true;
         }
 
+        var normalizedTheme = NormalizeTheme(config.Ui.Theme);
+        if (!string.Equals(config.Ui.Theme, normalizedTheme, StringComparison.Ordinal))
+        {
+            config.Ui.Theme = normalizedTheme;
+            wasUpdated = true;
+        }
+
         if (string.IsNullOrWhiteSpace(config.Update.GitHubOwner))
         {
             config.Update.GitHubOwner = "koerby";
@@ -248,5 +255,16 @@ public sealed class ConfigService : IConfigService
 
         var notice = notices.Count == 0 ? null : string.Join(" ", notices);
         return (config, wasUpdated, notice);
+    }
+
+    private static string NormalizeTheme(string? theme)
+    {
+        if (string.Equals(theme, "Light", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(theme, "Bright", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Bright";
+        }
+
+        return "Dark";
     }
 }

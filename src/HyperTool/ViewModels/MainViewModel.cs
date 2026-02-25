@@ -76,6 +76,9 @@ public partial class MainViewModel : ViewModelBase
     private string _defaultVmName = string.Empty;
 
     [ObservableProperty]
+    private string _vmConnectComputerName = "localhost";
+
+    [ObservableProperty]
     private string _lastSelectedVmName = string.Empty;
 
     [ObservableProperty]
@@ -86,6 +89,9 @@ public partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _uiStartWithWindows;
+
+    [ObservableProperty]
+    private string _uiTheme = "Dark";
 
     [ObservableProperty]
     private bool _updateCheckOnStartup = true;
@@ -133,7 +139,9 @@ public partial class MainViewModel : ViewModelBase
 
     public string DefaultSwitchName { get; }
 
-    public string VmConnectComputerName { get; }
+    public string ConfigPath => _configPath;
+
+    public IReadOnlyList<string> AvailableUiThemes { get; } = ["Dark", "Bright"];
 
     public bool HasConfigurationNotice => !string.IsNullOrWhiteSpace(ConfigurationNotice);
 
@@ -258,7 +266,7 @@ public partial class MainViewModel : ViewModelBase
         DefaultVmName = configResult.Config.DefaultVmName;
         LastSelectedVmName = configResult.Config.LastSelectedVmName;
         DefaultSwitchName = configResult.Config.DefaultSwitchName;
-        VmConnectComputerName = configResult.Config.VmConnectComputerName;
+        VmConnectComputerName = NormalizeVmConnectComputerName(configResult.Config.VmConnectComputerName);
         ConfigurationNotice = configResult.Notice;
         HnsEnabled = configResult.Config.Hns.Enabled;
         HnsAutoRestartAfterDefaultSwitch = configResult.Config.Hns.AutoRestartAfterDefaultSwitch;
@@ -266,6 +274,7 @@ public partial class MainViewModel : ViewModelBase
         UiEnableTrayIcon = configResult.Config.Ui.EnableTrayIcon;
         UiStartMinimized = configResult.Config.Ui.StartMinimized;
         UiStartWithWindows = configResult.Config.Ui.StartWithWindows;
+        UiTheme = NormalizeUiTheme(configResult.Config.Ui.Theme);
         UpdateCheckOnStartup = configResult.Config.Update.CheckOnStartup;
         GithubOwner = configResult.Config.Update.GitHubOwner;
         GithubRepo = configResult.Config.Update.GitHubRepo;
@@ -975,7 +984,7 @@ public partial class MainViewModel : ViewModelBase
                 DefaultVmName = DefaultVmName,
                 LastSelectedVmName = SelectedVm?.Name ?? LastSelectedVmName,
                 DefaultSwitchName = DefaultSwitchName,
-                VmConnectComputerName = VmConnectComputerName,
+                VmConnectComputerName = NormalizeVmConnectComputerName(VmConnectComputerName),
                 Hns = new HnsSettings
                 {
                     Enabled = HnsEnabled,
@@ -985,6 +994,7 @@ public partial class MainViewModel : ViewModelBase
                 Ui = new UiSettings
                 {
                     WindowTitle = "HyperTool",
+                    Theme = NormalizeUiTheme(UiTheme),
                     StartMinimized = UiStartMinimized,
                     MinimizeToTray = true,
                     EnableTrayIcon = UiEnableTrayIcon,
@@ -1162,9 +1172,11 @@ public partial class MainViewModel : ViewModelBase
             HnsAutoRestartAfterAnyConnect = config.Hns.AutoRestartAfterAnyConnect;
             DefaultVmName = config.DefaultVmName;
             LastSelectedVmName = config.LastSelectedVmName;
+            VmConnectComputerName = NormalizeVmConnectComputerName(config.VmConnectComputerName);
             UiEnableTrayIcon = config.Ui.EnableTrayIcon;
             UiStartMinimized = config.Ui.StartMinimized;
             UiStartWithWindows = config.Ui.StartWithWindows;
+            UiTheme = NormalizeUiTheme(config.Ui.Theme);
             _trayVmNames = NormalizeTrayVmNames(config.Ui.TrayVmNames);
             UpdateCheckOnStartup = config.Update.CheckOnStartup;
             GithubOwner = config.Update.GitHubOwner;
@@ -1194,6 +1206,24 @@ public partial class MainViewModel : ViewModelBase
             .Select(name => name.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    private static string NormalizeVmConnectComputerName(string? computerName)
+    {
+        return string.IsNullOrWhiteSpace(computerName)
+            ? "localhost"
+            : computerName.Trim();
+    }
+
+    private static string NormalizeUiTheme(string? theme)
+    {
+        if (string.Equals(theme, "Light", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(theme, "Bright", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Bright";
+        }
+
+        return "Dark";
     }
 
     private async Task PersistSelectedVmAsync(string vmName)

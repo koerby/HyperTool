@@ -11,6 +11,7 @@
   },
   "ui": {
     "windowTitle": "HyperTool",
+    "theme": "Dark",
     "startMinimized": false,
     "minimizeToTray": true,
     "enableTrayIcon": true,

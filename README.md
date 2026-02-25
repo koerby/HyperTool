@@ -63,18 +63,25 @@ Installer-Ausgabe liegt unter dist/installer (benötigt Inno Setup 6 / ISCC).
 
 ## Konfiguration
 
-Datei: `%LOCALAPPDATA%/HyperTool/HyperTool.config.json`
+Aktive Datei (Priorität):
 
-Beim ersten Start wird eine eventuell vorhandene Legacy-Datei aus dem Installationsordner automatisch nach `%LOCALAPPDATA%` migriert.
+1. `HYPERTOOL_CONFIG_PATH` (falls gesetzt)
+2. Neuere Datei von:
+	- `%LOCALAPPDATA%/HyperTool/HyperTool.config.json`
+	- `HyperTool.config.json` im Installationsordner
+3. Falls keine Datei existiert: `%LOCALAPPDATA%/HyperTool/HyperTool.config.json`
+
+Im Config-Tab zeigt HyperTool den tatsächlich verwendeten Pfad als "Aktive Config" an.
 
 Wichtige Felder:
 
 - defaultVmName: bevorzugte VM
 - lastSelectedVmName: letzte aktive VM
 - defaultSwitchName: bevorzugter Switch
-- vmConnectComputerName: vmconnect Host (z. B. localhost)
+- vmConnectComputerName: vmconnect Host (z. B. `localhost` oder ein Zertifikats-Hostname)
 - hns: HNS-Verhalten
 - ui: Tray/Autostart Optionen
+- ui.theme: `Dark` oder `Bright`
 - update: GitHub Updateprüfung
 - ui.trayVmNames: optionale Liste der VM-Namen, die im Tray-Menü erscheinen sollen (leer = alle)
 - ui.startMinimized: App startet minimiert (in Verbindung mit Tray ideal für Hintergrundbetrieb)

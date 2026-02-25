@@ -34,6 +34,8 @@ public sealed class UiSettings
 {
     public string WindowTitle { get; set; } = "HyperTool";
 
+    public string Theme { get; set; } = "Dark";
+
     public bool StartMinimized { get; set; }
 
     public bool MinimizeToTray { get; set; } = true;
