@@ -1,0 +1,47 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <SolidColorBrush x:Key="PageBackground" Color="#F3F6FB" />
+    <SolidColorBrush x:Key="PanelBackground" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="PanelBorder" Color="#C4D1E2" />
+    <SolidColorBrush x:Key="TextPrimary" Color="#0F172A" />
+    <SolidColorBrush x:Key="TextMuted" Color="#334155" />
+    <SolidColorBrush x:Key="InputBackground" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="InputBorder" Color="#A0B3CC" />
+    <SolidColorBrush x:Key="SidebarBackground" Color="#E9F0F8" />
+    <SolidColorBrush x:Key="OverlayBackground" Color="#ECF2F9" />
+    <SolidColorBrush x:Key="ButtonBackground" Color="#2A5B91" />
+    <SolidColorBrush x:Key="ButtonBorder" Color="#1E4B7A" />
+    <SolidColorBrush x:Key="ButtonForeground" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="NavHoverBackground" Color="#D9E6F5" />
+    <SolidColorBrush x:Key="NavSelectedBackground" Color="#C2D8F2" />
+    <SolidColorBrush x:Key="WarningText" Color="#8A4A14" />
+    <SolidColorBrush x:Key="Accent" Color="#5EA3E6" />
+    <SolidColorBrush x:Key="AccentStrong" Color="#2A7BC7" />
+    <SolidColorBrush x:Key="AccentText" Color="#0F172A" />
+
+    <SolidColorBrush x:Key="VmChipBaseBackground" Color="#D6E6F8" />
+    <SolidColorBrush x:Key="VmChipBaseBorder" Color="#8FB1D5" />
+    <SolidColorBrush x:Key="VmChipRunningBackground" Color="#BFEACC" />
+    <SolidColorBrush x:Key="VmChipRunningBorder" Color="#5EA378" />
+    <SolidColorBrush x:Key="VmChipOffBackground" Color="#F5CEDC" />
+    <SolidColorBrush x:Key="VmChipOffBorder" Color="#C2869E" />
+    <SolidColorBrush x:Key="VmChipSelectedBorder" Color="#C68A00" />
+
+    <SolidColorBrush x:Key="ContextMenuBackgroundBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="ContextMenuBorderBrush" Color="#A0B3CC" />
+    <SolidColorBrush x:Key="ContextMenuForegroundBrush" Color="#0F172A" />
+    <SolidColorBrush x:Key="ContextMenuHoverBrush" Color="#D9E6F5" />
+
+    <SolidColorBrush x:Key="ToolTipBackgroundBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="ToolTipBorderBrush" Color="#A0B3CC" />
+    <SolidColorBrush x:Key="ToolTipForegroundBrush" Color="#0F172A" />
+
+    <SolidColorBrush x:Key="SystemWindowBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="SystemWindowTextBrush" Color="#0F172A" />
+    <SolidColorBrush x:Key="SystemControlBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="SystemControlTextBrush" Color="#0F172A" />
+    <SolidColorBrush x:Key="SystemMenuBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="SystemMenuTextBrush" Color="#0F172A" />
+    <SolidColorBrush x:Key="SystemHighlightBrush" Color="#9CC7F2" />
+    <SolidColorBrush x:Key="SystemHighlightTextBrush" Color="#0F172A" />
+</ResourceDictionary>

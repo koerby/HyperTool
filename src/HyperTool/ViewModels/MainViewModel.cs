@@ -76,7 +76,7 @@ public partial class MainViewModel : ViewModelBase
     private string _defaultVmName = string.Empty;
 
     [ObservableProperty]
-    private string _vmConnectComputerName = "localhost";
+    private string _vmConnectComputerName = "";
 
     [ObservableProperty]
     private string _lastSelectedVmName = string.Empty;
@@ -141,7 +141,7 @@ public partial class MainViewModel : ViewModelBase
 
     public string ConfigPath => _configPath;
 
-    public IReadOnlyList<string> AvailableUiThemes { get; } = ["Dark", "Bright"];
+    public IReadOnlyList<string> AvailableUiThemes { get; } = ["Dark", "Light"];
 
     public bool HasConfigurationNotice => !string.IsNullOrWhiteSpace(ConfigurationNotice);
 
@@ -217,8 +217,6 @@ public partial class MainViewModel : ViewModelBase
     public IRelayCommand OpenReleasePageCommand { get; }
 
     public IRelayCommand ToggleLogCommand { get; }
-
-    public IRelayCommand OpenHelpCommand { get; }
 
     public IRelayCommand<VmDefinition> SelectVmFromChipCommand { get; }
 
@@ -322,7 +320,6 @@ public partial class MainViewModel : ViewModelBase
         InstallUpdateCommand = new AsyncRelayCommand(InstallUpdateAsync, () => !IsBusy && UpdateInstallAvailable && !string.IsNullOrWhiteSpace(InstallerDownloadUrl));
         OpenReleasePageCommand = new RelayCommand(OpenReleasePage);
         ToggleLogCommand = new RelayCommand(ToggleLog);
-        OpenHelpCommand = new RelayCommand(OpenHelp);
         SelectVmFromChipCommand = new RelayCommand<VmDefinition>(SelectVmFromChip);
         ClearNotificationsCommand = new RelayCommand(ClearNotifications);
         CopyNotificationsCommand = new RelayCommand(CopyNotificationsToClipboard);
@@ -1213,9 +1210,15 @@ public partial class MainViewModel : ViewModelBase
 
     private static string NormalizeVmConnectComputerName(string? computerName)
     {
-        return string.IsNullOrWhiteSpace(computerName)
-            ? "localhost"
-            : computerName.Trim();
+        var normalized = computerName?.Trim() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(normalized)
+            || string.Equals(normalized, "localhost", StringComparison.OrdinalIgnoreCase))
+        {
+            return Environment.MachineName;
+        }
+
+        return normalized;
     }
 
     private static string NormalizeUiTheme(string? theme)
@@ -1223,7 +1226,7 @@ public partial class MainViewModel : ViewModelBase
         if (string.Equals(theme, "Light", StringComparison.OrdinalIgnoreCase)
             || string.Equals(theme, "Bright", StringComparison.OrdinalIgnoreCase))
         {
-            return "Bright";
+            return "Light";
         }
 
         return "Dark";
@@ -1467,11 +1470,6 @@ public partial class MainViewModel : ViewModelBase
     private void ToggleLog()
     {
         IsLogExpanded = !IsLogExpanded;
-    }
-
-    private void OpenHelp()
-    {
-        SelectedMenuIndex = 4;
     }
 
     private void SelectVmFromChip(VmDefinition? vm)

@@ -1,4 +1,5 @@
 using ControlzEx.Theming;
+using HyperTool.Services;
 using HyperTool.ViewModels;
 using MahApps.Metro.Controls;
 using System.ComponentModel;
@@ -8,10 +9,13 @@ namespace HyperTool.Views;
 
 public partial class MainWindow : MetroWindow
 {
+    private readonly IThemeService _themeService;
     private MainViewModel? _currentViewModel;
+    private HelpWindow? _helpWindow;
 
-    public MainWindow()
+    public MainWindow(IThemeService themeService)
     {
+        _themeService = themeService;
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
     }
@@ -28,7 +32,7 @@ public partial class MainWindow : MetroWindow
         if (_currentViewModel is not null)
         {
             _currentViewModel.PropertyChanged += OnViewModelPropertyChanged;
-            ApplyTheme(_currentViewModel.UiTheme);
+            _themeService.ApplyTheme(_currentViewModel.UiTheme);
         }
     }
 
@@ -41,76 +45,36 @@ public partial class MainWindow : MetroWindow
 
         if (string.Equals(e.PropertyName, nameof(MainViewModel.UiTheme), StringComparison.Ordinal))
         {
-            ApplyTheme(vm.UiTheme);
+            _themeService.ApplyTheme(vm.UiTheme);
         }
     }
 
-    private void ApplyTheme(string? theme)
+    private void HelpButton_Click(object sender, RoutedEventArgs e)
     {
-        var isBright = string.Equals(theme, "Bright", StringComparison.OrdinalIgnoreCase)
-                       || string.Equals(theme, "Light", StringComparison.OrdinalIgnoreCase);
-
-        ThemeManager.Current.ChangeTheme(this, isBright ? "Light.Blue" : "Dark.Blue");
-
-        if (isBright)
+        if (_helpWindow is null || !_helpWindow.IsLoaded)
         {
-            SetBrushColor("PageBackground", "#F3F6FB");
-            SetBrushColor("PanelBackground", "#FFFFFF");
-            SetBrushColor("PanelBorder", "#C4D1E2");
-            SetBrushColor("TextPrimary", "#0F172A");
-            SetBrushColor("TextMuted", "#334155");
-            SetBrushColor("InputBackground", "#FFFFFF");
-            SetBrushColor("InputBorder", "#A0B3CC");
-            SetBrushColor("SidebarBackground", "#E9F0F8");
-            SetBrushColor("OverlayBackground", "#ECF2F9");
-            SetBrushColor("ButtonBackground", "#2A5B91");
-            SetBrushColor("ButtonBorder", "#1E4B7A");
-            SetBrushColor("ButtonForeground", "#FFFFFF");
-            SetBrushColor("NavHoverBackground", "#D9E6F5");
-            SetBrushColor("NavSelectedBackground", "#C2D8F2");
-            SetBrushColor("WarningText", "#8A4A14");
-        }
-        else
-        {
-            SetBrushColor("PageBackground", "#0A1220");
-            SetBrushColor("PanelBackground", "#141E32");
-            SetBrushColor("PanelBorder", "#2D4265");
-            SetBrushColor("TextPrimary", "#F8FAFF");
-            SetBrushColor("TextMuted", "#B9C8E6");
-            SetBrushColor("InputBackground", "#111A2C");
-            SetBrushColor("InputBorder", "#4D74A5");
-            SetBrushColor("SidebarBackground", "#10192B");
-            SetBrushColor("OverlayBackground", "#0F1A2A");
-            SetBrushColor("ButtonBackground", "#264A76");
-            SetBrushColor("ButtonBorder", "#4370A6");
-            SetBrushColor("ButtonForeground", "#FFFFFF");
-            SetBrushColor("NavHoverBackground", "#1F3555");
-            SetBrushColor("NavSelectedBackground", "#2E507C");
-            SetBrushColor("WarningText", "#FFEEC9A6");
-        }
-    }
+            var configPath = _currentViewModel?.ConfigPath ?? string.Empty;
+            var owner = _currentViewModel?.GithubOwner ?? "koerby";
+            var repo = _currentViewModel?.GithubRepo ?? "HyperTool";
+            var repoUrl = $"https://github.com/{owner}/{repo}";
 
-    private void SetBrushColor(string key, string hexColor)
-    {
-        var color = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hexColor);
-
-        if (Resources[key] is System.Windows.Media.SolidColorBrush localBrush)
-        {
-            if (localBrush.IsFrozen)
+            _helpWindow = new HelpWindow(configPath, repoUrl)
             {
-                localBrush = localBrush.CloneCurrentValue();
-                Resources[key] = localBrush;
+                Owner = this
+            };
+
+            _helpWindow.Closed += (_, _) => _helpWindow = null;
+
+            var detectedTheme = ThemeManager.Current.DetectTheme(this);
+            if (detectedTheme is not null)
+            {
+                ThemeManager.Current.ChangeTheme(_helpWindow, detectedTheme.Name);
             }
 
-            localBrush.Color = color;
+            _helpWindow.Show();
             return;
         }
 
-        if (System.Windows.Application.Current?.Resources[key] is System.Windows.Media.SolidColorBrush appBrush)
-        {
-            var mutableBrush = appBrush.IsFrozen ? appBrush.CloneCurrentValue() : appBrush.Clone();
-            mutableBrush.Color = color;
-            Resources[key] = mutableBrush;
-        }
+        _helpWindow.Activate();
     }
 }

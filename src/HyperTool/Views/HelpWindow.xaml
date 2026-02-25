@@ -1,0 +1,83 @@
+<mah:MetroWindow x:Class="HyperTool.Views.HelpWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+                 Title="HyperTool Hilfe"
+                 Width="760"
+                 Height="680"
+                 MinWidth="620"
+                 MinHeight="520"
+                 WindowStartupLocation="CenterOwner"
+                 ResizeMode="CanResize"
+                 Background="{DynamicResource PageBackground}">
+    <Grid Margin="14" Background="{DynamicResource PageBackground}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+                <TextBlock Foreground="{DynamicResource TextPrimary}" FontSize="24" FontWeight="SemiBold" Text="HyperTool Hilfe" />
+                <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource TextMuted}" Text="Kurzübersicht über Funktionen und Einstellungen" />
+
+                <Border Margin="0,12,0,0" Padding="12" CornerRadius="10" Background="{DynamicResource OverlayBackground}" BorderBrush="{DynamicResource PanelBorder}" BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" Text="1) VM auswählen" />
+                        <TextBlock Margin="0,6,0,0" Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Text="Oben im Header werden alle Hyper-V VMs als Chips angezeigt. Klick auf einen Chip wählt die VM als aktive Arbeits-VM für Start/Network/Snaps." />
+                    </StackPanel>
+                </Border>
+
+                <Border Margin="0,10,0,0" Padding="12" CornerRadius="10" Background="{DynamicResource OverlayBackground}" BorderBrush="{DynamicResource PanelBorder}" BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" Text="2) Start / Stop / Konsole" />
+                        <TextBlock Margin="0,6,0,0" Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Text="Im Tab 'Start' kannst du VM starten, stoppen, hart ausschalten, neu starten und die VM-Konsole öffnen." />
+                    </StackPanel>
+                </Border>
+
+                <Border Margin="0,10,0,0" Padding="12" CornerRadius="10" Background="{DynamicResource OverlayBackground}" BorderBrush="{DynamicResource PanelBorder}" BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" Text="3) Network / Switches" />
+                        <TextBlock Margin="0,6,0,0" Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Text="Im Tab 'Network' werden Hyper-V Switches geladen. Danach kannst du die ausgewählte VM verbinden oder trennen. Default Connect nutzt den in der Config hinterlegten Default Switch." />
+                    </StackPanel>
+                </Border>
+
+                <Border Margin="0,10,0,0" Padding="12" CornerRadius="10" Background="{DynamicResource OverlayBackground}" BorderBrush="{DynamicResource PanelBorder}" BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" Text="4) Snapshots / Checkpoints" />
+                        <TextBlock Margin="0,6,0,0" Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Text="Im Tab 'Snaps' kannst du Checkpoints erstellen, anwenden und löschen. Änderungen wirken auf die aktuell ausgewählte VM." />
+                    </StackPanel>
+                </Border>
+
+                <Border Margin="0,10,0,0" Padding="12" CornerRadius="10" Background="{DynamicResource OverlayBackground}" BorderBrush="{DynamicResource PanelBorder}" BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" Text="5) HNS Restart (UAC)" />
+                        <TextBlock Margin="0,6,0,0" Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Text="Im Config-Tab kann ein HNS-Neustart mit UAC ausgelöst werden. Abhängig von Windows-Rechten erscheint dabei eine Administrator-Abfrage." />
+                    </StackPanel>
+                </Border>
+
+                <Border Margin="0,10,0,0" Padding="12" CornerRadius="10" Background="{DynamicResource OverlayBackground}" BorderBrush="{DynamicResource PanelBorder}" BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" Text="6) Tray Funktionen" />
+                        <TextBlock Margin="0,6,0,0" Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Text="Wenn aktiv, bietet das Tray-Menü Schnellzugriffe für Start/Stop/Konsole/Snapshot/Switch ohne das Hauptfenster zu öffnen." />
+                    </StackPanel>
+                </Border>
+
+                <Border Margin="0,10,0,0" Padding="12" CornerRadius="10" Background="{DynamicResource OverlayBackground}" BorderBrush="{DynamicResource PanelBorder}" BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" Text="Schnellzugriffe" />
+                        <WrapPanel Margin="0,8,0,0">
+                            <Button Style="{DynamicResource ActionButton}" Click="OpenLogsButton_Click" Content="📄 Logs öffnen" />
+                            <Button Style="{DynamicResource ActionButton}" Click="OpenConfigButton_Click" Content="⚙ Config öffnen" />
+                            <Button Margin="0" Style="{DynamicResource ActionButton}" Click="OpenRepoButton_Click" Content="🌐 GitHub Repo" />
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <WrapPanel Grid.Row="1" Margin="0,12,0,0" HorizontalAlignment="Right">
+            <Button Padding="12,6" Click="CloseButton_Click" Content="OK" />
+        </WrapPanel>
+    </Grid>
+</mah:MetroWindow>

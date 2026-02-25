@@ -199,7 +199,12 @@ public sealed class ConfigService : IConfigService
 
         if (string.IsNullOrWhiteSpace(config.VmConnectComputerName))
         {
-            config.VmConnectComputerName = "localhost";
+            config.VmConnectComputerName = Environment.MachineName;
+            wasUpdated = true;
+        }
+        else if (string.Equals(config.VmConnectComputerName.Trim(), "localhost", StringComparison.OrdinalIgnoreCase))
+        {
+            config.VmConnectComputerName = Environment.MachineName;
             wasUpdated = true;
         }
 
@@ -262,7 +267,7 @@ public sealed class ConfigService : IConfigService
         if (string.Equals(theme, "Light", StringComparison.OrdinalIgnoreCase)
             || string.Equals(theme, "Bright", StringComparison.OrdinalIgnoreCase))
         {
-            return "Bright";
+            return "Light";
         }
 
         return "Dark";

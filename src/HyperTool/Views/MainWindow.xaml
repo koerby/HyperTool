@@ -14,40 +14,22 @@
         MinWidth="1040"
         MinHeight="760"
         WindowStartupLocation="CenterScreen"
-        Background="#0B1220">
+        Background="{DynamicResource PageBackground}">
     <mah:MetroWindow.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <conv:StringEqualsConverter x:Key="StringEqualsConverter" />
 
-        <SolidColorBrush x:Key="PageBackground" Color="#0A1220" />
-        <SolidColorBrush x:Key="PanelBackground" Color="#141E32" />
-        <SolidColorBrush x:Key="PanelBorder" Color="#2D4265" />
-        <SolidColorBrush x:Key="TextPrimary" Color="#F8FAFF" />
-        <SolidColorBrush x:Key="TextMuted" Color="#B9C8E6" />
-        <SolidColorBrush x:Key="InputBackground" Color="#111A2C" />
-        <SolidColorBrush x:Key="InputBorder" Color="#4D74A5" />
-        <SolidColorBrush x:Key="SidebarBackground" Color="#10192B" />
-        <SolidColorBrush x:Key="OverlayBackground" Color="#0F1A2A" />
-        <SolidColorBrush x:Key="ButtonBackground" Color="#264A76" />
-        <SolidColorBrush x:Key="ButtonBorder" Color="#4370A6" />
-        <SolidColorBrush x:Key="ButtonForeground" Color="#FFFFFF" />
-        <SolidColorBrush x:Key="NavHoverBackground" Color="#1F3555" />
-        <SolidColorBrush x:Key="NavSelectedBackground" Color="#2E507C" />
-        <SolidColorBrush x:Key="WarningText" Color="#FFEEC9A6" />
-        <SolidColorBrush x:Key="Accent" Color="#39C3FF" />
-        <SolidColorBrush x:Key="AccentStrong" Color="#1DA7E5" />
-
         <Style x:Key="CardBorder" TargetType="Border">
             <Setter Property="CornerRadius" Value="14" />
-            <Setter Property="Background" Value="{StaticResource PanelBackground}" />
-            <Setter Property="BorderBrush" Value="{StaticResource PanelBorder}" />
+            <Setter Property="Background" Value="{DynamicResource PanelBackground}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource PanelBorder}" />
             <Setter Property="BorderThickness" Value="1" />
         </Style>
 
         <Style x:Key="ActionButton" TargetType="Button">
-            <Setter Property="Foreground" Value="{StaticResource ButtonForeground}" />
-            <Setter Property="Background" Value="{StaticResource ButtonBackground}" />
-            <Setter Property="BorderBrush" Value="{StaticResource ButtonBorder}" />
+            <Setter Property="Foreground" Value="{DynamicResource ButtonForeground}" />
+            <Setter Property="Background" Value="{DynamicResource ButtonBackground}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource ButtonBorder}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="12,8" />
             <Setter Property="FontWeight" Value="SemiBold" />
@@ -55,27 +37,27 @@
         </Style>
 
         <Style x:Key="ReadableComboBoxItemStyle" TargetType="ComboBoxItem">
-            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
-            <Setter Property="Background" Value="{StaticResource InputBackground}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
+            <Setter Property="Background" Value="{DynamicResource InputBackground}" />
             <Setter Property="Padding" Value="10,6" />
             <Style.Triggers>
                 <Trigger Property="IsHighlighted" Value="True">
-                    <Setter Property="Background" Value="{StaticResource NavHoverBackground}" />
+                    <Setter Property="Background" Value="{DynamicResource NavHoverBackground}" />
                 </Trigger>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="{StaticResource Accent}" />
-                    <Setter Property="Foreground" Value="#041321" />
+                    <Setter Property="Background" Value="{DynamicResource Accent}" />
+                    <Setter Property="Foreground" Value="{DynamicResource AccentText}" />
                 </Trigger>
             </Style.Triggers>
         </Style>
 
         <Style x:Key="ReadableComboBoxStyle" TargetType="ComboBox">
-            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
-            <Setter Property="Background" Value="{StaticResource InputBackground}" />
-            <Setter Property="BorderBrush" Value="{StaticResource InputBorder}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
+            <Setter Property="Background" Value="{DynamicResource InputBackground}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource InputBorder}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="8,4" />
-            <Setter Property="TextElement.Foreground" Value="{StaticResource TextPrimary}" />
+            <Setter Property="TextElement.Foreground" Value="{DynamicResource TextPrimary}" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="ItemContainerStyle" Value="{StaticResource ReadableComboBoxItemStyle}" />
             <Setter Property="Template">
@@ -101,7 +83,7 @@
                                               Focusable="False"
                                               IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
                                     <TextBlock Text="▼"
-                                               Foreground="{StaticResource TextPrimary}"
+                                               Foreground="{DynamicResource TextPrimary}"
                                                FontSize="10"
                                                HorizontalAlignment="Center"
                                                VerticalAlignment="Center" />
@@ -114,8 +96,8 @@
                                    Placement="Bottom"
                                    PopupAnimation="Slide"
                                    StaysOpen="False">
-                                <Border Background="{StaticResource InputBackground}"
-                                    BorderBrush="{StaticResource InputBorder}"
+                                <Border Background="{DynamicResource InputBackground}"
+                                    BorderBrush="{DynamicResource InputBorder}"
                                         BorderThickness="1"
                                         CornerRadius="8"
                                         MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}">
@@ -129,42 +111,42 @@
                 </Setter.Value>
             </Setter>
             <Style.Resources>
-                <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#111A2C" />
-                <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="#FFFFFF" />
-                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#39C3FF" />
-                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#041321" />
-                <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#111A2C" />
-                <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="#FFFFFF" />
-                <SolidColorBrush x:Key="{x:Static SystemColors.MenuBrushKey}" Color="#111A2C" />
-                <SolidColorBrush x:Key="{x:Static SystemColors.MenuTextBrushKey}" Color="#FFFFFF" />
+                <DynamicResource x:Key="{x:Static SystemColors.WindowBrushKey}" ResourceKey="SystemWindowBrush" />
+                <DynamicResource x:Key="{x:Static SystemColors.WindowTextBrushKey}" ResourceKey="SystemWindowTextBrush" />
+                <DynamicResource x:Key="{x:Static SystemColors.HighlightBrushKey}" ResourceKey="SystemHighlightBrush" />
+                <DynamicResource x:Key="{x:Static SystemColors.HighlightTextBrushKey}" ResourceKey="SystemHighlightTextBrush" />
+                <DynamicResource x:Key="{x:Static SystemColors.ControlBrushKey}" ResourceKey="SystemControlBrush" />
+                <DynamicResource x:Key="{x:Static SystemColors.ControlTextBrushKey}" ResourceKey="SystemControlTextBrush" />
+                <DynamicResource x:Key="{x:Static SystemColors.MenuBrushKey}" ResourceKey="SystemMenuBrush" />
+                <DynamicResource x:Key="{x:Static SystemColors.MenuTextBrushKey}" ResourceKey="SystemMenuTextBrush" />
             </Style.Resources>
         </Style>
 
         <Style x:Key="ReadableTextBoxStyle" TargetType="TextBox">
-            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
-            <Setter Property="Background" Value="{StaticResource InputBackground}" />
-            <Setter Property="BorderBrush" Value="{StaticResource InputBorder}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
+            <Setter Property="Background" Value="{DynamicResource InputBackground}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource InputBorder}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="8,4" />
         </Style>
 
         <Style x:Key="ReadableListBoxStyle" TargetType="ListBox">
-            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
-            <Setter Property="Background" Value="{StaticResource InputBackground}" />
-            <Setter Property="BorderBrush" Value="{StaticResource InputBorder}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
+            <Setter Property="Background" Value="{DynamicResource InputBackground}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource InputBorder}" />
             <Setter Property="BorderThickness" Value="1" />
         </Style>
 
         <Style x:Key="ReadableListBoxItemStyle" TargetType="ListBoxItem">
-            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
             <Setter Property="Background" Value="Transparent" />
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{StaticResource NavHoverBackground}" />
+                    <Setter Property="Background" Value="{DynamicResource NavHoverBackground}" />
                 </Trigger>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="{StaticResource Accent}" />
-                    <Setter Property="Foreground" Value="#041321" />
+                    <Setter Property="Background" Value="{DynamicResource Accent}" />
+                    <Setter Property="Foreground" Value="{DynamicResource AccentText}" />
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -203,11 +185,11 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="NavBorder" Property="Background" Value="{StaticResource NavHoverBackground}" />
+                                <Setter TargetName="NavBorder" Property="Background" Value="{DynamicResource NavHoverBackground}" />
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="NavBorder" Property="Background" Value="{StaticResource NavSelectedBackground}" />
-                                <Setter TargetName="NavBorder" Property="BorderBrush" Value="{StaticResource Accent}" />
+                                <Setter TargetName="NavBorder" Property="Background" Value="{DynamicResource NavSelectedBackground}" />
+                                <Setter TargetName="NavBorder" Property="BorderBrush" Value="{DynamicResource Accent}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -216,7 +198,7 @@
         </Style>
     </mah:MetroWindow.Resources>
 
-    <Grid Margin="18" Background="{StaticResource PageBackground}">
+    <Grid Margin="18" Background="{DynamicResource PageBackground}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="12" />
@@ -237,8 +219,8 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel>
-                    <TextBlock Foreground="{StaticResource TextPrimary}" FontSize="24" FontWeight="SemiBold" Text="HyperTool" />
-                    <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="dein nützlicher Hyper V Helfer" />
+                    <TextBlock Foreground="{DynamicResource TextPrimary}" FontSize="24" FontWeight="SemiBold" Text="HyperTool" />
+                    <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource TextMuted}" Text="dein nützlicher Hyper V Helfer" />
 
                     <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding AvailableVms}">
                         <ItemsControl.ItemsPanel>
@@ -277,17 +259,17 @@
                                     </Button.ContextMenu>
                                     <Button.Style>
                                         <Style TargetType="Button" BasedOn="{StaticResource ActionButton}">
-                                            <Setter Property="Background" Value="#36506D" />
-                                            <Setter Property="BorderBrush" Value="#5B84AE" />
+                                            <Setter Property="Background" Value="{DynamicResource VmChipBaseBackground}" />
+                                            <Setter Property="BorderBrush" Value="{DynamicResource VmChipBaseBorder}" />
                                             <Setter Property="BorderThickness" Value="1" />
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding RuntimeState}" Value="Running">
-                                                    <Setter Property="Background" Value="#1F8B4A" />
-                                                    <Setter Property="BorderBrush" Value="#49D17A" />
+                                                    <Setter Property="Background" Value="{DynamicResource VmChipRunningBackground}" />
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource VmChipRunningBorder}" />
                                                 </DataTrigger>
                                                 <DataTrigger Binding="{Binding RuntimeState}" Value="Off">
-                                                    <Setter Property="Background" Value="#5A2F42" />
-                                                    <Setter Property="BorderBrush" Value="#B66D8D" />
+                                                    <Setter Property="Background" Value="{DynamicResource VmChipOffBackground}" />
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource VmChipOffBorder}" />
                                                 </DataTrigger>
                                                 <DataTrigger Value="True">
                                                     <DataTrigger.Binding>
@@ -296,19 +278,19 @@
                                                             <Binding Path="DataContext.SelectedVm.Name" RelativeSource="{RelativeSource AncestorType=Window}" />
                                                         </MultiBinding>
                                                     </DataTrigger.Binding>
-                                                    <Setter Property="BorderBrush" Value="#F7C948" />
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource VmChipSelectedBorder}" />
                                                     <Setter Property="BorderThickness" Value="2" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </Button.Style>
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Foreground="{StaticResource TextPrimary}" FontWeight="Bold" Text="●" />
-                                        <TextBlock Margin="6,0,0,0" Foreground="{StaticResource TextPrimary}" Text="{Binding DisplayLabel}" />
-                                        <TextBlock Margin="8,0,0,0" Foreground="{StaticResource TextMuted}" Text="|" />
-                                        <TextBlock Margin="6,0,0,0" Foreground="{StaticResource TextMuted}" Text="{Binding RuntimeState}" />
-                                        <TextBlock Margin="8,0,0,0" Foreground="{StaticResource TextMuted}" Text="|" />
-                                        <TextBlock Margin="6,0,0,0" Foreground="{StaticResource TextMuted}" Text="{Binding RuntimeSwitchName}" />
+                                        <TextBlock Foreground="{DynamicResource TextPrimary}" FontWeight="Bold" Text="●" />
+                                        <TextBlock Margin="6,0,0,0" Foreground="{DynamicResource TextPrimary}" Text="{Binding DisplayLabel}" />
+                                        <TextBlock Margin="8,0,0,0" Foreground="{DynamicResource TextMuted}" Text="|" />
+                                        <TextBlock Margin="6,0,0,0" Foreground="{DynamicResource TextMuted}" Text="{Binding RuntimeState}" />
+                                        <TextBlock Margin="8,0,0,0" Foreground="{DynamicResource TextMuted}" Text="|" />
+                                        <TextBlock Margin="6,0,0,0" Foreground="{DynamicResource TextMuted}" Text="{Binding RuntimeSwitchName}" />
                                     </StackPanel>
                                 </Button>
                             </DataTemplate>
@@ -323,14 +305,14 @@
                     <Button Style="{StaticResource ActionButton}"
                             Margin="0,0,0,8"
                             Padding="10,4"
-                            Command="{Binding OpenHelpCommand}"
+                            Click="HelpButton_Click"
                             Content="❔ Hilfe"
                             ToolTip="Hilfe öffnen" />
 
                     <Border Padding="8"
                             CornerRadius="10"
-                            Background="{StaticResource OverlayBackground}"
-                            BorderBrush="{StaticResource PanelBorder}"
+                            Background="{DynamicResource OverlayBackground}"
+                            BorderBrush="{DynamicResource PanelBorder}"
                             BorderThickness="1">
                         <Image Source="/Assets/Logo.png"
                                Width="96"
@@ -345,7 +327,7 @@
                 Style="{StaticResource CardBorder}"
                 Padding="10"
                 Visibility="{Binding HasConfigurationNotice, Converter={StaticResource BooleanToVisibilityConverter}}">
-            <TextBlock Foreground="{StaticResource WarningText}" TextWrapping="Wrap" Text="{Binding ConfigurationNotice}" />
+            <TextBlock Foreground="{DynamicResource WarningText}" TextWrapping="Wrap" Text="{Binding ConfigurationNotice}" />
         </Border>
 
         <Border Grid.Row="4" Style="{StaticResource CardBorder}" Padding="12">
@@ -356,38 +338,38 @@
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
-                <Border Grid.Column="0" CornerRadius="12" Background="{StaticResource SidebarBackground}" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" Padding="8">
+                <Border Grid.Column="0" CornerRadius="12" Background="{DynamicResource SidebarBackground}" BorderBrush="{DynamicResource PanelBorder}" BorderThickness="1" Padding="8">
                     <ListBox Style="{StaticResource NavListBoxStyle}"
                              ItemContainerStyle="{StaticResource NavListBoxItemStyle}"
                              SelectedIndex="{Binding SelectedMenuIndex, Mode=TwoWay}">
                         <ListBoxItem>
                             <StackPanel HorizontalAlignment="Center">
-                                <TextBlock Text="▶" Foreground="{StaticResource Accent}" FontSize="20" HorizontalAlignment="Center" />
-                                <TextBlock Text="Start" Foreground="{StaticResource TextMuted}" FontSize="11" HorizontalAlignment="Center" />
+                                <TextBlock Text="▶" Foreground="{DynamicResource Accent}" FontSize="20" HorizontalAlignment="Center" />
+                                <TextBlock Text="Start" Foreground="{DynamicResource TextMuted}" FontSize="11" HorizontalAlignment="Center" />
                             </StackPanel>
                         </ListBoxItem>
                         <ListBoxItem>
                             <StackPanel HorizontalAlignment="Center">
-                                <TextBlock Text="⇆" Foreground="{StaticResource Accent}" FontSize="20" HorizontalAlignment="Center" />
-                                <TextBlock Text="Network" Foreground="{StaticResource TextMuted}" FontSize="11" HorizontalAlignment="Center" />
+                                <TextBlock Text="⇆" Foreground="{DynamicResource Accent}" FontSize="20" HorizontalAlignment="Center" />
+                                <TextBlock Text="Network" Foreground="{DynamicResource TextMuted}" FontSize="11" HorizontalAlignment="Center" />
                             </StackPanel>
                         </ListBoxItem>
                         <ListBoxItem>
                             <StackPanel HorizontalAlignment="Center">
-                                <TextBlock Text="◷" Foreground="{StaticResource Accent}" FontSize="20" HorizontalAlignment="Center" />
-                                <TextBlock Text="Snaps" Foreground="{StaticResource TextMuted}" FontSize="11" HorizontalAlignment="Center" />
+                                <TextBlock Text="◷" Foreground="{DynamicResource Accent}" FontSize="20" HorizontalAlignment="Center" />
+                                <TextBlock Text="Snaps" Foreground="{DynamicResource TextMuted}" FontSize="11" HorizontalAlignment="Center" />
                             </StackPanel>
                         </ListBoxItem>
                         <ListBoxItem>
                             <StackPanel HorizontalAlignment="Center">
-                                <TextBlock Text="⚙" Foreground="{StaticResource Accent}" FontSize="20" HorizontalAlignment="Center" />
-                                <TextBlock Text="Config" Foreground="{StaticResource TextMuted}" FontSize="11" HorizontalAlignment="Center" />
+                                <TextBlock Text="⚙" Foreground="{DynamicResource Accent}" FontSize="20" HorizontalAlignment="Center" />
+                                <TextBlock Text="Config" Foreground="{DynamicResource TextMuted}" FontSize="11" HorizontalAlignment="Center" />
                             </StackPanel>
                         </ListBoxItem>
                         <ListBoxItem>
                             <StackPanel HorizontalAlignment="Center">
-                                <TextBlock Text="ⓘ" Foreground="{StaticResource Accent}" FontSize="20" HorizontalAlignment="Center" />
-                                <TextBlock Text="Info" Foreground="{StaticResource TextMuted}" FontSize="11" HorizontalAlignment="Center" />
+                                <TextBlock Text="ⓘ" Foreground="{DynamicResource Accent}" FontSize="20" HorizontalAlignment="Center" />
+                                <TextBlock Text="Info" Foreground="{DynamicResource TextMuted}" FontSize="11" HorizontalAlignment="Center" />
                             </StackPanel>
                         </ListBoxItem>
                     </ListBox>
@@ -400,7 +382,7 @@
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <Border Grid.Row="0" CornerRadius="12" Background="{StaticResource SidebarBackground}" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" Padding="12">
+                    <Border Grid.Row="0" CornerRadius="12" Background="{DynamicResource SidebarBackground}" BorderBrush="{DynamicResource PanelBorder}" BorderThickness="1" Padding="12">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="100" />
@@ -416,14 +398,14 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
 
-                            <TextBlock VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="Selected VM" />
-                            <TextBlock Grid.Column="2" VerticalAlignment="Center" Foreground="{StaticResource TextMuted}" Text="{Binding SelectedVmDisplayName, Mode=OneWay}" />
+                            <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" Text="Selected VM" />
+                            <TextBlock Grid.Column="2" VerticalAlignment="Center" Foreground="{DynamicResource TextMuted}" Text="{Binding SelectedVmDisplayName, Mode=OneWay}" />
 
-                            <TextBlock Grid.Column="4" VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="State" />
-                            <TextBlock Grid.Column="6" VerticalAlignment="Center" Foreground="{StaticResource TextMuted}" Text="{Binding SelectedVmState}" />
+                            <TextBlock Grid.Column="4" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" Text="State" />
+                            <TextBlock Grid.Column="6" VerticalAlignment="Center" Foreground="{DynamicResource TextMuted}" Text="{Binding SelectedVmState}" />
 
-                            <TextBlock Grid.Column="8" VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="Switch" />
-                            <TextBlock Grid.Column="10" VerticalAlignment="Center" Foreground="{StaticResource TextMuted}" Text="{Binding SelectedVmCurrentSwitch}" />
+                            <TextBlock Grid.Column="8" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" Text="Switch" />
+                            <TextBlock Grid.Column="10" VerticalAlignment="Center" Foreground="{DynamicResource TextMuted}" Text="{Binding SelectedVmCurrentSwitch}" />
                         </Grid>
                     </Border>
 
@@ -455,7 +437,7 @@
 
                         <TabItem Header="Network">
                             <StackPanel Margin="4">
-                                <TextBlock Foreground="{StaticResource TextMuted}" TextWrapping="Wrap">
+                                <TextBlock Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap">
                                     <Run Text="Selected VM: " />
                                     <Run Text="{Binding SelectedVmDisplayName, Mode=OneWay}" />
                                     <Run Text=" | State: " />
@@ -471,7 +453,7 @@
                                         <ColumnDefinition Width="170" />
                                     </Grid.ColumnDefinitions>
 
-                                    <TextBlock VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="Switch" />
+                                    <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" Text="Switch" />
                                     <ComboBox Grid.Column="1"
                                               Style="{StaticResource ReadableComboBoxStyle}"
                                               Margin="8,8,8,0"
@@ -488,8 +470,8 @@
                                     <Button Style="{StaticResource ActionButton}" Margin="0,0,0,10" Command="{Binding ConnectDefaultVmCommand}" Content="⚡ Default Connect" />
                                 </WrapPanel>
 
-                                <TextBlock Foreground="{StaticResource TextMuted}" Text="{Binding DefaultSwitchName, StringFormat=Default Switch: {0}}" />
-                                <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="{Binding VmConnectComputerName, StringFormat=vmconnect host: {0}}" />
+                                <TextBlock Foreground="{DynamicResource TextMuted}" Text="{Binding DefaultSwitchName, StringFormat=Default Switch: {0}}" />
+                                <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource TextMuted}" Text="{Binding VmConnectComputerName, StringFormat=vmconnect host: {0}}" />
                             </StackPanel>
                         </TabItem>
 
@@ -514,9 +496,9 @@
                                                     <ColumnDefinition Width="170" />
                                                     <ColumnDefinition Width="*" />
                                                 </Grid.ColumnDefinitions>
-                                                <TextBlock Foreground="{StaticResource TextPrimary}" Text="{Binding Name}" />
-                                                <TextBlock Grid.Column="1" Foreground="{StaticResource TextMuted}" Text="{Binding Created, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}" />
-                                                <TextBlock Grid.Column="2" Foreground="{StaticResource TextMuted}" Text="{Binding Type}" />
+                                                <TextBlock Foreground="{DynamicResource TextPrimary}" Text="{Binding Name}" />
+                                                <TextBlock Grid.Column="1" Foreground="{DynamicResource TextMuted}" Text="{Binding Created, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}" />
+                                                <TextBlock Grid.Column="2" Foreground="{DynamicResource TextMuted}" Text="{Binding Type}" />
                                             </Grid>
                                         </DataTemplate>
                                     </ListBox.ItemTemplate>
@@ -530,7 +512,7 @@
                                             <ColumnDefinition Width="12" />
                                             <ColumnDefinition Width="180" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0" VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="Checkpoint Name" />
+                                        <TextBlock Grid.Column="0" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" Text="Checkpoint Name" />
                                         <TextBox Grid.Column="1" Style="{StaticResource ReadableTextBoxStyle}" Text="{Binding NewCheckpointName, UpdateSourceTrigger=PropertyChanged}" />
                                         <Button Grid.Column="3" Margin="0" Style="{StaticResource ActionButton}" Command="{Binding CreateCheckpointCommand}" Content="📸 Create" />
                                     </Grid>
@@ -544,7 +526,7 @@
                                             <ColumnDefinition Width="12" />
                                             <ColumnDefinition Width="160" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0" VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="Beschreibung" />
+                                        <TextBlock Grid.Column="0" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" Text="Beschreibung" />
                                         <TextBox Grid.Column="1" Style="{StaticResource ReadableTextBoxStyle}" Text="{Binding NewCheckpointDescription, UpdateSourceTrigger=PropertyChanged}" />
                                         <Button Grid.Column="3" Style="{StaticResource ActionButton}" Command="{Binding ApplyCheckpointCommand}" Content="✅ Apply" />
                                         <Button Grid.Column="5" Margin="0" Style="{StaticResource ActionButton}" Command="{Binding DeleteCheckpointCommand}" Content="🗑 Delete" />
@@ -575,7 +557,7 @@
                                             <ColumnDefinition Width="12" />
                                             <ColumnDefinition Width="180" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0" VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="Default VM" />
+                                        <TextBlock Grid.Column="0" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" Text="Default VM" />
                                         <ComboBox Grid.Column="1" Style="{StaticResource ReadableComboBoxStyle}" DisplayMemberPath="Label" ItemsSource="{Binding AvailableVms}" SelectedItem="{Binding SelectedDefaultVmForConfig}" />
                                         <Button Grid.Column="3" Margin="0" Style="{StaticResource ActionButton}" Command="{Binding SetDefaultVmCommand}" Content="⭐ Setze Default" />
                                     </Grid>
@@ -600,41 +582,41 @@
                                                             <ColumnDefinition Width="120" />
                                                             <ColumnDefinition Width="*" />
                                                         </Grid.ColumnDefinitions>
-                                                        <TextBlock Foreground="{StaticResource TextPrimary}" Text="{Binding Name}" />
-                                                        <TextBlock Grid.Column="1" Foreground="{StaticResource TextMuted}" Text="{Binding RuntimeState}" />
-                                                        <TextBlock Grid.Column="2" Foreground="{StaticResource TextMuted}" Text="{Binding RuntimeSwitchName}" />
+                                                        <TextBlock Foreground="{DynamicResource TextPrimary}" Text="{Binding Name}" />
+                                                        <TextBlock Grid.Column="1" Foreground="{DynamicResource TextMuted}" Text="{Binding RuntimeState}" />
+                                                        <TextBlock Grid.Column="2" Foreground="{DynamicResource TextMuted}" Text="{Binding RuntimeSwitchName}" />
                                                     </Grid>
                                                 </DataTemplate>
                                             </ListBox.ItemTemplate>
                                         </ListBox>
 
                                         <StackPanel Grid.Column="2">
-                                            <Border Style="{StaticResource CardBorder}" Padding="10" Background="{StaticResource OverlayBackground}">
-                                                <TextBlock Foreground="{StaticResource TextMuted}"
+                                            <Border Style="{StaticResource CardBorder}" Padding="10" Background="{DynamicResource OverlayBackground}">
+                                                <TextBlock Foreground="{DynamicResource TextMuted}"
                                                            TextWrapping="Wrap"
                                                            Text="VMs werden automatisch direkt aus Hyper-V geladen. In der Config werden keine VMs mehr fest hinterlegt." />
                                             </Border>
 
-                                            <GroupBox Margin="0,14,0,0" Header="HNS" Foreground="{StaticResource TextPrimary}" BorderBrush="{StaticResource InputBorder}">
+                                            <GroupBox Margin="0,14,0,0" Header="HNS" Foreground="{DynamicResource TextPrimary}" BorderBrush="{DynamicResource InputBorder}">
                                                 <StackPanel Margin="8">
-                                                    <CheckBox Margin="0,0,0,6" Foreground="{StaticResource TextPrimary}" IsChecked="{Binding HnsEnabled}" Content="HNS-Flow aktivieren" />
-                                                    <CheckBox Margin="0,0,0,6" Foreground="{StaticResource TextPrimary}" IsChecked="{Binding HnsAutoRestartAfterDefaultSwitch}" Content="Auto-Restart nach Default-Switch Connect" />
-                                                    <CheckBox Margin="0,0,0,10" Foreground="{StaticResource TextPrimary}" IsChecked="{Binding HnsAutoRestartAfterAnyConnect}" Content="Auto-Restart nach jedem Connect" />
+                                                    <CheckBox Margin="0,0,0,6" Foreground="{DynamicResource TextPrimary}" IsChecked="{Binding HnsEnabled}" Content="HNS-Flow aktivieren" />
+                                                    <CheckBox Margin="0,0,0,6" Foreground="{DynamicResource TextPrimary}" IsChecked="{Binding HnsAutoRestartAfterDefaultSwitch}" Content="Auto-Restart nach Default-Switch Connect" />
+                                                    <CheckBox Margin="0,0,0,10" Foreground="{DynamicResource TextPrimary}" IsChecked="{Binding HnsAutoRestartAfterAnyConnect}" Content="Auto-Restart nach jedem Connect" />
                                                     <Button Margin="0" Style="{StaticResource ActionButton}" Command="{Binding RestartHnsCommand}" Content="⚙ HNS neu starten" />
                                                 </StackPanel>
                                             </GroupBox>
 
-                                            <GroupBox Margin="0,14,0,0" Header="System" Foreground="{StaticResource TextPrimary}" BorderBrush="{StaticResource InputBorder}">
+                                            <GroupBox Margin="0,14,0,0" Header="System" Foreground="{DynamicResource TextPrimary}" BorderBrush="{DynamicResource InputBorder}">
                                                 <StackPanel Margin="8">
-                                                    <CheckBox Margin="0,0,0,8" Foreground="{StaticResource TextPrimary}" IsChecked="{Binding UiEnableTrayIcon}" Content="Tasktray-Icon aktiv" />
-                                                    <CheckBox Margin="0,0,0,8" Foreground="{StaticResource TextPrimary}" IsChecked="{Binding UiStartMinimized}" Content="Beim Start minimiert (nur Tray)" />
-                                                    <CheckBox Margin="0,0,0,8" Foreground="{StaticResource TextPrimary}" IsChecked="{Binding UiStartWithWindows}" Content="Mit Windows starten" />
+                                                    <CheckBox Margin="0,0,0,8" Foreground="{DynamicResource TextPrimary}" IsChecked="{Binding UiEnableTrayIcon}" Content="Tasktray-Icon aktiv" />
+                                                    <CheckBox Margin="0,0,0,8" Foreground="{DynamicResource TextPrimary}" IsChecked="{Binding UiStartMinimized}" Content="Beim Start minimiert (nur Tray)" />
+                                                    <CheckBox Margin="0,0,0,8" Foreground="{DynamicResource TextPrimary}" IsChecked="{Binding UiStartWithWindows}" Content="Mit Windows starten" />
                                                     <Grid Margin="0,0,0,8">
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="120" />
                                                             <ColumnDefinition Width="*" />
                                                         </Grid.ColumnDefinitions>
-                                                        <TextBlock VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}" Text="Theme" />
+                                                        <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource TextPrimary}" Text="Theme" />
                                                         <ComboBox Grid.Column="1"
                                                                   Style="{StaticResource ReadableComboBoxStyle}"
                                                                   ItemsSource="{Binding AvailableUiThemes}"
@@ -645,7 +627,7 @@
                                                             <ColumnDefinition Width="120" />
                                                             <ColumnDefinition Width="*" />
                                                         </Grid.ColumnDefinitions>
-                                                        <TextBlock VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}" Text="VMConnect Host" />
+                                                        <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource TextPrimary}" Text="VMConnect Host" />
                                                         <TextBox Grid.Column="1"
                                                                  Style="{StaticResource ReadableTextBoxStyle}"
                                                                  Text="{Binding VmConnectComputerName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
@@ -653,15 +635,15 @@
                                                 </StackPanel>
                                             </GroupBox>
 
-                                            <GroupBox Margin="0,14,0,0" Header="Updates" Foreground="{StaticResource TextPrimary}" BorderBrush="{StaticResource InputBorder}">
+                                            <GroupBox Margin="0,14,0,0" Header="Updates" Foreground="{DynamicResource TextPrimary}" BorderBrush="{DynamicResource InputBorder}">
                                                 <StackPanel Margin="8">
-                                                    <CheckBox Margin="0,0,0,8" Foreground="{StaticResource TextPrimary}" IsChecked="{Binding UpdateCheckOnStartup}" Content="Beim Start auf Updates prüfen" />
+                                                    <CheckBox Margin="0,0,0,8" Foreground="{DynamicResource TextPrimary}" IsChecked="{Binding UpdateCheckOnStartup}" Content="Beim Start auf Updates prüfen" />
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="120" />
                                                             <ColumnDefinition Width="*" />
                                                         </Grid.ColumnDefinitions>
-                                                        <TextBlock VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}" Text="GitHub Owner" />
+                                                        <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource TextPrimary}" Text="GitHub Owner" />
                                                         <TextBox Grid.Column="1"
                                                                  Style="{StaticResource ReadableTextBoxStyle}"
                                                                  IsReadOnly="True"
@@ -673,7 +655,7 @@
                                                             <ColumnDefinition Width="120" />
                                                             <ColumnDefinition Width="*" />
                                                         </Grid.ColumnDefinitions>
-                                                        <TextBlock VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}" Text="GitHub Repo" />
+                                                        <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource TextPrimary}" Text="GitHub Repo" />
                                                         <TextBox Grid.Column="1"
                                                                  Style="{StaticResource ReadableTextBoxStyle}"
                                                                  IsReadOnly="True"
@@ -688,7 +670,7 @@
                                     <WrapPanel Grid.Row="4">
                                         <Button Style="{StaticResource ActionButton}" Command="{Binding SaveConfigCommand}" Content="💾 Speichern" />
                                         <Button Style="{StaticResource ActionButton}" Command="{Binding ReloadConfigCommand}" Content="⟳ Neu laden" />
-                                        <TextBlock VerticalAlignment="Center" Foreground="{StaticResource TextMuted}" Text="{Binding ConfigPath, StringFormat=Aktive Config: {0}}" />
+                                        <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource TextMuted}" Text="{Binding ConfigPath, StringFormat=Aktive Config: {0}}" />
                                     </WrapPanel>
                                 </Grid>
                             </ScrollViewer>
@@ -697,54 +679,54 @@
                         <TabItem Header="Info">
                             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                 <StackPanel Margin="4">
-                                    <TextBlock Foreground="{StaticResource TextPrimary}" FontSize="20" FontWeight="SemiBold" Text="Hilfe &amp; Info" />
-                                    <TextBlock Margin="0,6,0,0" Foreground="{StaticResource TextMuted}" Text="HyperTool ist ein kompakter Hyper-V Helfer für tägliche VM-Aufgaben." TextWrapping="Wrap" />
-                                    <TextBlock Margin="0,6,0,0" Foreground="{StaticResource TextMuted}" Text="{Binding AppVersion, StringFormat=Version: {0}}" />
-                                    <TextBlock Margin="0,2,0,12" Foreground="{StaticResource TextMuted}" Text="{Binding UpdateStatus, StringFormat=Update-Status: {0}}" TextWrapping="Wrap" />
+                                    <TextBlock Foreground="{DynamicResource TextPrimary}" FontSize="20" FontWeight="SemiBold" Text="Hilfe &amp; Info" />
+                                    <TextBlock Margin="0,6,0,0" Foreground="{DynamicResource TextMuted}" Text="HyperTool ist ein kompakter Hyper-V Helfer für tägliche VM-Aufgaben." TextWrapping="Wrap" />
+                                    <TextBlock Margin="0,6,0,0" Foreground="{DynamicResource TextMuted}" Text="{Binding AppVersion, StringFormat=Version: {0}}" />
+                                    <TextBlock Margin="0,2,0,12" Foreground="{DynamicResource TextMuted}" Text="{Binding UpdateStatus, StringFormat=Update-Status: {0}}" TextWrapping="Wrap" />
 
-                                    <Border Style="{StaticResource CardBorder}" Padding="10" Background="{StaticResource OverlayBackground}">
+                                    <Border Style="{StaticResource CardBorder}" Padding="10" Background="{DynamicResource OverlayBackground}">
                                         <StackPanel>
-                                            <TextBlock Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="Wofür ist das Tool?" />
-                                            <TextBlock Margin="0,8,0,0" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Text="HyperTool vereinfacht Start, Stop, Netzwerkwechsel und Snapshot-Verwaltung für Hyper-V VMs in einer Oberfläche. VMs werden automatisch aus Hyper-V ausgelesen." />
+                                            <TextBlock Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" Text="Wofür ist das Tool?" />
+                                            <TextBlock Margin="0,8,0,0" Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Text="HyperTool vereinfacht Start, Stop, Netzwerkwechsel und Snapshot-Verwaltung für Hyper-V VMs in einer Oberfläche. VMs werden automatisch aus Hyper-V ausgelesen." />
                                         </StackPanel>
                                     </Border>
 
-                                    <Border Margin="0,10,0,0" Style="{StaticResource CardBorder}" Padding="10" Background="{StaticResource OverlayBackground}">
+                                    <Border Margin="0,10,0,0" Style="{StaticResource CardBorder}" Padding="10" Background="{DynamicResource OverlayBackground}">
                                         <StackPanel>
-                                            <TextBlock Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="Bereiche im Überblick" />
-                                            <TextBlock Margin="0,8,0,0" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Text="• Start: VM starten, stoppen, hart ausschalten, neu starten, Konsole öffnen, Status aktualisieren." />
-                                            <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Text="• Network: Switches laden, VM verbinden/trennen, Default-Connect auslösen." />
-                                            <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Text="• Snapshots: Checkpoints anzeigen, erstellen, anwenden, löschen." />
-                                            <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Text="• Config: System- und Update-Einstellungen lesen/anpassen und speichern." />
-                                            <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Text="• Info: Hilfe, Version, Update-Status und Release-Aktionen." />
+                                            <TextBlock Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" Text="Bereiche im Überblick" />
+                                            <TextBlock Margin="0,8,0,0" Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Text="• Start: VM starten, stoppen, hart ausschalten, neu starten, Konsole öffnen, Status aktualisieren." />
+                                            <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Text="• Network: Switches laden, VM verbinden/trennen, Default-Connect auslösen." />
+                                            <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Text="• Snapshots: Checkpoints anzeigen, erstellen, anwenden, löschen." />
+                                            <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Text="• Config: System- und Update-Einstellungen lesen/anpassen und speichern." />
+                                            <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Text="• Info: Hilfe, Version, Update-Status und Release-Aktionen." />
                                         </StackPanel>
                                     </Border>
 
-                                    <Border Margin="0,10,0,0" Style="{StaticResource CardBorder}" Padding="10" Background="{StaticResource OverlayBackground}">
+                                    <Border Margin="0,10,0,0" Style="{StaticResource CardBorder}" Padding="10" Background="{DynamicResource OverlayBackground}">
                                         <StackPanel>
-                                            <TextBlock Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="Einstellungen (Config-Tab)" />
-                                            <TextBlock Margin="0,8,0,0" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Text="• HNS: HNS-Flow aktivieren und Auto-Restart-Verhalten nach Verbindungen steuern." />
-                                            <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Text="• System: Tray-Icon, minimierter Start, Autostart, Theme (Dark/Bright), VMConnect Host." />
-                                            <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Text="• Updates: Update-Prüfung beim Start; Owner/Repo sind bewusst fest vorgegeben und nur lesbar." />
-                                            <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Text="• Unten im Config-Tab: Speichern/Neu laden sowie Anzeige der aktiven Konfigurationsdatei." />
+                                            <TextBlock Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" Text="Einstellungen (Config-Tab)" />
+                                            <TextBlock Margin="0,8,0,0" Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Text="• HNS: HNS-Flow aktivieren und Auto-Restart-Verhalten nach Verbindungen steuern." />
+                                            <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Text="• System: Tray-Icon, minimierter Start, Autostart, Theme (Dark/Bright), VMConnect Host." />
+                                            <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Text="• Updates: Update-Prüfung beim Start; Owner/Repo sind bewusst fest vorgegeben und nur lesbar." />
+                                            <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Text="• Unten im Config-Tab: Speichern/Neu laden sowie Anzeige der aktiven Konfigurationsdatei." />
                                         </StackPanel>
                                     </Border>
 
-                                    <Border Margin="0,10,0,0" Style="{StaticResource CardBorder}" Padding="10" Background="{StaticResource OverlayBackground}">
+                                    <Border Margin="0,10,0,0" Style="{StaticResource CardBorder}" Padding="10" Background="{DynamicResource OverlayBackground}">
                                         <StackPanel>
-                                            <TextBlock Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="Bedienung Schritt für Schritt" />
-                                            <TextBlock Margin="0,8,0,0" Foreground="{StaticResource TextMuted}" Text="1) VM oben über die Chips auswählen." />
-                                            <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="2) Gewünschten Bereich links wählen (Start/Network/Snaps/Config/Info)." />
-                                            <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="3) Aktionen ausführen und unten im Notifications-Bereich den Verlauf prüfen." />
-                                            <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" Text="4) Bei Änderungen im Config-Tab auf 'Speichern' klicken." />
+                                            <TextBlock Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" Text="Bedienung Schritt für Schritt" />
+                                            <TextBlock Margin="0,8,0,0" Foreground="{DynamicResource TextMuted}" Text="1) VM oben über die Chips auswählen." />
+                                            <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource TextMuted}" Text="2) Gewünschten Bereich links wählen (Start/Network/Snaps/Config/Info)." />
+                                            <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource TextMuted}" Text="3) Aktionen ausführen und unten im Notifications-Bereich den Verlauf prüfen." />
+                                            <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource TextMuted}" Text="4) Bei Änderungen im Config-Tab auf 'Speichern' klicken." />
                                         </StackPanel>
                                     </Border>
 
-                                    <Border Margin="0,10,0,0" Style="{StaticResource CardBorder}" Padding="10" Background="{StaticResource OverlayBackground}">
+                                    <Border Margin="0,10,0,0" Style="{StaticResource CardBorder}" Padding="10" Background="{DynamicResource OverlayBackground}">
                                         <StackPanel>
-                                            <TextBlock Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="Wo finde ich Logs?" />
-                                            <TextBlock Margin="0,8,0,0" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Standardpfad: %LOCALAPPDATA%\HyperTool\logs\hypertool-YYYYMMDD.log" />
-                                            <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" Text="Wenn dort nicht geschrieben werden kann, nutzt HyperTool automatisch Fallbacks (Installationsordner oder %TEMP%)." />
+                                            <TextBlock Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" Text="Wo finde ich Logs?" />
+                                            <TextBlock Margin="0,8,0,0" Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Text="Standardpfad: %LOCALAPPDATA%\HyperTool\logs\hypertool-YYYYMMDD.log" />
+                                            <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Text="Wenn dort nicht geschrieben werden kann, nutzt HyperTool automatisch Fallbacks (Installationsordner oder %TEMP%)." />
                                         </StackPanel>
                                     </Border>
 
@@ -778,14 +760,14 @@
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" Text="Notifications" />
+                        <TextBlock Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" Text="Notifications" />
                         <mah:ProgressRing Margin="12,0,0,0"
                                           Width="16"
                                           Height="16"
                                           IsActive="{Binding IsBusy}"
                                           Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
                         <TextBlock Margin="8,0,0,0"
-                                   Foreground="{StaticResource TextMuted}"
+                                   Foreground="{DynamicResource TextMuted}"
                                    Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"
                                    Text="{Binding BusyText}" />
                     </StackPanel>
@@ -800,8 +782,8 @@
 
                 <Border Grid.Row="2"
                         CornerRadius="8"
-                        Background="{StaticResource InputBackground}"
-                        BorderBrush="{StaticResource InputBorder}"
+                        Background="{DynamicResource InputBackground}"
+                        BorderBrush="{DynamicResource InputBorder}"
                         BorderThickness="1"
                         Padding="10">
                     <Border.Style>
@@ -814,7 +796,7 @@
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
-                    <TextBlock Foreground="{StaticResource TextPrimary}"
+                    <TextBlock Foreground="{DynamicResource TextPrimary}"
                                Text="{Binding LastNotificationText}"
                                TextTrimming="CharacterEllipsis"
                                TextWrapping="NoWrap" />
@@ -851,8 +833,8 @@
 
                     <Border Grid.Row="2"
                             CornerRadius="8"
-                            Background="{StaticResource InputBackground}"
-                            BorderBrush="{StaticResource InputBorder}"
+                            Background="{DynamicResource InputBackground}"
+                            BorderBrush="{DynamicResource InputBorder}"
                             BorderThickness="1"
                             Padding="8"
                             MaxHeight="240">
@@ -874,9 +856,9 @@
                                             <ColumnDefinition Width="70" />
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Foreground="{StaticResource TextMuted}" Text="{Binding Timestamp, StringFormat={}{0:HH:mm:ss}}" />
-                                        <TextBlock Grid.Column="1" Foreground="{StaticResource TextMuted}" Text="{Binding Level}" />
-                                        <TextBlock Grid.Column="2" Foreground="{StaticResource TextPrimary}" TextWrapping="Wrap" Text="{Binding Message}" />
+                                        <TextBlock Foreground="{DynamicResource TextMuted}" Text="{Binding Timestamp, StringFormat={}{0:HH:mm:ss}}" />
+                                        <TextBlock Grid.Column="1" Foreground="{DynamicResource TextMuted}" Text="{Binding Level}" />
+                                        <TextBlock Grid.Column="2" Foreground="{DynamicResource TextPrimary}" TextWrapping="Wrap" Text="{Binding Message}" />
                                     </Grid>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>

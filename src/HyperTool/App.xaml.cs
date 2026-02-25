@@ -42,10 +42,12 @@ public partial class App : System.Windows.Application
 			IHnsService hnsService = new HnsService();
 			IStartupService startupService = new StartupService();
 			IUpdateService updateService = new GitHubUpdateService();
+			IThemeService themeService = new ThemeService();
 			var configPath = ResolveConfigPath();
 			TryMigrateLegacyConfig(configPath);
 			var configResult = configService.LoadOrCreate(configPath);
 			var uiConfig = configResult.Config.Ui;
+			themeService.ApplyTheme(uiConfig.Theme);
 
 			if (!startupService.SetStartWithWindows(uiConfig.StartWithWindows, "HyperTool", Environment.ProcessPath ?? string.Empty, out var startupError)
 				&& !string.IsNullOrWhiteSpace(startupError))
@@ -54,7 +56,7 @@ public partial class App : System.Windows.Application
 			}
 
 			var mainViewModel = new MainViewModel(configResult, hyperVService, hnsService, configService, startupService, updateService);
-			var mainWindow = new MainWindow
+			var mainWindow = new MainWindow(themeService)
 			{
 				DataContext = mainViewModel
 			};

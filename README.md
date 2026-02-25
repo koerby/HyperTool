@@ -81,12 +81,25 @@ Wichtige Felder:
 - vmConnectComputerName: vmconnect Host (z. B. `localhost` oder ein Zertifikats-Hostname)
 - hns: HNS-Verhalten
 - ui: Tray/Autostart Optionen
-- ui.theme: `Dark` oder `Bright`
+- ui.theme: `Dark` oder `Light`
 - update: GitHub Updateprüfung
 - ui.trayVmNames: optionale Liste der VM-Namen, die im Tray-Menü erscheinen sollen (leer = alle)
 - ui.startMinimized: App startet minimiert (in Verbindung mit Tray ideal für Hintergrundbetrieb)
 
 VMs werden zur Laufzeit automatisch aus Hyper-V geladen (Auto-Discovery).
+
+## Theme (Dark/Light)
+
+- Umschaltung im Config-Tab über `Theme` (`Dark` / `Light`)
+- Wechsel wird live auf die komplette UI angewendet
+- Speicherung in `%LOCALAPPDATA%/HyperTool/HyperTool.config.json` unter `ui.theme`
+- `Bright` wird aus älteren Configs weiterhin akzeptiert und automatisch zu `Light` normalisiert
+
+## Hilfe-Popup
+
+- Der `❔ Hilfe`-Button oben rechts öffnet ein eigenes Hilfe-Fenster (nicht mehr Info-Tab-Navigation)
+- Enthält Kurz-Erklärungen zu Start/Stop, Network, Snapshots, HNS, Tray
+- Schnellaktionen im Popup: `Logs öffnen`, `Config öffnen`, `GitHub Repo`
 
 ## UI-Verhalten (wichtig)
 
