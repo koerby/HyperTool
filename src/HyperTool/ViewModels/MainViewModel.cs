@@ -238,8 +238,6 @@ public partial class MainViewModel : ViewModelBase
 
     public IAsyncRelayCommand StopDefaultVmCommand { get; }
 
-    public IAsyncRelayCommand ConnectDefaultVmCommand { get; }
-
     public IAsyncRelayCommand CreateCheckpointCommand { get; }
 
     public IAsyncRelayCommand StartSelectedVmCommand { get; }
@@ -438,7 +436,6 @@ public partial class MainViewModel : ViewModelBase
 
         StartDefaultVmCommand = new AsyncRelayCommand(StartDefaultVmAsync, () => !IsBusy);
         StopDefaultVmCommand = new AsyncRelayCommand(StopDefaultVmAsync, () => !IsBusy);
-        ConnectDefaultVmCommand = new AsyncRelayCommand(ConnectDefaultVmAsync, () => !IsBusy);
         CreateCheckpointCommand = new AsyncRelayCommand(CreateCheckpointAsync, CanExecuteVmAction);
 
         SelectedVmForConfig = SelectedVm;
@@ -492,7 +489,6 @@ public partial class MainViewModel : ViewModelBase
         LoadCheckpointsCommand.NotifyCanExecuteChanged();
         StartDefaultVmCommand.NotifyCanExecuteChanged();
         StopDefaultVmCommand.NotifyCanExecuteChanged();
-        ConnectDefaultVmCommand.NotifyCanExecuteChanged();
         SaveConfigCommand.NotifyCanExecuteChanged();
         ReloadConfigCommand.NotifyCanExecuteChanged();
         RestartHnsCommand.NotifyCanExecuteChanged();
@@ -1303,33 +1299,6 @@ public partial class MainViewModel : ViewModelBase
 
         SelectedVmNetworkAdapter = targetAdapter;
         await DisconnectSwitchAsync();
-    }
-
-    private async Task ConnectDefaultVmAsync()
-    {
-        var targetVm = AvailableVms.FirstOrDefault(vm => string.Equals(vm.Name, DefaultVmName, StringComparison.OrdinalIgnoreCase))?.Name
-                       ?? SelectedVm?.Name
-                       ?? AvailableVms.FirstOrDefault()?.Name;
-        if (string.IsNullOrWhiteSpace(targetVm))
-        {
-            AddNotification("Keine VM für Default-Switch-Verbindung verfügbar.", "Error");
-            return;
-        }
-
-        await ExecuteBusyActionAsync("Default VM wird mit Default Switch verbunden...", async token =>
-        {
-            await _hyperVService.ConnectVmNetworkAdapterAsync(targetVm, DefaultSwitchName, null, token);
-            AddNotification($"'{targetVm}' mit '{DefaultSwitchName}' verbunden.", "Success");
-
-            if (ShouldAutoRestartHnsAfterConnect(DefaultSwitchName))
-            {
-                var hnsResult = await _hnsService.RestartHnsElevatedAsync(token);
-                AddNotification(
-                    hnsResult.Success ? hnsResult.Message : $"HNS Neustart fehlgeschlagen: {hnsResult.Message}",
-                    hnsResult.Success ? "Success" : "Error");
-            }
-        });
-        await RefreshVmStatusAsync();
     }
 
     private bool ShouldAutoRestartHnsAfterConnect(string connectedSwitch)
