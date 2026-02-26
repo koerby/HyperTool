@@ -1741,7 +1741,8 @@ public partial class MainViewModel : ViewModelBase
         {
             var result = await _hyperVService.GetHostNetworkAdaptersWithUplinkAsync(token);
             adapters = result
-                .OrderBy(item => item.AdapterName, StringComparer.OrdinalIgnoreCase)
+                .OrderByDescending(item => !string.IsNullOrWhiteSpace(item.Gateway))
+                .ThenBy(item => item.AdapterName, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
         }, showNotificationOnErrorOnly: true);
 

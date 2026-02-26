@@ -10,6 +10,10 @@
                  WindowStartupLocation="CenterOwner"
                  ResizeMode="CanResize"
                  Background="{DynamicResource PageBackground}">
+    <mah:MetroWindow.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+    </mah:MetroWindow.Resources>
+
     <Grid Margin="14" Background="{DynamicResource PageBackground}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -24,6 +28,9 @@
             <TextBlock Margin="0,4,0,0"
                        Foreground="{DynamicResource TextMuted}"
                        Text="Es werden nur Adapter mit aktivem Uplink angezeigt." />
+            <TextBlock Margin="0,2,0,0"
+                       Foreground="{DynamicResource TextMuted}"
+                       Text="{Binding AdapterCountText}" />
         </StackPanel>
 
         <Border Grid.Row="2"
@@ -32,14 +39,32 @@
                 BorderBrush="{DynamicResource PanelBorder}"
                 BorderThickness="1"
                 Padding="8">
-            <ListView ItemsSource="{Binding}"
+            <ListView ItemsSource="{Binding Adapters}"
                       Foreground="{DynamicResource TextPrimary}"
                       Background="{DynamicResource InputBackground}"
                       BorderBrush="{DynamicResource InputBorder}"
                       BorderThickness="1">
                 <ListView.View>
                     <GridView>
-                        <GridViewColumn Header="Adapter" Width="150" DisplayMemberBinding="{Binding AdapterName}" />
+                        <GridViewColumn Header="Adapter" Width="210">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock VerticalAlignment="Center" Text="{Binding AdapterName}" />
+                                        <Border Margin="8,0,0,0"
+                                                VerticalAlignment="Center"
+                                                Padding="6,1"
+                                                CornerRadius="8"
+                                                Background="{DynamicResource VmChipRunningBackground}"
+                                                BorderBrush="{DynamicResource VmChipRunningBorder}"
+                                                BorderThickness="1"
+                                                Visibility="{Binding HasGateway, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <TextBlock Foreground="{DynamicResource TextPrimary}" FontSize="10" FontWeight="SemiBold" Text="Gateway" />
+                                        </Border>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
                         <GridViewColumn Header="Beschreibung" Width="220" DisplayMemberBinding="{Binding InterfaceDescription}" />
                         <GridViewColumn Header="IP" Width="170" DisplayMemberBinding="{Binding IpAddresses}" />
                         <GridViewColumn Header="Subnetz" Width="90" DisplayMemberBinding="{Binding Subnets}" />

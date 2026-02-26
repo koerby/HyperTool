@@ -109,28 +109,47 @@ public sealed class HyperVPowerShellService : IHyperVService
     {
         const string script = """
             @(
-                Get-NetAdapter -ErrorAction SilentlyContinue |
+                Get-NetIPConfiguration -Detailed -ErrorAction SilentlyContinue |
                     Where-Object {
-                        $_.Status -eq 'Up' -and
-                        ($null -eq $_.MediaConnectionState -or $_.MediaConnectionState -eq 'Connected')
-                    } |
-                    ForEach-Object {
-                        $adapter = $_
-                        $ipConfig = Get-NetIPConfiguration -InterfaceIndex $adapter.ifIndex -ErrorAction SilentlyContinue
-                        $ipv4Addresses = @($ipConfig.IPv4Address | Where-Object { $null -ne $_ -and -not [string]::IsNullOrWhiteSpace($_.IPAddress) })
-                        $dnsServers = @($ipConfig.DnsServer.ServerAddresses | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-                        $gateway = if ($null -ne $ipConfig.IPv4DefaultGateway -and -not [string]::IsNullOrWhiteSpace($ipConfig.IPv4DefaultGateway.NextHop)) {
-                            $ipConfig.IPv4DefaultGateway.NextHop
-                        } else {
-                            ''
+                        $adapter = $_.NetAdapter
+                        if ($null -eq $adapter) { return $false }
+
+                        $statusText = if ($null -ne $adapter.Status) { $adapter.Status.ToString() } else { '' }
+                        if ([string]::IsNullOrWhiteSpace($statusText)) { $statusText = if ($null -ne $adapter.AdminStatus) { $adapter.AdminStatus.ToString() } else { '' } }
+                        if ($statusText -match 'Disabled|Not Present') { return $false }
+
+                        $ipv4 = @($_.IPv4Address | Where-Object { $null -ne $_ -and -not [string]::IsNullOrWhiteSpace($_.IPAddress) })
+                        $ipv6 = @($_.IPv6Address | Where-Object { $null -ne $_ -and -not [string]::IsNullOrWhiteSpace($_.IPAddress) -and $_.IPAddress -notlike 'fe80:*' })
+                        $hasGateway = $null -ne $_.IPv4DefaultGateway -or $null -ne $_.IPv6DefaultGateway
+
+                        $mediaConnected = $false
+                        if ($null -ne $adapter.MediaConnectionState)
+                        {
+                            $mediaText = $adapter.MediaConnectionState.ToString()
+                            $mediaConnected = $mediaText -match 'Connected|Unknown'
                         }
 
+                        return $hasGateway -or $mediaConnected -or $ipv4.Count -gt 0 -or $ipv6.Count -gt 0
+                    } |
+                    ForEach-Object {
+                        $adapter = $_.NetAdapter
+                        $ipv4Addresses = @($_.IPv4Address | Where-Object { $null -ne $_ -and -not [string]::IsNullOrWhiteSpace($_.IPAddress) })
+                        $ipv6Addresses = @($_.IPv6Address | Where-Object { $null -ne $_ -and -not [string]::IsNullOrWhiteSpace($_.IPAddress) -and $_.IPAddress -notlike 'fe80:*' })
+                        $ipAddresses = @($ipv4Addresses | ForEach-Object { $_.IPAddress }) + @($ipv6Addresses | ForEach-Object { $_.IPAddress })
+                        $prefixes = @($ipv4Addresses | ForEach-Object { '/' + $_.PrefixLength }) + @($ipv6Addresses | ForEach-Object { '/' + $_.PrefixLength })
+                        $dnsServers = @($_.DnsServer.ServerAddresses | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+
+                        $gatewayCandidates = @()
+                        if ($null -ne $_.IPv4DefaultGateway -and -not [string]::IsNullOrWhiteSpace($_.IPv4DefaultGateway.NextHop)) { $gatewayCandidates += $_.IPv4DefaultGateway.NextHop }
+                        if ($null -ne $_.IPv6DefaultGateway -and -not [string]::IsNullOrWhiteSpace($_.IPv6DefaultGateway.NextHop)) { $gatewayCandidates += $_.IPv6DefaultGateway.NextHop }
+                        $gatewayCandidates = @($gatewayCandidates | Select-Object -Unique)
+
                         [pscustomobject]@{
-                            AdapterName = if ($null -ne $adapter.Name) { $adapter.Name } else { '' }
-                            InterfaceDescription = if ($null -ne $adapter.InterfaceDescription) { $adapter.InterfaceDescription } else { '' }
-                            IpAddresses = if ($ipv4Addresses.Count -gt 0) { ($ipv4Addresses | ForEach-Object { $_.IPAddress }) -join ', ' } else { '' }
-                            Subnets = if ($ipv4Addresses.Count -gt 0) { ($ipv4Addresses | ForEach-Object { '/' + $_.PrefixLength }) -join ', ' } else { '' }
-                            Gateway = $gateway
+                            AdapterName = if ($null -ne $adapter -and $null -ne $adapter.Name) { $adapter.Name } else { '' }
+                            InterfaceDescription = if ($null -ne $adapter -and $null -ne $adapter.InterfaceDescription) { $adapter.InterfaceDescription } else { '' }
+                            IpAddresses = if ($ipAddresses.Count -gt 0) { $ipAddresses -join ', ' } else { '' }
+                            Subnets = if ($prefixes.Count -gt 0) { $prefixes -join ', ' } else { '' }
+                            Gateway = if ($gatewayCandidates.Count -gt 0) { $gatewayCandidates -join ', ' } else { '' }
                             DnsServers = if ($dnsServers.Count -gt 0) { $dnsServers -join ', ' } else { '' }
                         }
                     }

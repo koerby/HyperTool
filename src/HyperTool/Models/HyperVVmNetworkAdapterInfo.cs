@@ -9,4 +9,6 @@ public sealed class HyperVVmNetworkAdapterInfo
     public string MacAddress { get; set; } = string.Empty;
 
     public string DisplayName => string.IsNullOrWhiteSpace(Name) ? "Network Adapter" : Name;
+
+    public override string ToString() => DisplayName;
 }

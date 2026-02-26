@@ -41,19 +41,71 @@
             <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
             <Setter Property="BorderBrush" Value="{DynamicResource PanelBorder}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Padding" Value="4" />
+            <Setter Property="Padding" Value="6" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContextMenu">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <StackPanel IsItemsHost="True"
+                                        KeyboardNavigation.DirectionalNavigation="Cycle" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style x:Key="VmChipContextMenuItemStyle" TargetType="MenuItem">
             <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="Padding" Value="12,7" />
+            <Setter Property="Margin" Value="2,1" />
             <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Border x:Name="ItemBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="Transparent"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter ContentSource="Header"
+                                              RecognizesAccessKey="True"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="{DynamicResource NavHoverBackground}" />
+                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="{DynamicResource PanelBorder}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.55" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
             <Style.Triggers>
                 <Trigger Property="IsHighlighted" Value="True">
                     <Setter Property="Background" Value="{DynamicResource NavHoverBackground}" />
                 </Trigger>
             </Style.Triggers>
+        </Style>
+
+        <Style x:Key="VmChipContextMenuSeparatorStyle" TargetType="Separator">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Separator">
+                        <Border Height="1"
+                                Margin="10,6"
+                                Background="{DynamicResource PanelBorder}" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style x:Key="ReadableComboBoxItemStyle" TargetType="ComboBoxItem">
@@ -286,7 +338,7 @@
                                                       Style="{StaticResource VmChipContextMenuItemStyle}"
                                                       Command="{Binding DataContext.RestartVmByNameCommand, Source={x:Reference RootWindow}}"
                                                       CommandParameter="{Binding PlacementTarget.DataContext.Name, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-                                            <Separator />
+                                            <Separator Style="{StaticResource VmChipContextMenuSeparatorStyle}" />
                                             <MenuItem Header="Open Console"
                                                       Style="{StaticResource VmChipContextMenuItemStyle}"
                                                       Command="{Binding DataContext.OpenConsoleByNameCommand, Source={x:Reference RootWindow}}"
@@ -491,7 +543,6 @@
                                               DisplayMemberPath="DisplayName"
                                               SelectedItem="{Binding SelectedVmNetworkAdapter}"
                                               ItemsSource="{Binding AvailableVmNetworkAdapters}" />
-                                    <Button Grid.Column="2" Margin="0" Style="{StaticResource ActionButton}" Click="HostNetworkButton_Click" Content="🌐 Host Network" />
                                 </Grid>
 
                                 <Grid Margin="0,8,0,0">
@@ -523,7 +574,22 @@
                                     <Button Style="{StaticResource ActionButton}" Margin="0,0,0,10" Command="{Binding ConnectDefaultVmCommand}" Content="⚡ Default Connect" />
                                 </WrapPanel>
 
-                                <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource TextMuted}" Text="{Binding VmConnectComputerName, StringFormat=vmconnect host: {0}}" />
+                                <Grid Margin="0,4,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextMuted}"
+                                               Text="{Binding VmConnectComputerName, StringFormat=vmconnect host: {0}}" />
+
+                                    <Button Grid.Column="1"
+                                            Margin="0"
+                                            Style="{StaticResource ActionButton}"
+                                            Click="HostNetworkButton_Click"
+                                            Content="🌐 Host Network" />
+                                </Grid>
                             </StackPanel>
                         </TabItem>
 
