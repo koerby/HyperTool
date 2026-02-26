@@ -550,37 +550,96 @@
                             <StackPanel Margin="4">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="100" />
                                         <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="170" />
+                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
 
-                                    <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" Text="Adapter" />
-                                    <ComboBox Grid.Column="1"
-                                              Style="{StaticResource ReadableComboBoxStyle}"
-                                              Margin="8,8,8,0"
-                                              DisplayMemberPath="DisplayName"
-                                              SelectedItem="{Binding SelectedVmNetworkAdapter}"
-                                              ItemsSource="{Binding AvailableVmNetworkAdapters}" />
+                                    <TextBlock VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextMuted}"
+                                               Text="Switch direkt pro Adapter wählen (aktiver Switch ist hervorgehoben)" />
+
+                                    <Button Grid.Column="1" Margin="0" Style="{StaticResource ActionButton}" Command="{Binding RefreshSwitchesCommand}" Content="⟳ Refresh Switches" />
                                 </Grid>
 
-                                <Grid Margin="0,8,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="100" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="170" />
-                                    </Grid.ColumnDefinitions>
+                                <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding AvailableVmNetworkAdapters}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Margin="0,0,0,10"
+                                                    Padding="10"
+                                                    CornerRadius="8"
+                                                    Background="{DynamicResource OverlayBackground}"
+                                                    BorderBrush="{DynamicResource PanelBorder}"
+                                                    BorderThickness="1">
+                                                <StackPanel>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
 
-                                    <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" Text="Switch" />
-                                    <ComboBox Grid.Column="1"
-                                              Style="{StaticResource ReadableComboBoxStyle}"
-                                              Margin="8,8,8,0"
-                                              IsEnabled="{Binding AreSwitchesLoaded}"
-                                              DisplayMemberPath="Name"
-                                              SelectedItem="{Binding SelectedSwitch}"
-                                              ItemsSource="{Binding AvailableSwitches}" />
-                                    <Button Grid.Column="2" Margin="0" Style="{StaticResource ActionButton}" Command="{Binding RefreshSwitchesCommand}" Content="⟳ Refresh Switches" />
-                                </Grid>
+                                                        <TextBlock Foreground="{DynamicResource TextPrimary}"
+                                                                   FontWeight="SemiBold"
+                                                                   Text="{Binding DisplayName}" />
+
+                                                        <Button Grid.Column="1"
+                                                                Margin="0"
+                                                                Style="{StaticResource ActionButton}"
+                                                                Command="{Binding DataContext.DisconnectAdapterByNameCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                CommandParameter="{Binding Name}"
+                                                                Content="⛔ Disconnect" />
+                                                    </Grid>
+
+                                                    <TextBlock Margin="0,4,0,0"
+                                                               Foreground="{DynamicResource TextMuted}"
+                                                               Text="{Binding SwitchName, StringFormat=Aktiv: {0}}" />
+
+                                                    <ItemsControl Margin="0,8,0,0"
+                                                                  ItemsSource="{Binding DataContext.AvailableSwitches, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                  Tag="{Binding Name}">
+                                                        <ItemsControl.ItemsPanel>
+                                                            <ItemsPanelTemplate>
+                                                                <WrapPanel />
+                                                            </ItemsPanelTemplate>
+                                                        </ItemsControl.ItemsPanel>
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <Button Margin="0,0,10,10"
+                                                                        Command="{Binding DataContext.ConnectAdapterToSwitchByKeyCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                    Content="{Binding Name}"
+                                                                        IsEnabled="{Binding DataContext.AreSwitchesLoaded, RelativeSource={RelativeSource AncestorType=Window}}">
+                                                                    <Button.CommandParameter>
+                                                                        <MultiBinding StringFormat="{}{0}|||{1}">
+                                                                            <Binding RelativeSource="{RelativeSource AncestorType=ItemsControl}" Path="Tag" />
+                                                                            <Binding Path="Name" />
+                                                                        </MultiBinding>
+                                                                    </Button.CommandParameter>
+                                                                    <Button.Style>
+                                                                        <Style TargetType="Button" BasedOn="{StaticResource ActionButton}">
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Value="True">
+                                                                                    <DataTrigger.Binding>
+                                                                                        <MultiBinding Converter="{StaticResource StringEqualsConverter}">
+                                                                                            <Binding RelativeSource="{RelativeSource AncestorType=ItemsControl}" Path="DataContext.SwitchName" />
+                                                                                            <Binding Path="Name" />
+                                                                                        </MultiBinding>
+                                                                                    </DataTrigger.Binding>
+                                                                                    <Setter Property="Background" Value="{DynamicResource Accent}" />
+                                                                                    <Setter Property="BorderBrush" Value="{DynamicResource Accent}" />
+                                                                                    <Setter Property="Foreground" Value="{DynamicResource AccentText}" />
+                                                                                    <Setter Property="ContentStringFormat" Value="{}{0} (Aktiv)" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Button.Style>
+                                                                </Button>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
 
                                 <TextBlock Margin="0,8,0,0"
                                            Foreground="{DynamicResource TextMuted}"
@@ -588,8 +647,6 @@
                                            Text="{Binding NetworkSwitchStatusHint}" />
 
                                 <WrapPanel Margin="0,12,0,0">
-                                    <Button Style="{StaticResource ActionButton}" Margin="0,0,10,10" Command="{Binding ConnectSelectedSwitchCommand}" Content="🔌 Connect" />
-                                    <Button Style="{StaticResource ActionButton}" Margin="0,0,10,10" Command="{Binding DisconnectSwitchCommand}" Content="⛔ Disconnect" />
                                     <Button Style="{StaticResource ActionButton}" Margin="0,0,0,10" Command="{Binding ConnectDefaultVmCommand}" Content="⚡ Default Connect" />
                                 </WrapPanel>
 

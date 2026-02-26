@@ -266,6 +266,10 @@ public partial class MainViewModel : ViewModelBase
 
     public IAsyncRelayCommand DisconnectSwitchCommand { get; }
 
+    public IAsyncRelayCommand<string> ConnectAdapterToSwitchByKeyCommand { get; }
+
+    public IAsyncRelayCommand<string> DisconnectAdapterByNameCommand { get; }
+
     public IAsyncRelayCommand RefreshVmStatusCommand { get; }
 
     public IAsyncRelayCommand LoadCheckpointsCommand { get; }
@@ -401,6 +405,8 @@ public partial class MainViewModel : ViewModelBase
         RefreshSwitchesCommand = new AsyncRelayCommand(RefreshSwitchesAsync, () => !IsBusy);
         ConnectSelectedSwitchCommand = new AsyncRelayCommand(ConnectSelectedSwitchAsync, () => !IsBusy && SelectedVm is not null && SelectedVmNetworkAdapter is not null && SelectedSwitch is not null && AreSwitchesLoaded);
         DisconnectSwitchCommand = new AsyncRelayCommand(DisconnectSwitchAsync, () => !IsBusy && SelectedVm is not null && SelectedVmNetworkAdapter is not null);
+        ConnectAdapterToSwitchByKeyCommand = new AsyncRelayCommand<string>(ConnectAdapterToSwitchByKeyAsync, _ => !IsBusy && SelectedVm is not null && AreSwitchesLoaded);
+        DisconnectAdapterByNameCommand = new AsyncRelayCommand<string>(DisconnectAdapterByNameAsync, _ => !IsBusy && SelectedVm is not null);
         RefreshVmStatusCommand = new AsyncRelayCommand(RefreshRuntimeDataAsync, () => !IsBusy);
 
         LoadCheckpointsCommand = new AsyncRelayCommand(LoadCheckpointsAsync, () => SelectedVm is not null);
@@ -476,6 +482,8 @@ public partial class MainViewModel : ViewModelBase
         RefreshSwitchesCommand.NotifyCanExecuteChanged();
         ConnectSelectedSwitchCommand.NotifyCanExecuteChanged();
         DisconnectSwitchCommand.NotifyCanExecuteChanged();
+        ConnectAdapterToSwitchByKeyCommand.NotifyCanExecuteChanged();
+        DisconnectAdapterByNameCommand.NotifyCanExecuteChanged();
         RefreshVmStatusCommand.NotifyCanExecuteChanged();
         CreateCheckpointCommand.NotifyCanExecuteChanged();
         LoadCheckpointsCommand.NotifyCanExecuteChanged();
@@ -1246,6 +1254,55 @@ public partial class MainViewModel : ViewModelBase
             AddNotification($"Netzwerkkarte '{GetAdapterDisplayName(SelectedVmNetworkAdapter)}' von '{SelectedVm.Name}' getrennt.", "Warning");
         });
         await RefreshVmStatusAsync();
+    }
+
+    private async Task ConnectAdapterToSwitchByKeyAsync(string? adapterSwitchKey)
+    {
+        if (SelectedVm is null || string.IsNullOrWhiteSpace(adapterSwitchKey))
+        {
+            return;
+        }
+
+        var separatorIndex = adapterSwitchKey.IndexOf("|||", StringComparison.Ordinal);
+        if (separatorIndex <= 0 || separatorIndex >= adapterSwitchKey.Length - 3)
+        {
+            return;
+        }
+
+        var adapterName = adapterSwitchKey[..separatorIndex].Trim();
+        var switchName = adapterSwitchKey[(separatorIndex + 3)..].Trim();
+        if (string.IsNullOrWhiteSpace(adapterName) || string.IsNullOrWhiteSpace(switchName))
+        {
+            return;
+        }
+
+        var targetAdapter = AvailableVmNetworkAdapters.FirstOrDefault(item => string.Equals(item.Name, adapterName, StringComparison.OrdinalIgnoreCase));
+        var targetSwitch = AvailableSwitches.FirstOrDefault(item => string.Equals(item.Name, switchName, StringComparison.OrdinalIgnoreCase));
+        if (targetAdapter is null || targetSwitch is null)
+        {
+            return;
+        }
+
+        SelectedVmNetworkAdapter = targetAdapter;
+        SelectedSwitch = targetSwitch;
+        await ConnectSelectedSwitchAsync();
+    }
+
+    private async Task DisconnectAdapterByNameAsync(string? adapterName)
+    {
+        if (SelectedVm is null || string.IsNullOrWhiteSpace(adapterName))
+        {
+            return;
+        }
+
+        var targetAdapter = AvailableVmNetworkAdapters.FirstOrDefault(item => string.Equals(item.Name, adapterName, StringComparison.OrdinalIgnoreCase));
+        if (targetAdapter is null)
+        {
+            return;
+        }
+
+        SelectedVmNetworkAdapter = targetAdapter;
+        await DisconnectSwitchAsync();
     }
 
     private async Task ConnectDefaultVmAsync()
