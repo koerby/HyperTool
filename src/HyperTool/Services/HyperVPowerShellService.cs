@@ -124,7 +124,7 @@ public sealed class HyperVPowerShellService : IHyperVService
     public async Task<IReadOnlyList<HostNetworkAdapterInfo>> GetHostNetworkAdaptersWithUplinkAsync(CancellationToken cancellationToken)
     {
         const string script = """
-            @(
+            $items = @(
                 Get-NetIPConfiguration -Detailed -ErrorAction SilentlyContinue |
                     Where-Object {
                         $adapter = $_.NetAdapter
@@ -167,9 +167,75 @@ public sealed class HyperVPowerShellService : IHyperVService
                             Subnets = if ($prefixes.Count -gt 0) { $prefixes -join ', ' } else { '' }
                             Gateway = if ($gatewayCandidates.Count -gt 0) { $gatewayCandidates -join ', ' } else { '' }
                             DnsServers = if ($dnsServers.Count -gt 0) { $dnsServers -join ', ' } else { '' }
+                            IsDefaultSwitch = ($adapter.Name -like 'vEthernet (*Default Switch*)')
                         }
                     }
-            ) | Sort-Object AdapterName | ConvertTo-Json -Depth 4 -Compress
+            )
+
+            $defaultSwitchAdded = $false
+            $defaultSwitchAdapters = @(Get-NetAdapter -Name 'vEthernet (Default Switch)' -ErrorAction SilentlyContinue)
+
+            if ($defaultSwitchAdapters.Count -eq 0)
+            {
+                $defaultSwitchAdapters = @(Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'vEthernet (*Default Switch*)' })
+            }
+
+            foreach ($adapter in $defaultSwitchAdapters)
+            {
+                if ($null -eq $adapter -or [string]::IsNullOrWhiteSpace($adapter.Name))
+                {
+                    continue
+                }
+
+                if ($items | Where-Object { $_.AdapterName -ceq $adapter.Name })
+                {
+                    $defaultSwitchAdded = $true
+                    continue
+                }
+
+                $ipConfig = Get-NetIPConfiguration -InterfaceIndex $adapter.ifIndex -Detailed -ErrorAction SilentlyContinue
+                $ipv4Addresses = @($ipConfig.IPv4Address | Where-Object { $null -ne $_ -and -not [string]::IsNullOrWhiteSpace($_.IPAddress) })
+                $ipv6Addresses = @($ipConfig.IPv6Address | Where-Object { $null -ne $_ -and -not [string]::IsNullOrWhiteSpace($_.IPAddress) -and $_.IPAddress -notlike 'fe80:*' })
+                $ipAddresses = @($ipv4Addresses | ForEach-Object { $_.IPAddress }) + @($ipv6Addresses | ForEach-Object { $_.IPAddress })
+                $prefixes = @($ipv4Addresses | ForEach-Object { '/' + $_.PrefixLength }) + @($ipv6Addresses | ForEach-Object { '/' + $_.PrefixLength })
+                $dnsServers = @($ipConfig.DnsServer.ServerAddresses | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+
+                $gatewayCandidates = @()
+                if ($null -ne $ipConfig.IPv4DefaultGateway -and -not [string]::IsNullOrWhiteSpace($ipConfig.IPv4DefaultGateway.NextHop)) { $gatewayCandidates += $ipConfig.IPv4DefaultGateway.NextHop }
+                if ($null -ne $ipConfig.IPv6DefaultGateway -and -not [string]::IsNullOrWhiteSpace($ipConfig.IPv6DefaultGateway.NextHop)) { $gatewayCandidates += $ipConfig.IPv6DefaultGateway.NextHop }
+                $gatewayCandidates = @($gatewayCandidates | Select-Object -Unique)
+
+                $items += [pscustomobject]@{
+                    AdapterName = $adapter.Name
+                    InterfaceDescription = if ($null -ne $adapter.InterfaceDescription) { $adapter.InterfaceDescription } else { 'Hyper-V Default Switch (ICS)' }
+                    IpAddresses = if ($ipAddresses.Count -gt 0) { $ipAddresses -join ', ' } else { '' }
+                    Subnets = if ($prefixes.Count -gt 0) { $prefixes -join ', ' } else { '' }
+                    Gateway = if ($gatewayCandidates.Count -gt 0) { $gatewayCandidates -join ', ' } else { '' }
+                    DnsServers = if ($dnsServers.Count -gt 0) { $dnsServers -join ', ' } else { '' }
+                    IsDefaultSwitch = $true
+                }
+
+                $defaultSwitchAdded = $true
+            }
+
+            if (-not $defaultSwitchAdded)
+            {
+                $defaultSwitch = Get-VMSwitch -SwitchType Internal -ErrorAction SilentlyContinue | Where-Object { $_.Name -ceq 'Default Switch' } | Select-Object -First 1
+                if ($null -ne $defaultSwitch)
+                {
+                    $items += [pscustomobject]@{
+                        AdapterName = 'Default Switch (ICS)'
+                        InterfaceDescription = 'Hyper-V Default Switch (ICS)'
+                        IpAddresses = ''
+                        Subnets = ''
+                        Gateway = ''
+                        DnsServers = ''
+                        IsDefaultSwitch = $true
+                    }
+                }
+            }
+
+            $items | Sort-Object AdapterName -Unique | ConvertTo-Json -Depth 4 -Compress
             """;
 
         var rows = await InvokeJsonArrayAsync(script, cancellationToken);
@@ -180,7 +246,8 @@ public sealed class HyperVPowerShellService : IHyperVService
             IpAddresses = GetString(row, "IpAddresses"),
             Subnets = GetString(row, "Subnets"),
             Gateway = GetString(row, "Gateway"),
-            DnsServers = GetString(row, "DnsServers")
+            DnsServers = GetString(row, "DnsServers"),
+            IsDefaultSwitch = GetBoolean(row, "IsDefaultSwitch")
         }).ToList();
     }
 

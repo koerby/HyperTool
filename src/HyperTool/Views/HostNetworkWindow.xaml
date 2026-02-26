@@ -61,6 +61,14 @@
                                                 Visibility="{Binding HasGateway, Converter={StaticResource BooleanToVisibilityConverter}}">
                                             <TextBlock Foreground="{DynamicResource TextPrimary}" FontSize="10" FontWeight="SemiBold" Text="Gateway" />
                                         </Border>
+                                        <Border Margin="6,0,0,0"
+                                                VerticalAlignment="Center"
+                                                Padding="6,1"
+                                                CornerRadius="8"
+                                                Background="{DynamicResource Accent}"
+                                                Visibility="{Binding IsDefaultSwitch, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <TextBlock Foreground="{DynamicResource AccentText}" FontSize="10" FontWeight="SemiBold" Text="Default Switch" />
+                                        </Border>
                                     </StackPanel>
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>
