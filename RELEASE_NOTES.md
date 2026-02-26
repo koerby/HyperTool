@@ -1,6 +1,6 @@
 # HyperTool Release Notes
 
-## v1.4.0
+## v1.3.3
 
 ### Highlights
 
