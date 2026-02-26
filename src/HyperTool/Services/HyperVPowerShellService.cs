@@ -134,18 +134,7 @@ public sealed class HyperVPowerShellService : IHyperVService
                         if ([string]::IsNullOrWhiteSpace($statusText)) { $statusText = if ($null -ne $adapter.AdminStatus) { $adapter.AdminStatus.ToString() } else { '' } }
                         if ($statusText -match 'Disabled|Not Present') { return $false }
 
-                        $ipv4 = @($_.IPv4Address | Where-Object { $null -ne $_ -and -not [string]::IsNullOrWhiteSpace($_.IPAddress) })
-                        $ipv6 = @($_.IPv6Address | Where-Object { $null -ne $_ -and -not [string]::IsNullOrWhiteSpace($_.IPAddress) -and $_.IPAddress -notlike 'fe80:*' })
-                        $hasGateway = $null -ne $_.IPv4DefaultGateway -or $null -ne $_.IPv6DefaultGateway
-
-                        $mediaConnected = $false
-                        if ($null -ne $adapter.MediaConnectionState)
-                        {
-                            $mediaText = $adapter.MediaConnectionState.ToString()
-                            $mediaConnected = $mediaText -match 'Connected|Unknown'
-                        }
-
-                        return $hasGateway -or $mediaConnected -or $ipv4.Count -gt 0 -or $ipv6.Count -gt 0
+                        return $true
                     } |
                     ForEach-Object {
                         $adapter = $_.NetAdapter
@@ -173,11 +162,11 @@ public sealed class HyperVPowerShellService : IHyperVService
             )
 
             $defaultSwitchAdded = $false
-            $defaultSwitchAdapters = @(Get-NetAdapter -Name 'vEthernet (Default Switch)' -ErrorAction SilentlyContinue)
+            $defaultSwitchAdapters = @(Get-NetAdapter -IncludeHidden -Name 'vEthernet (Default Switch)' -ErrorAction SilentlyContinue)
 
             if ($defaultSwitchAdapters.Count -eq 0)
             {
-                $defaultSwitchAdapters = @(Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'vEthernet (*Default Switch*)' })
+                $defaultSwitchAdapters = @(Get-NetAdapter -IncludeHidden -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'vEthernet (*Default Switch*)' })
             }
 
             foreach ($adapter in $defaultSwitchAdapters)
@@ -223,13 +212,88 @@ public sealed class HyperVPowerShellService : IHyperVService
                 $defaultSwitch = Get-VMSwitch -SwitchType Internal -ErrorAction SilentlyContinue | Where-Object { $_.Name -ceq 'Default Switch' } | Select-Object -First 1
                 if ($null -ne $defaultSwitch)
                 {
+                    $defaultAlias = "vEthernet ($($defaultSwitch.Name))"
+                    $defaultAdapter = Get-NetAdapter -IncludeHidden -ErrorAction SilentlyContinue | Where-Object { $_.Name -ceq $defaultAlias -or $_.Name -like 'vEthernet (*Default Switch*)' } | Select-Object -First 1
+
+                    $ipConfig = $null
+                    if ($null -ne $defaultAdapter)
+                    {
+                        $ipConfig = Get-NetIPConfiguration -InterfaceIndex $defaultAdapter.ifIndex -Detailed -ErrorAction SilentlyContinue
+                    }
+
+                    if ($null -eq $ipConfig)
+                    {
+                        $ipConfig = Get-NetIPConfiguration -InterfaceAlias $defaultAlias -Detailed -ErrorAction SilentlyContinue
+                    }
+
+                    $ipv4Addresses = @($ipConfig.IPv4Address | Where-Object { $null -ne $_ -and -not [string]::IsNullOrWhiteSpace($_.IPAddress) })
+                    $ipv6Addresses = @($ipConfig.IPv6Address | Where-Object { $null -ne $_ -and -not [string]::IsNullOrWhiteSpace($_.IPAddress) -and $_.IPAddress -notlike 'fe80:*' })
+
+                    if ($ipv4Addresses.Count -eq 0 -and $ipv6Addresses.Count -eq 0)
+                    {
+                        $fallbackIpRows = @(
+                            Get-NetIPAddress -AddressFamily IPv4,IPv6 -ErrorAction SilentlyContinue |
+                                Where-Object {
+                                    -not [string]::IsNullOrWhiteSpace($_.IPAddress) -and
+                                    $_.IPAddress -notlike 'fe80:*' -and
+                                    ($_.InterfaceAlias -ceq $defaultAlias -or $_.InterfaceAlias -like '*Default Switch*')
+                                }
+                        )
+
+                        $ipv4Addresses = @($fallbackIpRows | Where-Object { $_.AddressFamily -eq 'IPv4' })
+                        $ipv6Addresses = @($fallbackIpRows | Where-Object { $_.AddressFamily -eq 'IPv6' })
+                    }
+
+                    $ipAddresses = @($ipv4Addresses | ForEach-Object { $_.IPAddress }) + @($ipv6Addresses | ForEach-Object { $_.IPAddress })
+                    $prefixes = @($ipv4Addresses | ForEach-Object { '/' + $_.PrefixLength }) + @($ipv6Addresses | ForEach-Object { '/' + $_.PrefixLength })
+
+                    $dnsServers = @()
+                    if ($null -ne $ipConfig -and $null -ne $ipConfig.DnsServer)
+                    {
+                        $dnsServers = @($ipConfig.DnsServer.ServerAddresses | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+                    }
+
+                    if ($dnsServers.Count -eq 0)
+                    {
+                        $dnsRows = @(
+                            Get-DnsClientServerAddress -AddressFamily IPv4,IPv6 -ErrorAction SilentlyContinue |
+                                Where-Object { $_.InterfaceAlias -ceq $defaultAlias -or $_.InterfaceAlias -like '*Default Switch*' }
+                        )
+                        $dnsServers = @($dnsRows | ForEach-Object { $_.ServerAddresses } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+                    }
+
+                    $gatewayCandidates = @()
+                    if ($null -ne $ipConfig)
+                    {
+                        if ($null -ne $ipConfig.IPv4DefaultGateway -and -not [string]::IsNullOrWhiteSpace($ipConfig.IPv4DefaultGateway.NextHop)) { $gatewayCandidates += $ipConfig.IPv4DefaultGateway.NextHop }
+                        if ($null -ne $ipConfig.IPv6DefaultGateway -and -not [string]::IsNullOrWhiteSpace($ipConfig.IPv6DefaultGateway.NextHop)) { $gatewayCandidates += $ipConfig.IPv6DefaultGateway.NextHop }
+                    }
+
+                    if ($gatewayCandidates.Count -eq 0)
+                    {
+                        $routeRows = @(
+                            Get-NetRoute -AddressFamily IPv4,IPv6 -ErrorAction SilentlyContinue |
+                                Where-Object {
+                                    ($_.InterfaceAlias -ceq $defaultAlias -or $_.InterfaceAlias -like '*Default Switch*') -and
+                                    ($_.DestinationPrefix -eq '0.0.0.0/0' -or $_.DestinationPrefix -eq '::/0') -and
+                                    -not [string]::IsNullOrWhiteSpace($_.NextHop) -and
+                                    $_.NextHop -ne '0.0.0.0' -and
+                                    $_.NextHop -ne '::'
+                                }
+                        )
+                        $gatewayCandidates = @($routeRows | ForEach-Object { $_.NextHop })
+                    }
+
+                    $gatewayCandidates = @($gatewayCandidates | Select-Object -Unique)
+                    $dnsServers = @($dnsServers | Select-Object -Unique)
+
                     $items += [pscustomobject]@{
-                        AdapterName = 'Default Switch (ICS)'
-                        InterfaceDescription = 'Hyper-V Default Switch (ICS)'
-                        IpAddresses = ''
-                        Subnets = ''
-                        Gateway = ''
-                        DnsServers = ''
+                        AdapterName = if (-not [string]::IsNullOrWhiteSpace($defaultAlias)) { $defaultAlias } else { 'Default Switch (ICS)' }
+                        InterfaceDescription = if ($null -ne $defaultAdapter -and -not [string]::IsNullOrWhiteSpace($defaultAdapter.InterfaceDescription)) { $defaultAdapter.InterfaceDescription } else { 'Hyper-V Default Switch (ICS)' }
+                        IpAddresses = if ($ipAddresses.Count -gt 0) { $ipAddresses -join ', ' } else { '' }
+                        Subnets = if ($prefixes.Count -gt 0) { $prefixes -join ', ' } else { '' }
+                        Gateway = if ($gatewayCandidates.Count -gt 0) { $gatewayCandidates -join ', ' } else { '' }
+                        DnsServers = if ($dnsServers.Count -gt 0) { $dnsServers -join ', ' } else { '' }
                         IsDefaultSwitch = $true
                     }
                 }

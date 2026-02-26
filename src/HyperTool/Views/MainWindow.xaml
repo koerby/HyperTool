@@ -142,25 +142,27 @@
                                     BorderThickness="{TemplateBinding BorderThickness}"
                                     CornerRadius="8" />
 
-                            <Grid>
-                                <ContentPresenter Margin="10,0,36,0"
-                                                  VerticalAlignment="Center"
-                                                  RecognizesAccessKey="True"
-                                                  Content="{TemplateBinding SelectionBoxItem}" />
-                                <ToggleButton x:Name="DropDownToggle"
-                                              Width="30"
-                                              HorizontalAlignment="Right"
-                                              Background="Transparent"
-                                              BorderThickness="0"
-                                              Focusable="False"
-                                              IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+                            <ToggleButton x:Name="DropDownToggle"
+                                          Background="Transparent"
+                                          BorderThickness="0"
+                                          Focusable="False"
+                                          IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+                                <Grid>
+                                    <ContentPresenter Margin="10,0,36,0"
+                                                      VerticalAlignment="Center"
+                                                      HorizontalAlignment="Left"
+                                                      RecognizesAccessKey="True"
+                                                      IsHitTestVisible="False"
+                                                      Content="{TemplateBinding SelectionBoxItem}" />
                                     <TextBlock Text="▼"
                                                Foreground="{DynamicResource TextPrimary}"
                                                FontSize="10"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center" />
-                                </ToggleButton>
-                            </Grid>
+                                               HorizontalAlignment="Right"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,10,0"
+                                               IsHitTestVisible="False" />
+                                </Grid>
+                            </ToggleButton>
 
                             <Popup x:Name="PART_Popup"
                                    AllowsTransparency="True"
@@ -405,11 +407,19 @@
                             CornerRadius="10"
                             Background="{DynamicResource OverlayBackground}"
                             BorderBrush="{DynamicResource PanelBorder}"
-                            BorderThickness="1">
+                            BorderThickness="1"
+                            Cursor="Hand"
+                            MouseLeftButtonUp="LogoBorder_MouseLeftButtonUp">
                         <Image Source="/Assets/Logo.png"
+                               x:Name="LogoImage"
                                Width="96"
                                Height="96"
-                               Stretch="Uniform" />
+                               Stretch="Uniform"
+                               RenderTransformOrigin="0.5,0.5">
+                            <Image.RenderTransform>
+                                <RotateTransform Angle="0" />
+                            </Image.RenderTransform>
+                        </Image>
                     </Border>
                 </StackPanel>
             </Grid>

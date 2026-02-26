@@ -2024,11 +2024,11 @@ public partial class MainViewModel : ViewModelBase
 
         if (adapters.Length == 0)
         {
-            AddNotification("Keine Host-Netzwerkkarten mit Uplink gefunden.", "Warning");
+            AddNotification("Keine Host-Netzwerkkarten gefunden.", "Warning");
             return adapters;
         }
 
-        AddNotification($"{adapters.Length} Host-Netzwerkkarte(n) mit Uplink geladen.", "Info");
+        AddNotification($"{adapters.Length} Host-Netzwerkkarte(n) geladen.", "Info");
         return adapters;
     }
 

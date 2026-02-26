@@ -3,14 +3,22 @@ using HyperTool.Models;
 using HyperTool.Services;
 using HyperTool.ViewModels;
 using MahApps.Metro.Controls;
+using System;
 using System.ComponentModel;
+using System.IO;
+using System.Media;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
 
 namespace HyperTool.Views;
 
 public partial class MainWindow : MetroWindow
 {
+    private const string LogoEasterEggSoundFileName = "logo-spin.wav";
+
     private readonly IThemeService _themeService;
     private MainViewModel? _currentViewModel;
     private HelpWindow? _helpWindow;
@@ -92,7 +100,7 @@ public partial class MainWindow : MetroWindow
         {
             System.Windows.MessageBox.Show(
                 this,
-                "Keine Host-Netzwerkkarten mit aktivem Uplink gefunden.",
+                "Keine Host-Netzwerkkarten gefunden.",
                 "Host Network",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
@@ -121,5 +129,47 @@ public partial class MainWindow : MetroWindow
         }
 
         _currentViewModel.SelectedCheckpointNode = e.NewValue as HyperVCheckpointTreeItem;
+    }
+
+    private void LogoBorder_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (LogoImage.RenderTransform is not RotateTransform rotateTransform)
+        {
+            rotateTransform = new RotateTransform(0);
+            LogoImage.RenderTransform = rotateTransform;
+            LogoImage.RenderTransformOrigin = new System.Windows.Point(0.5, 0.5);
+        }
+
+        var spinAnimation = new DoubleAnimation
+        {
+            From = 0,
+            To = 360,
+            Duration = TimeSpan.FromMilliseconds(700),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut }
+        };
+
+        rotateTransform.BeginAnimation(RotateTransform.AngleProperty, spinAnimation);
+        PlayLogoEasterEggSound();
+    }
+
+    private static void PlayLogoEasterEggSound()
+    {
+        try
+        {
+            var assetsDir = Path.Combine(AppContext.BaseDirectory, "Assets");
+            var soundPath = Path.Combine(assetsDir, LogoEasterEggSoundFileName);
+
+            if (File.Exists(soundPath))
+            {
+                using var player = new SoundPlayer(soundPath);
+                player.Play();
+                return;
+            }
+        }
+        catch
+        {
+        }
+
+        SystemSounds.Asterisk.Play();
     }
 }
