@@ -142,27 +142,26 @@
                                     BorderThickness="{TemplateBinding BorderThickness}"
                                     CornerRadius="8" />
 
-                            <ToggleButton x:Name="DropDownToggle"
-                                          Background="Transparent"
-                                          BorderThickness="0"
-                                          Focusable="False"
-                                          IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
-                                <Grid>
-                                    <ContentPresenter Margin="10,0,36,0"
-                                                      VerticalAlignment="Center"
-                                                      HorizontalAlignment="Left"
-                                                      RecognizesAccessKey="True"
-                                                      IsHitTestVisible="False"
-                                                      Content="{TemplateBinding SelectionBoxItem}" />
-                                    <TextBlock Text="▼"
-                                               Foreground="{DynamicResource TextPrimary}"
-                                               FontSize="10"
-                                               HorizontalAlignment="Right"
-                                               VerticalAlignment="Center"
-                                               Margin="0,0,10,0"
-                                               IsHitTestVisible="False" />
-                                </Grid>
-                            </ToggleButton>
+                            <Grid>
+                                <ContentPresenter Margin="10,0,36,0"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Left"
+                                                  RecognizesAccessKey="True"
+                                                  IsHitTestVisible="False"
+                                                  Content="{TemplateBinding SelectionBoxItem}" />
+                                <TextBlock Text="▼"
+                                           Foreground="{DynamicResource TextPrimary}"
+                                           FontSize="10"
+                                           HorizontalAlignment="Right"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,10,0"
+                                           IsHitTestVisible="False" />
+                                <ToggleButton x:Name="DropDownToggle"
+                                              Background="Transparent"
+                                              BorderThickness="0"
+                                              Focusable="False"
+                                              IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}" />
+                            </Grid>
 
                             <Popup x:Name="PART_Popup"
                                    AllowsTransparency="True"
