@@ -724,15 +724,21 @@
                         </TabItem>
 
                         <TabItem Header="Config">
-                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                                <Grid Margin="4">
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="*" />
-                                        <RowDefinition Height="12" />
-                                        <RowDefinition Height="Auto" />
-                                    </Grid.RowDefinitions>
+                            <Grid Margin="4">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="10" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
 
-                                    <Grid Grid.Row="0">
+                                <WrapPanel Grid.Row="0">
+                                    <Button Style="{StaticResource ActionButton}" Command="{Binding SaveConfigCommand}" Content="💾 Speichern" />
+                                    <Button Style="{StaticResource ActionButton}" Command="{Binding ReloadConfigCommand}" Content="⟳ Neu laden" />
+                                    <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource TextMuted}" Text="{Binding ConfigPath, StringFormat=Aktive Config: {0}}" />
+                                </WrapPanel>
+
+                                <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                    <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="2*" />
                                             <ColumnDefinition Width="12" />
@@ -802,7 +808,7 @@
                                                                   Grid.Column="1"
                                                                   VerticalAlignment="Center"
                                                                   Foreground="{DynamicResource TextPrimary}"
-                                                                  IsChecked="{Binding SelectedVmForConfig.OpenConsoleWithSessionEdit, Mode=TwoWay}"
+                                                                  IsChecked="{Binding SelectedVmOpenConsoleWithSessionEdit, Mode=TwoWay}"
                                                                   Content="Für diese VM immer mit Sitzungsbearbeitung öffnen" />
 
                                                         <TextBlock Grid.Row="8" Foreground="{DynamicResource TextMuted}" FontWeight="SemiBold" Text="Adapter umbenennen" />
@@ -891,14 +897,8 @@
                                             </GroupBox>
                                         </StackPanel>
                                     </Grid>
-
-                                    <WrapPanel Grid.Row="2">
-                                        <Button Style="{StaticResource ActionButton}" Command="{Binding SaveConfigCommand}" Content="💾 Speichern" />
-                                        <Button Style="{StaticResource ActionButton}" Command="{Binding ReloadConfigCommand}" Content="⟳ Neu laden" />
-                                        <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource TextMuted}" Text="{Binding ConfigPath, StringFormat=Aktive Config: {0}}" />
-                                    </WrapPanel>
-                                </Grid>
-                            </ScrollViewer>
+                                </ScrollViewer>
+                            </Grid>
                         </TabItem>
 
                         <TabItem Header="Info">

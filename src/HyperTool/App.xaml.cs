@@ -78,6 +78,12 @@ public partial class App : System.Windows.Application
 					return;
 				}
 
+				if (!mainViewModel.TryPromptSaveConfigOnClose())
+				{
+					args.Cancel = true;
+					return;
+				}
+
 				if (_trayService is null || !uiConfig.MinimizeToTray)
 				{
 					return;

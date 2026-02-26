@@ -66,6 +66,9 @@ public partial class MainViewModel : ViewModelBase
     private VmDefinition? _selectedVmForConfig;
 
     [ObservableProperty]
+    private bool _selectedVmOpenConsoleWithSessionEdit;
+
+    [ObservableProperty]
     private VmTrayAdapterOption? _selectedVmTrayAdapterOption;
 
     [ObservableProperty]
@@ -160,6 +163,9 @@ public partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _networkSwitchStatusHint = string.Empty;
+
+    [ObservableProperty]
+    private bool _hasPendingConfigChanges;
 
     public ObservableCollection<VmDefinition> AvailableVms { get; } = [];
 
@@ -322,9 +328,12 @@ public partial class MainViewModel : ViewModelBase
     private readonly Dictionary<string, VmDefinition> _configuredVmDefinitions = new(StringComparer.OrdinalIgnoreCase);
     private static readonly char[] VmAdapterInvalidNameChars = ['\\', '/', ':', '*', '?', '"', '<', '>', '|'];
     private int _selectedVmChangeSuppressionDepth;
+    private int _configChangeSuppressionDepth;
     private static readonly HttpClient UpdateDownloadClient = new();
 
     public event EventHandler? TrayStateChanged;
+
+    public bool CanPromptSaveOnClose => HasPendingConfigChanges && !IsBusy;
 
     public MainViewModel(
         ConfigLoadResult configResult,
@@ -340,6 +349,8 @@ public partial class MainViewModel : ViewModelBase
         _startupService = startupService;
         _updateService = updateService;
         _configPath = configResult.ConfigPath;
+
+        _configChangeSuppressionDepth++;
 
         WindowTitle = "HyperTool";
         DefaultVmName = configResult.Config.DefaultVmName;
@@ -430,6 +441,9 @@ public partial class MainViewModel : ViewModelBase
         IsLogExpanded = false;
         Notifications.CollectionChanged += OnNotificationsChanged;
 
+        _configChangeSuppressionDepth--;
+        HasPendingConfigChanges = false;
+
         _ = InitializeAsync();
     }
 
@@ -499,10 +513,31 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    partial void OnHnsAutoRestartAfterDefaultSwitchChanged(bool value) => MarkConfigDirty();
+
+    partial void OnHnsAutoRestartAfterAnyConnectChanged(bool value) => MarkConfigDirty();
+
     partial void OnUiEnableTrayMenuChanged(bool value)
     {
         NotifyTrayStateChanged();
+        MarkConfigDirty();
     }
+
+    partial void OnUiStartMinimizedChanged(bool value) => MarkConfigDirty();
+
+    partial void OnUiStartWithWindowsChanged(bool value) => MarkConfigDirty();
+
+    partial void OnUiOpenVmConnectWithSessionEditChanged(bool value) => MarkConfigDirty();
+
+    partial void OnUiThemeChanged(string value) => MarkConfigDirty();
+
+    partial void OnVmConnectComputerNameChanged(string value) => MarkConfigDirty();
+
+    partial void OnUpdateCheckOnStartupChanged(bool value) => MarkConfigDirty();
+
+    partial void OnGithubOwnerChanged(string value) => MarkConfigDirty();
+
+    partial void OnGithubRepoChanged(string value) => MarkConfigDirty();
 
     partial void OnSelectedVmChanged(VmDefinition? value)
     {
@@ -657,7 +692,28 @@ public partial class MainViewModel : ViewModelBase
         RenameVmAdapterCommand.NotifyCanExecuteChanged();
         UpdateVmAdapterRenameValidationState();
 
+        _configChangeSuppressionDepth++;
+        try
+        {
+            SelectedVmOpenConsoleWithSessionEdit = value?.OpenConsoleWithSessionEdit ?? false;
+        }
+        finally
+        {
+            _configChangeSuppressionDepth--;
+        }
+
         _ = LoadVmAdaptersForConfigAsync(value);
+    }
+
+    partial void OnSelectedVmOpenConsoleWithSessionEditChanged(bool value)
+    {
+        if (SelectedVmForConfig is null)
+        {
+            return;
+        }
+
+        SelectedVmForConfig.OpenConsoleWithSessionEdit = value;
+        MarkConfigDirty();
     }
 
     partial void OnSelectedVmTrayAdapterOptionChanged(VmTrayAdapterOption? value)
@@ -669,6 +725,7 @@ public partial class MainViewModel : ViewModelBase
 
         SelectedVmForConfig.TrayAdapterName = value.AdapterName?.Trim() ?? string.Empty;
         NotifyTrayStateChanged();
+        MarkConfigDirty();
     }
 
     partial void OnSelectedVmAdapterForRenameChanged(HyperVVmNetworkAdapterInfo? value)
@@ -1601,6 +1658,7 @@ public partial class MainViewModel : ViewModelBase
 
         NewVmName = string.Empty;
         NewVmLabel = string.Empty;
+        MarkConfigDirty();
         AddNotification($"VM '{vmName}' zur Konfiguration hinzugefügt.", "Success");
     }
 
@@ -1627,6 +1685,7 @@ public partial class MainViewModel : ViewModelBase
         }
 
         SelectedVmForConfig = AvailableVms.FirstOrDefault();
+        MarkConfigDirty();
         AddNotification($"VM '{vmToRemove.Name}' aus Konfiguration entfernt.", "Warning");
     }
 
@@ -1641,6 +1700,7 @@ public partial class MainViewModel : ViewModelBase
 
         DefaultVmName = targetVm.Name;
         SelectedDefaultVmForConfig = targetVm;
+        MarkConfigDirty();
         AddNotification($"Default VM gesetzt: '{DefaultVmName}'.", "Info");
     }
 
@@ -1869,6 +1929,7 @@ public partial class MainViewModel : ViewModelBase
                 }
 
                 AddNotification("Konfiguration gespeichert.", "Success");
+                MarkConfigClean();
             }
             else
             {
@@ -2112,25 +2173,34 @@ public partial class MainViewModel : ViewModelBase
             var config = configResult.Config;
             var previousSelectionName = SelectedVm?.Name;
 
-            WindowTitle = "HyperTool";
-            ConfigurationNotice = configResult.Notice;
-            HnsEnabled = config.Hns.Enabled;
-            HnsAutoRestartAfterDefaultSwitch = config.Hns.AutoRestartAfterDefaultSwitch;
-            HnsAutoRestartAfterAnyConnect = config.Hns.AutoRestartAfterAnyConnect;
-            DefaultVmName = config.DefaultVmName;
-            LastSelectedVmName = config.LastSelectedVmName;
-            VmConnectComputerName = NormalizeVmConnectComputerName(config.VmConnectComputerName);
-            UiEnableTrayIcon = true;
-            UiEnableTrayMenu = config.Ui.EnableTrayMenu;
-            UiStartMinimized = config.Ui.StartMinimized;
-            UiStartWithWindows = config.Ui.StartWithWindows;
-            UiOpenVmConnectWithSessionEdit = config.Ui.OpenVmConnectWithSessionEdit;
-            UiTheme = NormalizeUiTheme(config.Ui.Theme);
-            ApplyConfiguredVmDefinitions(config.Vms);
-            _trayVmNames = NormalizeTrayVmNames(config.Ui.TrayVmNames);
-            UpdateCheckOnStartup = config.Update.CheckOnStartup;
-            GithubOwner = config.Update.GitHubOwner;
-            GithubRepo = config.Update.GitHubRepo;
+            _configChangeSuppressionDepth++;
+            try
+            {
+                WindowTitle = "HyperTool";
+                ConfigurationNotice = configResult.Notice;
+                HnsEnabled = config.Hns.Enabled;
+                HnsAutoRestartAfterDefaultSwitch = config.Hns.AutoRestartAfterDefaultSwitch;
+                HnsAutoRestartAfterAnyConnect = config.Hns.AutoRestartAfterAnyConnect;
+                DefaultVmName = config.DefaultVmName;
+                LastSelectedVmName = config.LastSelectedVmName;
+                VmConnectComputerName = NormalizeVmConnectComputerName(config.VmConnectComputerName);
+                UiEnableTrayIcon = true;
+                UiEnableTrayMenu = config.Ui.EnableTrayMenu;
+                UiStartMinimized = config.Ui.StartMinimized;
+                UiStartWithWindows = config.Ui.StartWithWindows;
+                UiOpenVmConnectWithSessionEdit = config.Ui.OpenVmConnectWithSessionEdit;
+                UiTheme = NormalizeUiTheme(config.Ui.Theme);
+                ApplyConfiguredVmDefinitions(config.Vms);
+                _trayVmNames = NormalizeTrayVmNames(config.Ui.TrayVmNames);
+                UpdateCheckOnStartup = config.Update.CheckOnStartup;
+                GithubOwner = config.Update.GitHubOwner;
+                GithubRepo = config.Update.GitHubRepo;
+            }
+            finally
+            {
+                _configChangeSuppressionDepth--;
+            }
+
             if (string.IsNullOrWhiteSpace(LastSelectedVmName) && !string.IsNullOrWhiteSpace(previousSelectionName))
             {
                 LastSelectedVmName = previousSelectionName;
@@ -2143,6 +2213,7 @@ public partial class MainViewModel : ViewModelBase
         await LoadVmsFromHyperVAsync();
         await RefreshSwitchesAsync();
         NotifyTrayStateChanged();
+        MarkConfigClean();
     }
 
     private void ApplyConfiguredVmDefinitions(IEnumerable<VmDefinition>? configuredVms)
@@ -2210,6 +2281,49 @@ public partial class MainViewModel : ViewModelBase
         }
 
         return UiOpenVmConnectWithSessionEdit;
+    }
+
+    public bool TryPromptSaveConfigOnClose()
+    {
+        if (!CanPromptSaveOnClose)
+        {
+            return true;
+        }
+
+        var result = System.Windows.MessageBox.Show(
+            "Es gibt ungespeicherte Einstellungen. Jetzt speichern?",
+            "HyperTool",
+            System.Windows.MessageBoxButton.YesNoCancel,
+            System.Windows.MessageBoxImage.Question,
+            System.Windows.MessageBoxResult.Yes);
+
+        if (result == System.Windows.MessageBoxResult.Cancel)
+        {
+            return false;
+        }
+
+        if (result == System.Windows.MessageBoxResult.No)
+        {
+            return true;
+        }
+
+        SaveConfigCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+        return !HasPendingConfigChanges;
+    }
+
+    private void MarkConfigDirty()
+    {
+        if (_configChangeSuppressionDepth > 0)
+        {
+            return;
+        }
+
+        HasPendingConfigChanges = true;
+    }
+
+    private void MarkConfigClean()
+    {
+        HasPendingConfigChanges = false;
     }
 
     private static string NormalizeUiTheme(string? theme)
