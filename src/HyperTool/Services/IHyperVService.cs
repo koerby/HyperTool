@@ -36,7 +36,9 @@ public interface IHyperVService
 
     Task RemoveCheckpointAsync(string vmName, string checkpointName, string? checkpointId, CancellationToken cancellationToken);
 
-    Task OpenVmConnectAsync(string vmName, string computerName, CancellationToken cancellationToken);
+    Task OpenVmConnectAsync(string vmName, string computerName, bool openWithSessionEdit, CancellationToken cancellationToken);
+
+    Task ReopenVmConnectWithSessionEditAsync(string vmName, string computerName, CancellationToken cancellationToken);
 
     Task<(bool HasEnoughSpace, long RequiredBytes, long AvailableBytes, string TargetDrive)> CheckExportDiskSpaceAsync(string vmName, string destinationPath, CancellationToken cancellationToken);
 

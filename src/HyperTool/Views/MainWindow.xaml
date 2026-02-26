@@ -519,6 +519,8 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="12" />
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="12" />
+                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -533,6 +535,14 @@
                                 <Button Grid.Row="2" Grid.Column="0" Style="{StaticResource ActionButton}" Command="{Binding RestartSelectedVmCommand}" Content="↻ Restart" />
                                 <Button Grid.Row="2" Grid.Column="1" Style="{StaticResource ActionButton}" Command="{Binding OpenConsoleCommand}" Content="🖥 Open Console" />
                                 <Button Grid.Row="2" Grid.Column="2" Margin="0" Style="{StaticResource ActionButton}" Command="{Binding RefreshVmStatusCommand}" Content="⟳ Refresh" />
+
+                                <Button Grid.Row="4"
+                                        Grid.Column="0"
+                                        Grid.ColumnSpan="3"
+                                        Margin="0"
+                                        Style="{StaticResource ActionButton}"
+                                        Command="{Binding ReopenConsoleWithSessionEditCommand}"
+                                        Content="🛠 Konsole neu aufbauen (Sitzungsbearbeitung)" />
                             </Grid>
                         </TabItem>
 
@@ -769,6 +779,8 @@
                                                             <RowDefinition Height="Auto" />
                                                             <RowDefinition Height="8" />
                                                             <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="8" />
+                                                            <RowDefinition Height="Auto" />
                                                             <RowDefinition Height="6" />
                                                             <RowDefinition Height="Auto" />
                                                         </Grid.RowDefinitions>
@@ -785,8 +797,16 @@
                                                                   DisplayMemberPath="DisplayName"
                                                                   SelectedItem="{Binding SelectedVmTrayAdapterOption, Mode=TwoWay}" />
 
-                                                        <TextBlock Grid.Row="6" Foreground="{DynamicResource TextMuted}" FontWeight="SemiBold" Text="Adapter umbenennen" />
-                                                        <Grid Grid.Row="6" Grid.Column="1">
+                                                        <TextBlock Grid.Row="6" Foreground="{DynamicResource TextMuted}" FontWeight="SemiBold" Text="Console Session" />
+                                                        <CheckBox Grid.Row="6"
+                                                                  Grid.Column="1"
+                                                                  VerticalAlignment="Center"
+                                                                  Foreground="{DynamicResource TextPrimary}"
+                                                                  IsChecked="{Binding SelectedVmForConfig.OpenConsoleWithSessionEdit, Mode=TwoWay}"
+                                                                  Content="Für diese VM immer mit Sitzungsbearbeitung öffnen" />
+
+                                                        <TextBlock Grid.Row="8" Foreground="{DynamicResource TextMuted}" FontWeight="SemiBold" Text="Adapter umbenennen" />
+                                                        <Grid Grid.Row="8" Grid.Column="1">
                                                             <Grid.ColumnDefinitions>
                                                                 <ColumnDefinition Width="*" />
                                                                 <ColumnDefinition Width="8" />
@@ -810,7 +830,7 @@
                                                                     Content="✎ Umbenennen" />
                                                         </Grid>
 
-                                                        <TextBlock Grid.Row="8"
+                                                        <TextBlock Grid.Row="10"
                                                                    Grid.Column="1"
                                                                    Foreground="{DynamicResource WarningText}"
                                                                    TextWrapping="Wrap"

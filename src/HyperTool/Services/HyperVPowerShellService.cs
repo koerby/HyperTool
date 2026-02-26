@@ -394,7 +394,7 @@ public sealed class HyperVPowerShellService : IHyperVService
         return InvokeNonQueryAsync(script, cancellationToken);
     }
 
-    public Task OpenVmConnectAsync(string vmName, string computerName, CancellationToken cancellationToken)
+    public Task OpenVmConnectAsync(string vmName, string computerName, bool openWithSessionEdit, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -406,10 +406,15 @@ public sealed class HyperVPowerShellService : IHyperVService
         processStartInfo.ArgumentList.Add(computerName);
         processStartInfo.ArgumentList.Add(vmName);
 
+        if (openWithSessionEdit)
+        {
+            processStartInfo.ArgumentList.Add("/edit");
+        }
+
         try
         {
             Process.Start(processStartInfo);
-            Log.Information("vmconnect started for VM {VmName} on host {ComputerName}", vmName, computerName);
+            Log.Information("vmconnect started for VM {VmName} on host {ComputerName} (SessionEdit: {SessionEdit})", vmName, computerName, openWithSessionEdit);
         }
         catch (Exception ex)
         {
@@ -418,6 +423,67 @@ public sealed class HyperVPowerShellService : IHyperVService
         }
 
         return Task.CompletedTask;
+    }
+
+    public Task ReopenVmConnectWithSessionEditAsync(string vmName, string computerName, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        try
+        {
+            CloseExistingVmConnectWindows(vmName, computerName);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Existing vmconnect windows could not be fully closed for VM {VmName}", vmName);
+        }
+
+        return OpenVmConnectAsync(vmName, computerName, openWithSessionEdit: true, cancellationToken);
+    }
+
+    private static void CloseExistingVmConnectWindows(string vmName, string computerName)
+    {
+        var titleNeedles = new[]
+        {
+            vmName?.Trim() ?? string.Empty,
+            computerName?.Trim() ?? string.Empty
+        }
+        .Where(item => !string.IsNullOrWhiteSpace(item))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+
+        if (titleNeedles.Length == 0)
+        {
+            return;
+        }
+
+        var candidates = Process.GetProcessesByName("vmconnect");
+        foreach (var process in candidates)
+        {
+            try
+            {
+                var windowTitle = process.MainWindowTitle ?? string.Empty;
+                var isMatching = titleNeedles.Any(needle => windowTitle.Contains(needle, StringComparison.OrdinalIgnoreCase));
+                if (!isMatching)
+                {
+                    continue;
+                }
+
+                if (!process.CloseMainWindow())
+                {
+                    process.Kill(entireProcessTree: false);
+                    continue;
+                }
+
+                if (!process.WaitForExit(1200))
+                {
+                    process.Kill(entireProcessTree: false);
+                }
+            }
+            catch
+            {
+            }
+        }
     }
 
     public async Task<(bool HasEnoughSpace, long RequiredBytes, long AvailableBytes, string TargetDrive)> CheckExportDiskSpaceAsync(

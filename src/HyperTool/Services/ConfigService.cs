@@ -145,7 +145,8 @@ public sealed class ConfigService : IConfigService
                 {
                     Name = vm.Name?.Trim() ?? string.Empty,
                     Label = vm.Label?.Trim() ?? string.Empty,
-                    TrayAdapterName = vm.TrayAdapterName?.Trim() ?? string.Empty
+                    TrayAdapterName = vm.TrayAdapterName?.Trim() ?? string.Empty,
+                    OpenConsoleWithSessionEdit = vm.OpenConsoleWithSessionEdit
                 })
                 .Where(vm => !string.IsNullOrWhiteSpace(vm.Name))
                 .ToList();

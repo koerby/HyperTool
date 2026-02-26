@@ -117,6 +117,9 @@ public partial class MainViewModel : ViewModelBase
     private bool _uiStartWithWindows;
 
     [ObservableProperty]
+    private bool _uiOpenVmConnectWithSessionEdit;
+
+    [ObservableProperty]
     private string _uiTheme = "Dark";
 
     [ObservableProperty]
@@ -243,6 +246,8 @@ public partial class MainViewModel : ViewModelBase
 
     public IAsyncRelayCommand OpenConsoleCommand { get; }
 
+    public IAsyncRelayCommand ReopenConsoleWithSessionEditCommand { get; }
+
     public IAsyncRelayCommand ExportSelectedVmCommand { get; }
 
     public IAsyncRelayCommand ImportVmCommand { get; }
@@ -349,6 +354,7 @@ public partial class MainViewModel : ViewModelBase
         UiEnableTrayMenu = configResult.Config.Ui.EnableTrayMenu;
         UiStartMinimized = configResult.Config.Ui.StartMinimized;
         UiStartWithWindows = configResult.Config.Ui.StartWithWindows;
+        UiOpenVmConnectWithSessionEdit = configResult.Config.Ui.OpenVmConnectWithSessionEdit;
         UiTheme = NormalizeUiTheme(configResult.Config.Ui.Theme);
         UpdateCheckOnStartup = configResult.Config.Update.CheckOnStartup;
         GithubOwner = configResult.Config.Update.GitHubOwner;
@@ -376,6 +382,7 @@ public partial class MainViewModel : ViewModelBase
         TurnOffSelectedVmCommand = new AsyncRelayCommand(TurnOffSelectedVmAsync, CanExecuteStopVmAction);
         RestartSelectedVmCommand = new AsyncRelayCommand(RestartSelectedVmAsync, CanExecuteRestartVmAction);
         OpenConsoleCommand = new AsyncRelayCommand(OpenConsoleAsync, CanExecuteStopVmAction);
+        ReopenConsoleWithSessionEditCommand = new AsyncRelayCommand(ReopenConsoleWithSessionEditAsync, CanExecuteVmAction);
         ExportSelectedVmCommand = new AsyncRelayCommand(ExportSelectedVmAsync, () => !IsBusy && SelectedVmForConfig is not null);
         ImportVmCommand = new AsyncRelayCommand(ImportVmAsync, () => !IsBusy);
 
@@ -448,6 +455,7 @@ public partial class MainViewModel : ViewModelBase
         TurnOffSelectedVmCommand.NotifyCanExecuteChanged();
         RestartSelectedVmCommand.NotifyCanExecuteChanged();
         OpenConsoleCommand.NotifyCanExecuteChanged();
+        ReopenConsoleWithSessionEditCommand.NotifyCanExecuteChanged();
         ExportSelectedVmCommand.NotifyCanExecuteChanged();
         ImportVmCommand.NotifyCanExecuteChanged();
         LoadSwitchesCommand.NotifyCanExecuteChanged();
@@ -500,6 +508,7 @@ public partial class MainViewModel : ViewModelBase
     {
         ConnectSelectedSwitchCommand.NotifyCanExecuteChanged();
         CreateCheckpointCommand.NotifyCanExecuteChanged();
+        ReopenConsoleWithSessionEditCommand.NotifyCanExecuteChanged();
         SelectedVmForConfig = value;
         OnPropertyChanged(nameof(SelectedVmDisplayName));
         OnPropertyChanged(nameof(SelectedVmAdapterSwitchDisplay));
@@ -586,6 +595,7 @@ public partial class MainViewModel : ViewModelBase
         TurnOffSelectedVmCommand.NotifyCanExecuteChanged();
         RestartSelectedVmCommand.NotifyCanExecuteChanged();
         OpenConsoleCommand.NotifyCanExecuteChanged();
+        ReopenConsoleWithSessionEditCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnSelectedVmCurrentSwitchChanged(string value)
@@ -771,6 +781,7 @@ public partial class MainViewModel : ViewModelBase
 
             var existingLabels = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var existingTrayAdapters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var existingSessionEditPreference = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var configured in _configuredVmDefinitions.Values)
             {
@@ -778,6 +789,7 @@ public partial class MainViewModel : ViewModelBase
                 {
                     existingLabels[configured.Name] = configured.Label;
                     existingTrayAdapters[configured.Name] = configured.TrayAdapterName;
+                    existingSessionEditPreference[configured.Name] = configured.OpenConsoleWithSessionEdit;
                 }
             }
 
@@ -785,6 +797,7 @@ public partial class MainViewModel : ViewModelBase
             {
                 existingLabels[vm.Name] = vm.Label;
                 existingTrayAdapters[vm.Name] = vm.TrayAdapterName;
+                existingSessionEditPreference[vm.Name] = vm.OpenConsoleWithSessionEdit;
             }
 
             var orderedVms = vms.OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase).ToList();
@@ -802,7 +815,8 @@ public partial class MainViewModel : ViewModelBase
                     Label = label,
                     RuntimeState = vmInfo.State,
                     RuntimeSwitchName = NormalizeSwitchDisplayName(vmInfo.CurrentSwitchName),
-                    TrayAdapterName = existingTrayAdapters.TryGetValue(vmInfo.Name, out var trayAdapterName) ? trayAdapterName : string.Empty
+                    TrayAdapterName = existingTrayAdapters.TryGetValue(vmInfo.Name, out var trayAdapterName) ? trayAdapterName : string.Empty,
+                    OpenConsoleWithSessionEdit = existingSessionEditPreference.TryGetValue(vmInfo.Name, out var openWithSessionEdit) && openWithSessionEdit
                 });
             }
 
@@ -870,8 +884,24 @@ public partial class MainViewModel : ViewModelBase
     {
         await ExecuteBusyActionAsync("vmconnect wird geöffnet...", async token =>
         {
-            await _hyperVService.OpenVmConnectAsync(SelectedVm!.Name, VmConnectComputerName, token);
+            await _hyperVService.OpenVmConnectAsync(SelectedVm!.Name, VmConnectComputerName, ShouldOpenConsoleWithSessionEdit(SelectedVm!.Name), token);
             AddNotification($"Konsole für '{SelectedVm.Name}' geöffnet.", "Info");
+        });
+    }
+
+    private async Task ReopenConsoleWithSessionEditAsync()
+    {
+        if (SelectedVm is null)
+        {
+            return;
+        }
+
+        var vmName = SelectedVm.Name;
+
+        await ExecuteBusyActionAsync("Konsole wird mit Sitzungsbearbeitung neu aufgebaut...", async token =>
+        {
+            await _hyperVService.ReopenVmConnectWithSessionEditAsync(vmName, VmConnectComputerName, token);
+            AddNotification($"Konsole für '{vmName}' wurde mit Sitzungsbearbeitung neu aufgebaut.", "Info");
         });
     }
 
@@ -1274,6 +1304,10 @@ public partial class MainViewModel : ViewModelBase
             .GroupBy(vm => vm.Name, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First().TrayAdapterName, StringComparer.OrdinalIgnoreCase);
 
+        var sessionEditByName = AvailableVms
+            .GroupBy(vm => vm.Name, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First().OpenConsoleWithSessionEdit, StringComparer.OrdinalIgnoreCase);
+
         var selectedName = SelectedVm?.Name;
         var defaultName = DefaultVmName;
 
@@ -1285,7 +1319,8 @@ public partial class MainViewModel : ViewModelBase
                 Label = labelsByName.TryGetValue(vm.Name, out var label) && !string.IsNullOrWhiteSpace(label) ? label : vm.Name,
                 RuntimeState = vm.State,
                 RuntimeSwitchName = NormalizeSwitchDisplayName(vm.CurrentSwitchName),
-                TrayAdapterName = trayAdapterByName.TryGetValue(vm.Name, out var trayAdapter) ? trayAdapter : string.Empty
+                TrayAdapterName = trayAdapterByName.TryGetValue(vm.Name, out var trayAdapter) ? trayAdapter : string.Empty,
+                OpenConsoleWithSessionEdit = sessionEditByName.TryGetValue(vm.Name, out var openWithSessionEdit) && openWithSessionEdit
             })
             .ToList();
 
@@ -1789,7 +1824,8 @@ public partial class MainViewModel : ViewModelBase
                     {
                         Name = vm.Name,
                         Label = string.IsNullOrWhiteSpace(vm.Label) ? vm.Name : vm.Label,
-                        TrayAdapterName = vm.TrayAdapterName?.Trim() ?? string.Empty
+                        TrayAdapterName = vm.TrayAdapterName?.Trim() ?? string.Empty,
+                        OpenConsoleWithSessionEdit = vm.OpenConsoleWithSessionEdit
                     })
                     .OrderBy(vm => vm.Name, StringComparer.OrdinalIgnoreCase)
                     .ToList(),
@@ -1810,6 +1846,7 @@ public partial class MainViewModel : ViewModelBase
                     EnableTrayIcon = true,
                     EnableTrayMenu = UiEnableTrayMenu,
                     StartWithWindows = UiStartWithWindows,
+                    OpenVmConnectWithSessionEdit = UiOpenVmConnectWithSessionEdit,
                     TrayVmNames = [.. _trayVmNames]
                 },
                 Update = new UpdateSettings
@@ -1873,6 +1910,7 @@ public partial class MainViewModel : ViewModelBase
                 Name = vm.Name,
                 Label = vm.Label,
                 TrayAdapterName = vm.TrayAdapterName,
+                OpenConsoleWithSessionEdit = vm.OpenConsoleWithSessionEdit,
                 RuntimeSwitchName = vm.RuntimeSwitchName
             })
             .ToList();
@@ -1931,7 +1969,7 @@ public partial class MainViewModel : ViewModelBase
             await _hyperVService.StartVmAsync(vmName, token);
             AddNotification($"VM '{vmName}' gestartet.", "Success");
 
-            await _hyperVService.OpenVmConnectAsync(vmName, VmConnectComputerName, token);
+            await _hyperVService.OpenVmConnectAsync(vmName, VmConnectComputerName, ShouldOpenConsoleWithSessionEdit(vmName), token);
             AddNotification($"Konsole für '{vmName}' geöffnet.", "Info");
         });
         await RefreshVmStatusByNameAsync(vmName);
@@ -1951,7 +1989,7 @@ public partial class MainViewModel : ViewModelBase
     {
         await ExecuteBusyActionAsync($"Konsole für '{vmName}' wird geöffnet...", async token =>
         {
-            await _hyperVService.OpenVmConnectAsync(vmName, VmConnectComputerName, token);
+            await _hyperVService.OpenVmConnectAsync(vmName, VmConnectComputerName, ShouldOpenConsoleWithSessionEdit(vmName), token);
             AddNotification($"Konsole für '{vmName}' geöffnet.", "Info");
         });
     }
@@ -2086,6 +2124,7 @@ public partial class MainViewModel : ViewModelBase
             UiEnableTrayMenu = config.Ui.EnableTrayMenu;
             UiStartMinimized = config.Ui.StartMinimized;
             UiStartWithWindows = config.Ui.StartWithWindows;
+            UiOpenVmConnectWithSessionEdit = config.Ui.OpenVmConnectWithSessionEdit;
             UiTheme = NormalizeUiTheme(config.Ui.Theme);
             ApplyConfiguredVmDefinitions(config.Vms);
             _trayVmNames = NormalizeTrayVmNames(config.Ui.TrayVmNames);
@@ -2127,7 +2166,8 @@ public partial class MainViewModel : ViewModelBase
             {
                 Name = vmName,
                 Label = string.IsNullOrWhiteSpace(vm.Label) ? vmName : vm.Label.Trim(),
-                TrayAdapterName = vm.TrayAdapterName?.Trim() ?? string.Empty
+                TrayAdapterName = vm.TrayAdapterName?.Trim() ?? string.Empty,
+                OpenConsoleWithSessionEdit = vm.OpenConsoleWithSessionEdit
             };
         }
     }
@@ -2157,6 +2197,19 @@ public partial class MainViewModel : ViewModelBase
         }
 
         return normalized;
+    }
+
+    private bool ShouldOpenConsoleWithSessionEdit(string vmName)
+    {
+        var vm = AvailableVms.FirstOrDefault(item => string.Equals(item.Name, vmName, StringComparison.OrdinalIgnoreCase))
+                 ?? _configuredVmDefinitions.Values.FirstOrDefault(item => string.Equals(item.Name, vmName, StringComparison.OrdinalIgnoreCase));
+
+        if (vm is not null)
+        {
+            return vm.OpenConsoleWithSessionEdit;
+        }
+
+        return UiOpenVmConnectWithSessionEdit;
     }
 
     private static string NormalizeUiTheme(string? theme)
@@ -2260,7 +2313,7 @@ public partial class MainViewModel : ViewModelBase
 
         await ExecuteBusyActionAsync($"Konsole für '{vmName}' wird geöffnet...", async token =>
         {
-            await _hyperVService.OpenVmConnectAsync(vmName, VmConnectComputerName, token);
+            await _hyperVService.OpenVmConnectAsync(vmName, VmConnectComputerName, ShouldOpenConsoleWithSessionEdit(vmName), token);
             AddNotification($"Konsole für '{vmName}' geöffnet.", "Info");
         });
     }

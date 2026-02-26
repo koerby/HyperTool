@@ -14,5 +14,7 @@ public sealed class VmDefinition
 
     public string TrayAdapterName { get; set; } = string.Empty;
 
+    public bool OpenConsoleWithSessionEdit { get; set; }
+
     public override string ToString() => DisplayLabel;
 }

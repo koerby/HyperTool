@@ -46,6 +46,8 @@ public sealed class UiSettings
 
     public bool StartWithWindows { get; set; }
 
+    public bool OpenVmConnectWithSessionEdit { get; set; }
+
     public List<string> TrayVmNames { get; set; } = [];
 }
 
