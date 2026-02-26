@@ -42,6 +42,8 @@ public sealed class UiSettings
 
     public bool EnableTrayIcon { get; set; } = true;
 
+    public bool EnableTrayMenu { get; set; } = true;
+
     public bool StartWithWindows { get; set; }
 
     public List<string> TrayVmNames { get; set; } = [];

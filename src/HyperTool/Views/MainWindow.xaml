@@ -835,6 +835,11 @@
                                             <GroupBox Margin="0,14,0,0" Header="System" Foreground="{DynamicResource TextPrimary}" BorderBrush="{DynamicResource InputBorder}">
                                                 <StackPanel Margin="8">
                                                     <CheckBox Margin="0,0,0,8" Foreground="{DynamicResource TextPrimary}" IsChecked="{Binding UiEnableTrayIcon}" Content="Tasktray-Icon aktiv" />
+                                                    <CheckBox Margin="0,0,0,8"
+                                                              Foreground="{DynamicResource TextPrimary}"
+                                                              IsChecked="{Binding UiEnableTrayMenu}"
+                                                              IsEnabled="{Binding UiEnableTrayIcon}"
+                                                              Content="Tasktray-Menü aktiv" />
                                                     <CheckBox Margin="0,0,0,8" Foreground="{DynamicResource TextPrimary}" IsChecked="{Binding UiStartMinimized}" Content="Beim Start minimiert (nur Tray)" />
                                                     <CheckBox Margin="0,0,0,8" Foreground="{DynamicResource TextPrimary}" IsChecked="{Binding UiStartWithWindows}" Content="Mit Windows starten" />
                                                     <Grid Margin="0,0,0,8">

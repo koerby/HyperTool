@@ -183,6 +183,7 @@ public partial class App : System.Windows.Application
 					mainWindow.Activate();
 				},
 				hideAction: () => mainWindow.Hide(),
+				isTrayMenuEnabled: () => mainViewModel.UiEnableTrayMenu,
 				getVms: () => mainViewModel.GetTrayVms(),
 				getSwitches: () => mainViewModel.GetTraySwitches(),
 				refreshTrayDataAction: () => mainViewModel.RefreshTrayDataAsync(),

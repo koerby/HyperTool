@@ -18,16 +18,30 @@ namespace HyperTool.Views;
 public partial class MainWindow : MetroWindow
 {
     private const string LogoEasterEggSoundFileName = "logo-spin.wav";
+    private const double LogoEasterEggSoundVolume = 0.55;
 
     private readonly IThemeService _themeService;
     private MainViewModel? _currentViewModel;
     private HelpWindow? _helpWindow;
+    private MediaPlayer? _logoSoundPlayer;
+    private string? _loadedLogoSoundPath;
 
     public MainWindow(IThemeService themeService)
     {
         _themeService = themeService;
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
+        Closed += OnWindowClosed;
+    }
+
+    private void OnWindowClosed(object? sender, EventArgs e)
+    {
+        if (_logoSoundPlayer is not null)
+        {
+            _logoSoundPlayer.Close();
+            _logoSoundPlayer = null;
+            _loadedLogoSoundPath = null;
+        }
     }
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -152,7 +166,7 @@ public partial class MainWindow : MetroWindow
         PlayLogoEasterEggSound();
     }
 
-    private static void PlayLogoEasterEggSound()
+    private void PlayLogoEasterEggSound()
     {
         try
         {
@@ -161,8 +175,17 @@ public partial class MainWindow : MetroWindow
 
             if (File.Exists(soundPath))
             {
-                using var player = new SoundPlayer(soundPath);
-                player.Play();
+                _logoSoundPlayer ??= new MediaPlayer();
+
+                if (!string.Equals(_loadedLogoSoundPath, soundPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    _logoSoundPlayer.Open(new Uri(soundPath, UriKind.Absolute));
+                    _loadedLogoSoundPath = soundPath;
+                }
+
+                _logoSoundPlayer.Volume = LogoEasterEggSoundVolume;
+                _logoSoundPlayer.Position = TimeSpan.Zero;
+                _logoSoundPlayer.Play();
                 return;
             }
         }

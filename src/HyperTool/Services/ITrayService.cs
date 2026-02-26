@@ -7,6 +7,7 @@ public interface ITrayService : IDisposable
     void Initialize(
         Action showAction,
         Action hideAction,
+        Func<bool> isTrayMenuEnabled,
         Func<IReadOnlyList<VmDefinition>> getVms,
         Func<IReadOnlyList<HyperVSwitchInfo>> getSwitches,
         Func<Task> refreshTrayDataAction,

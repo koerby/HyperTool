@@ -108,6 +108,9 @@ public partial class MainViewModel : ViewModelBase
     private bool _uiEnableTrayIcon = true;
 
     [ObservableProperty]
+    private bool _uiEnableTrayMenu = true;
+
+    [ObservableProperty]
     private bool _uiStartMinimized;
 
     [ObservableProperty]
@@ -343,6 +346,7 @@ public partial class MainViewModel : ViewModelBase
         HnsAutoRestartAfterDefaultSwitch = configResult.Config.Hns.AutoRestartAfterDefaultSwitch;
         HnsAutoRestartAfterAnyConnect = configResult.Config.Hns.AutoRestartAfterAnyConnect;
         UiEnableTrayIcon = configResult.Config.Ui.EnableTrayIcon;
+        UiEnableTrayMenu = configResult.Config.Ui.EnableTrayMenu;
         UiStartMinimized = configResult.Config.Ui.StartMinimized;
         UiStartWithWindows = configResult.Config.Ui.StartWithWindows;
         UiTheme = NormalizeUiTheme(configResult.Config.Ui.Theme);
@@ -485,6 +489,11 @@ public partial class MainViewModel : ViewModelBase
         {
             _ = HandleNetworkTabActivatedAsync();
         }
+    }
+
+    partial void OnUiEnableTrayMenuChanged(bool value)
+    {
+        NotifyTrayStateChanged();
     }
 
     partial void OnSelectedVmChanged(VmDefinition? value)
@@ -1799,6 +1808,7 @@ public partial class MainViewModel : ViewModelBase
                     StartMinimized = UiStartMinimized,
                     MinimizeToTray = true,
                     EnableTrayIcon = UiEnableTrayIcon,
+                    EnableTrayMenu = UiEnableTrayMenu,
                     StartWithWindows = UiStartWithWindows,
                     TrayVmNames = [.. _trayVmNames]
                 },
@@ -2073,6 +2083,7 @@ public partial class MainViewModel : ViewModelBase
             LastSelectedVmName = config.LastSelectedVmName;
             VmConnectComputerName = NormalizeVmConnectComputerName(config.VmConnectComputerName);
             UiEnableTrayIcon = config.Ui.EnableTrayIcon;
+            UiEnableTrayMenu = config.Ui.EnableTrayMenu;
             UiStartMinimized = config.Ui.StartMinimized;
             UiStartWithWindows = config.Ui.StartWithWindows;
             UiTheme = NormalizeUiTheme(config.Ui.Theme);
