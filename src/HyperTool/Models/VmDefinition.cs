@@ -12,5 +12,7 @@ public sealed class VmDefinition
 
     public string RuntimeSwitchName { get; set; } = "-";
 
+    public string TrayAdapterName { get; set; } = string.Empty;
+
     public override string ToString() => DisplayLabel;
 }

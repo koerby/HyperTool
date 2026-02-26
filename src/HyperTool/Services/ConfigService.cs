@@ -144,7 +144,8 @@ public sealed class ConfigService : IConfigService
                 .Select(vm => new VmDefinition
                 {
                     Name = vm.Name?.Trim() ?? string.Empty,
-                    Label = vm.Label?.Trim() ?? string.Empty
+                    Label = vm.Label?.Trim() ?? string.Empty,
+                    TrayAdapterName = vm.TrayAdapterName?.Trim() ?? string.Empty
                 })
                 .Where(vm => !string.IsNullOrWhiteSpace(vm.Name))
                 .ToList();
@@ -160,6 +161,7 @@ public sealed class ConfigService : IConfigService
         foreach (var vm in config.Vms)
         {
             vm.Name = vm.Name?.Trim() ?? string.Empty;
+            vm.TrayAdapterName = vm.TrayAdapterName?.Trim() ?? string.Empty;
 
             if (string.IsNullOrWhiteSpace(vm.Label))
             {

@@ -105,6 +105,22 @@ public sealed class HyperVPowerShellService : IHyperVService
         return InvokeNonQueryAsync(script, cancellationToken);
     }
 
+    public Task RenameVmNetworkAdapterAsync(string vmName, string adapterName, string newAdapterName, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(adapterName))
+        {
+            throw new ArgumentException("Adaptername darf nicht leer sein.", nameof(adapterName));
+        }
+
+        if (string.IsNullOrWhiteSpace(newAdapterName))
+        {
+            throw new ArgumentException("Neuer Adaptername darf nicht leer sein.", nameof(newAdapterName));
+        }
+
+        var script = $"Rename-VMNetworkAdapter -VMName {ToPsSingleQuoted(vmName)} -Name {ToPsSingleQuoted(adapterName)} -NewName {ToPsSingleQuoted(newAdapterName)}";
+        return InvokeNonQueryAsync(script, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<HostNetworkAdapterInfo>> GetHostNetworkAdaptersWithUplinkAsync(CancellationToken cancellationToken)
     {
         const string script = """

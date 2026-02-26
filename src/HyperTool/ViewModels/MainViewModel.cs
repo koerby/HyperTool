@@ -66,6 +66,18 @@ public partial class MainViewModel : ViewModelBase
     private VmDefinition? _selectedVmForConfig;
 
     [ObservableProperty]
+    private VmTrayAdapterOption? _selectedVmTrayAdapterOption;
+
+    [ObservableProperty]
+    private HyperVVmNetworkAdapterInfo? _selectedVmAdapterForRename;
+
+    [ObservableProperty]
+    private string _newVmAdapterName = string.Empty;
+
+    [ObservableProperty]
+    private string _vmAdapterRenameValidationMessage = string.Empty;
+
+    [ObservableProperty]
     private VmDefinition? _selectedDefaultVmForConfig;
 
     [ObservableProperty]
@@ -148,6 +160,10 @@ public partial class MainViewModel : ViewModelBase
     public ObservableCollection<HyperVSwitchInfo> AvailableSwitches { get; } = [];
 
     public ObservableCollection<HyperVVmNetworkAdapterInfo> AvailableVmNetworkAdapters { get; } = [];
+
+    public ObservableCollection<VmTrayAdapterOption> AvailableVmTrayAdapterOptions { get; } = [];
+
+    public ObservableCollection<HyperVVmNetworkAdapterInfo> AvailableVmAdaptersForRename { get; } = [];
 
     public ObservableCollection<HyperVCheckpointInfo> AvailableCheckpoints { get; } = [];
 
@@ -250,6 +266,8 @@ public partial class MainViewModel : ViewModelBase
 
     public IRelayCommand SetDefaultVmCommand { get; }
 
+    public IAsyncRelayCommand RenameVmAdapterCommand { get; }
+
     public IAsyncRelayCommand SaveConfigCommand { get; }
 
     public IAsyncRelayCommand ReloadConfigCommand { get; }
@@ -293,6 +311,8 @@ public partial class MainViewModel : ViewModelBase
 
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private List<string> _trayVmNames = [];
+    private readonly Dictionary<string, VmDefinition> _configuredVmDefinitions = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly char[] VmAdapterInvalidNameChars = ['\\', '/', ':', '*', '?', '"', '<', '>', '|'];
     private int _selectedVmChangeSuppressionDepth;
     private static readonly HttpClient UpdateDownloadClient = new();
 
@@ -329,6 +349,7 @@ public partial class MainViewModel : ViewModelBase
         UpdateCheckOnStartup = configResult.Config.Update.CheckOnStartup;
         GithubOwner = configResult.Config.Update.GitHubOwner;
         GithubRepo = configResult.Config.Update.GitHubRepo;
+        ApplyConfiguredVmDefinitions(configResult.Config.Vms);
         _trayVmNames = NormalizeTrayVmNames(configResult.Config.Ui.TrayVmNames);
         AppVersion = ResolveAppVersion();
         UpdateStatus = "Noch nicht geprüft";
@@ -367,6 +388,7 @@ public partial class MainViewModel : ViewModelBase
         AddVmCommand = new RelayCommand(AddVm);
         RemoveVmCommand = new RelayCommand(RemoveSelectedVm);
         SetDefaultVmCommand = new RelayCommand(SetDefaultVmFromSelection);
+        RenameVmAdapterCommand = new AsyncRelayCommand(RenameVmAdapterAsync, CanExecuteRenameVmAdapter);
         SaveConfigCommand = new AsyncRelayCommand(SaveConfigAsync, () => !IsBusy);
         ReloadConfigCommand = new AsyncRelayCommand(ReloadConfigAsync, () => !IsBusy);
         RestartHnsCommand = new AsyncRelayCommand(RestartHnsAsync, () => !IsBusy);
@@ -448,6 +470,7 @@ public partial class MainViewModel : ViewModelBase
         RestartVmByNameCommand.NotifyCanExecuteChanged();
         OpenConsoleByNameCommand.NotifyCanExecuteChanged();
         CreateSnapshotByNameCommand.NotifyCanExecuteChanged();
+        RenameVmAdapterCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(HasBusyProgress));
     }
 
@@ -612,6 +635,33 @@ public partial class MainViewModel : ViewModelBase
     {
         RemoveVmCommand.NotifyCanExecuteChanged();
         ExportSelectedVmCommand.NotifyCanExecuteChanged();
+        RenameVmAdapterCommand.NotifyCanExecuteChanged();
+        UpdateVmAdapterRenameValidationState();
+
+        _ = LoadVmAdaptersForConfigAsync(value);
+    }
+
+    partial void OnSelectedVmTrayAdapterOptionChanged(VmTrayAdapterOption? value)
+    {
+        if (SelectedVmForConfig is null || value is null)
+        {
+            return;
+        }
+
+        SelectedVmForConfig.TrayAdapterName = value.AdapterName?.Trim() ?? string.Empty;
+        NotifyTrayStateChanged();
+    }
+
+    partial void OnSelectedVmAdapterForRenameChanged(HyperVVmNetworkAdapterInfo? value)
+    {
+        UpdateVmAdapterRenameValidationState();
+        RenameVmAdapterCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnNewVmAdapterNameChanged(string value)
+    {
+        UpdateVmAdapterRenameValidationState();
+        RenameVmAdapterCommand.NotifyCanExecuteChanged();
     }
 
     private bool CanExecuteVmAction() => !IsBusy && SelectedVm is not null;
@@ -710,9 +760,23 @@ public partial class MainViewModel : ViewModelBase
                 return;
             }
 
-            var existingLabels = AvailableVms
-                .GroupBy(vm => vm.Name, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(group => group.Key, group => group.First().Label, StringComparer.OrdinalIgnoreCase);
+            var existingLabels = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var existingTrayAdapters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var configured in _configuredVmDefinitions.Values)
+            {
+                if (!string.IsNullOrWhiteSpace(configured.Name))
+                {
+                    existingLabels[configured.Name] = configured.Label;
+                    existingTrayAdapters[configured.Name] = configured.TrayAdapterName;
+                }
+            }
+
+            foreach (var vm in AvailableVms)
+            {
+                existingLabels[vm.Name] = vm.Label;
+                existingTrayAdapters[vm.Name] = vm.TrayAdapterName;
+            }
 
             var orderedVms = vms.OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase).ToList();
 
@@ -728,7 +792,8 @@ public partial class MainViewModel : ViewModelBase
                     Name = vmInfo.Name,
                     Label = label,
                     RuntimeState = vmInfo.State,
-                    RuntimeSwitchName = NormalizeSwitchDisplayName(vmInfo.CurrentSwitchName)
+                    RuntimeSwitchName = NormalizeSwitchDisplayName(vmInfo.CurrentSwitchName),
+                    TrayAdapterName = existingTrayAdapters.TryGetValue(vmInfo.Name, out var trayAdapterName) ? trayAdapterName : string.Empty
                 });
             }
 
@@ -1196,6 +1261,10 @@ public partial class MainViewModel : ViewModelBase
             .GroupBy(vm => vm.Name, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First().Label, StringComparer.OrdinalIgnoreCase);
 
+        var trayAdapterByName = AvailableVms
+            .GroupBy(vm => vm.Name, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First().TrayAdapterName, StringComparer.OrdinalIgnoreCase);
+
         var selectedName = SelectedVm?.Name;
         var defaultName = DefaultVmName;
 
@@ -1206,7 +1275,8 @@ public partial class MainViewModel : ViewModelBase
                 Name = vm.Name,
                 Label = labelsByName.TryGetValue(vm.Name, out var label) && !string.IsNullOrWhiteSpace(label) ? label : vm.Name,
                 RuntimeState = vm.State,
-                RuntimeSwitchName = NormalizeSwitchDisplayName(vm.CurrentSwitchName)
+                RuntimeSwitchName = NormalizeSwitchDisplayName(vm.CurrentSwitchName),
+                TrayAdapterName = trayAdapterByName.TryGetValue(vm.Name, out var trayAdapter) ? trayAdapter : string.Empty
             })
             .ToList();
 
@@ -1530,6 +1600,173 @@ public partial class MainViewModel : ViewModelBase
         AddNotification($"Default VM gesetzt: '{DefaultVmName}'.", "Info");
     }
 
+    private async Task LoadVmAdaptersForConfigAsync(VmDefinition? vm)
+    {
+        AvailableVmTrayAdapterOptions.Clear();
+        AvailableVmAdaptersForRename.Clear();
+        SelectedVmTrayAdapterOption = null;
+        SelectedVmAdapterForRename = null;
+        NewVmAdapterName = string.Empty;
+
+        if (vm is null || string.IsNullOrWhiteSpace(vm.Name))
+        {
+            return;
+        }
+
+        try
+        {
+            var adapters = await _hyperVService.GetVmNetworkAdaptersAsync(vm.Name, _lifetimeCancellation.Token);
+
+            if (SelectedVmForConfig is null || !string.Equals(SelectedVmForConfig.Name, vm.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            var orderedAdapters = adapters
+                .OrderBy(item => item.DisplayName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            foreach (var option in BuildTrayAdapterOptions(orderedAdapters))
+            {
+                AvailableVmTrayAdapterOptions.Add(option);
+            }
+
+            foreach (var adapter in orderedAdapters)
+            {
+                AvailableVmAdaptersForRename.Add(adapter);
+            }
+
+            SelectedVmTrayAdapterOption = AvailableVmTrayAdapterOptions.FirstOrDefault(option =>
+                                           string.Equals(option.AdapterName, vm.TrayAdapterName, StringComparison.OrdinalIgnoreCase))
+                                       ?? AvailableVmTrayAdapterOptions.FirstOrDefault();
+
+            SelectedVmAdapterForRename = AvailableVmAdaptersForRename.FirstOrDefault(option =>
+                string.Equals(option.Name, vm.TrayAdapterName, StringComparison.OrdinalIgnoreCase))
+                ?? AvailableVmAdaptersForRename.FirstOrDefault();
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Adapterliste für Config-VM {VmName} konnte nicht geladen werden.", vm.Name);
+        }
+
+        UpdateVmAdapterRenameValidationState();
+        RenameVmAdapterCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool CanExecuteRenameVmAdapter() => !IsBusy && string.IsNullOrWhiteSpace(ValidateVmAdapterRenameInput());
+
+    private void UpdateVmAdapterRenameValidationState()
+    {
+        VmAdapterRenameValidationMessage = ValidateVmAdapterRenameInput();
+    }
+
+    private string ValidateVmAdapterRenameInput()
+    {
+        if (SelectedVmForConfig is null)
+        {
+            return "";
+        }
+
+        if (SelectedVmAdapterForRename is null)
+        {
+            return "Bitte zuerst einen Adapter auswählen.";
+        }
+
+        var oldName = SelectedVmAdapterForRename.Name?.Trim() ?? string.Empty;
+        var newName = NewVmAdapterName?.Trim() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(newName))
+        {
+            return "Neuer Adaptername darf nicht leer sein.";
+        }
+
+        if (string.Equals(oldName, newName, StringComparison.OrdinalIgnoreCase))
+        {
+            return "Neuer Name ist identisch mit dem aktuellen Namen.";
+        }
+
+        if (newName.IndexOfAny(VmAdapterInvalidNameChars) >= 0)
+        {
+            return "Der Name enthält ungültige Zeichen: \\ / : * ? \" < > |";
+        }
+
+        if (AvailableVmAdaptersForRename.Any(adapter =>
+                !string.Equals(adapter.Name, oldName, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(adapter.Name, newName, StringComparison.OrdinalIgnoreCase)))
+        {
+            return "Ein Adapter mit diesem Namen existiert bereits auf der VM.";
+        }
+
+        return "";
+    }
+
+    private static IReadOnlyList<VmTrayAdapterOption> BuildTrayAdapterOptions(IReadOnlyList<HyperVVmNetworkAdapterInfo> adapters)
+    {
+        var options = new List<VmTrayAdapterOption>
+        {
+            new()
+            {
+                AdapterName = string.Empty,
+                DisplayName = "Alle Adapter (Standard)"
+            }
+        };
+
+        options.AddRange(adapters.Select(adapter => new VmTrayAdapterOption
+        {
+            AdapterName = adapter.Name,
+            DisplayName = adapter.DisplayName
+        }));
+
+        return options;
+    }
+
+    private async Task RenameVmAdapterAsync()
+    {
+        if (SelectedVmForConfig is null || SelectedVmAdapterForRename is null)
+        {
+            return;
+        }
+
+        var validationMessage = ValidateVmAdapterRenameInput();
+        if (!string.IsNullOrWhiteSpace(validationMessage))
+        {
+            AddNotification($"Adapter umbenennen abgebrochen: {validationMessage}", "Warning");
+            return;
+        }
+
+        var vmName = SelectedVmForConfig.Name;
+        var oldName = SelectedVmAdapterForRename.Name?.Trim() ?? string.Empty;
+        var newName = NewVmAdapterName?.Trim() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(oldName) || string.IsNullOrWhiteSpace(newName))
+        {
+            return;
+        }
+
+        await ExecuteBusyActionAsync($"Adapter '{oldName}' wird umbenannt...", async token =>
+        {
+            await _hyperVService.RenameVmNetworkAdapterAsync(vmName, oldName, newName, token);
+
+            if (string.Equals(SelectedVmForConfig.TrayAdapterName, oldName, StringComparison.OrdinalIgnoreCase))
+            {
+                SelectedVmForConfig.TrayAdapterName = newName;
+            }
+
+            var liveVm = AvailableVms.FirstOrDefault(vm => string.Equals(vm.Name, vmName, StringComparison.OrdinalIgnoreCase));
+            if (liveVm is not null && string.Equals(liveVm.TrayAdapterName, oldName, StringComparison.OrdinalIgnoreCase))
+            {
+                liveVm.TrayAdapterName = newName;
+            }
+
+            AddNotification($"VM-Adapter '{oldName}' wurde in '{newName}' umbenannt.", "Success");
+        });
+
+        NewVmAdapterName = string.Empty;
+        await LoadVmAdaptersForConfigAsync(SelectedVmForConfig);
+        await RefreshVmStatusAsync();
+        NotifyTrayStateChanged();
+    }
+
     private async Task SaveConfigAsync()
     {
         await ExecuteBusyActionAsync("Konfiguration wird gespeichert...", _ =>
@@ -1538,6 +1775,15 @@ public partial class MainViewModel : ViewModelBase
             {
                 DefaultVmName = DefaultVmName,
                 LastSelectedVmName = SelectedVm?.Name ?? LastSelectedVmName,
+                Vms = AvailableVms
+                    .Select(vm => new VmDefinition
+                    {
+                        Name = vm.Name,
+                        Label = string.IsNullOrWhiteSpace(vm.Label) ? vm.Name : vm.Label,
+                        TrayAdapterName = vm.TrayAdapterName?.Trim() ?? string.Empty
+                    })
+                    .OrderBy(vm => vm.Name, StringComparer.OrdinalIgnoreCase)
+                    .ToList(),
                 DefaultSwitchName = DefaultSwitchName,
                 VmConnectComputerName = NormalizeVmConnectComputerName(VmConnectComputerName),
                 Hns = new HnsSettings
@@ -1566,6 +1812,8 @@ public partial class MainViewModel : ViewModelBase
 
             if (_configService.TrySave(_configPath, config, out var errorMessage))
             {
+                ApplyConfiguredVmDefinitions(config.Vms);
+
                 var executablePath = Environment.ProcessPath ?? string.Empty;
                 if (!string.IsNullOrWhiteSpace(executablePath)
                     && !_startupService.SetStartWithWindows(UiStartWithWindows, "HyperTool", executablePath, out var startupError))
@@ -1614,6 +1862,7 @@ public partial class MainViewModel : ViewModelBase
             {
                 Name = vm.Name,
                 Label = vm.Label,
+                TrayAdapterName = vm.TrayAdapterName,
                 RuntimeSwitchName = vm.RuntimeSwitchName
             })
             .ToList();
@@ -1712,8 +1961,35 @@ public partial class MainViewModel : ViewModelBase
     {
         await ExecuteBusyActionAsync($"'{vmName}' wird mit '{switchName}' verbunden...", async token =>
         {
-            await _hyperVService.ConnectVmNetworkAdapterAsync(vmName, switchName, null, token);
-            AddNotification($"'{vmName}' mit '{switchName}' verbunden.", "Success");
+            string? trayAdapterName = null;
+            var vmConfig = AvailableVms.FirstOrDefault(vm => string.Equals(vm.Name, vmName, StringComparison.OrdinalIgnoreCase));
+            var configuredAdapterName = vmConfig?.TrayAdapterName?.Trim();
+
+            if (!string.IsNullOrWhiteSpace(configuredAdapterName))
+            {
+                var adapters = await _hyperVService.GetVmNetworkAdaptersAsync(vmName, token);
+                var exists = adapters.Any(adapter => string.Equals(adapter.Name, configuredAdapterName, StringComparison.OrdinalIgnoreCase));
+
+                if (exists)
+                {
+                    trayAdapterName = configuredAdapterName;
+                }
+                else
+                {
+                    AddNotification($"Konfigurierter Tray-Adapter '{configuredAdapterName}' für '{vmName}' wurde nicht gefunden. Fallback auf Standard-Verhalten.", "Warning");
+                }
+            }
+
+            await _hyperVService.ConnectVmNetworkAdapterAsync(vmName, switchName, trayAdapterName, token);
+
+            if (string.IsNullOrWhiteSpace(trayAdapterName))
+            {
+                AddNotification($"'{vmName}' mit '{switchName}' verbunden.", "Success");
+            }
+            else
+            {
+                AddNotification($"'{vmName}' Adapter '{trayAdapterName}' mit '{switchName}' verbunden.", "Success");
+            }
 
             if (ShouldAutoRestartHnsAfterConnect(switchName))
             {
@@ -1800,6 +2076,7 @@ public partial class MainViewModel : ViewModelBase
             UiStartMinimized = config.Ui.StartMinimized;
             UiStartWithWindows = config.Ui.StartWithWindows;
             UiTheme = NormalizeUiTheme(config.Ui.Theme);
+            ApplyConfiguredVmDefinitions(config.Vms);
             _trayVmNames = NormalizeTrayVmNames(config.Ui.TrayVmNames);
             UpdateCheckOnStartup = config.Update.CheckOnStartup;
             GithubOwner = config.Update.GitHubOwner;
@@ -1816,6 +2093,32 @@ public partial class MainViewModel : ViewModelBase
         await LoadVmsFromHyperVAsync();
         await RefreshSwitchesAsync();
         NotifyTrayStateChanged();
+    }
+
+    private void ApplyConfiguredVmDefinitions(IEnumerable<VmDefinition>? configuredVms)
+    {
+        _configuredVmDefinitions.Clear();
+
+        if (configuredVms is null)
+        {
+            return;
+        }
+
+        foreach (var vm in configuredVms)
+        {
+            if (vm is null || string.IsNullOrWhiteSpace(vm.Name))
+            {
+                continue;
+            }
+
+            var vmName = vm.Name.Trim();
+            _configuredVmDefinitions[vmName] = new VmDefinition
+            {
+                Name = vmName,
+                Label = string.IsNullOrWhiteSpace(vm.Label) ? vmName : vm.Label.Trim(),
+                TrayAdapterName = vm.TrayAdapterName?.Trim() ?? string.Empty
+            };
+        }
     }
 
     private static List<string> NormalizeTrayVmNames(IEnumerable<string>? vmNames)
