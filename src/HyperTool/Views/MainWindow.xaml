@@ -836,17 +836,25 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" Text="Notifications" />
-                        <mah:ProgressRing Margin="12,0,0,0"
-                                          Width="16"
-                                          Height="16"
-                                          IsActive="{Binding IsBusy}"
-                                          Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                        <TextBlock Margin="8,0,0,0"
-                                   Foreground="{DynamicResource TextMuted}"
-                                   Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                   Text="{Binding BusyText}" />
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" Text="Notifications" />
+                            <mah:ProgressRing Margin="12,0,0,0"
+                                              Width="16"
+                                              Height="16"
+                                              IsActive="{Binding IsBusy}"
+                                              Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            <TextBlock Margin="8,0,0,0"
+                                       Foreground="{DynamicResource TextMuted}"
+                                       Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                       Text="{Binding BusyText}" />
+                        </StackPanel>
+                        <ProgressBar Margin="0,6,0,0"
+                                     Height="6"
+                                     Minimum="0"
+                                     Maximum="100"
+                                     Value="{Binding BusyProgressPercent}"
+                                     Visibility="{Binding HasBusyProgress, Converter={StaticResource BooleanToVisibilityConverter}}" />
                     </StackPanel>
 
                         <WrapPanel Grid.Column="1" Margin="12,0,0,0">

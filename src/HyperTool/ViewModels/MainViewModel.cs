@@ -60,6 +60,9 @@ public partial class MainViewModel : ViewModelBase
     private string _busyText = "Bitte warten...";
 
     [ObservableProperty]
+    private int _busyProgressPercent = -1;
+
+    [ObservableProperty]
     private VmDefinition? _selectedVmForConfig;
 
     [ObservableProperty]
@@ -180,6 +183,8 @@ public partial class MainViewModel : ViewModelBase
     public string LogToggleText => IsLogExpanded ? "▾ Log einklappen" : "▸ Log ausklappen";
 
     public string SelectedVmDisplayName => SelectedVm?.DisplayLabel ?? "-";
+
+    public bool HasBusyProgress => IsBusy && BusyProgressPercent >= 0;
 
     public string SelectedVmAdapterSwitchDisplay
     {
@@ -443,6 +448,12 @@ public partial class MainViewModel : ViewModelBase
         RestartVmByNameCommand.NotifyCanExecuteChanged();
         OpenConsoleByNameCommand.NotifyCanExecuteChanged();
         CreateSnapshotByNameCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(HasBusyProgress));
+    }
+
+    partial void OnBusyProgressPercentChanged(int value)
+    {
+        OnPropertyChanged(nameof(HasBusyProgress));
     }
 
     partial void OnSelectedMenuIndexChanged(int value)
@@ -807,11 +818,27 @@ public partial class MainViewModel : ViewModelBase
         }
 
         var exportPath = Path.Combine(selectedFolder, $"{vmName}-{DateTime.Now:yyyyMMdd-HHmmss}");
+
+        var spaceCheck = await _hyperVService.CheckExportDiskSpaceAsync(vmName, exportPath, _lifetimeCancellation.Token);
+        if (!spaceCheck.HasEnoughSpace)
+        {
+            AddNotification(
+                $"Zu wenig Speicherplatz auf {spaceCheck.TargetDrive}: benötigt {FormatByteSize(spaceCheck.RequiredBytes)}, verfügbar {FormatByteSize(spaceCheck.AvailableBytes)}.",
+                "Error");
+            return;
+        }
+
         Directory.CreateDirectory(exportPath);
+
+        var progress = new Progress<int>(percent =>
+        {
+            BusyProgressPercent = percent;
+            BusyText = $"VM '{vmName}' wird exportiert... {percent}%";
+        });
 
         await ExecuteBusyActionAsync($"VM '{vmName}' wird exportiert...", async token =>
         {
-            await _hyperVService.ExportVmAsync(vmName, exportPath, token);
+            await _hyperVService.ExportVmAsync(vmName, exportPath, progress, token);
             AddNotification($"VM '{vmName}' exportiert nach: {exportPath}", "Success");
         });
     }
@@ -825,10 +852,29 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
+        var destinationPath = PickFolderPath("Zielordner für die neue importierte VM auswählen");
+        if (string.IsNullOrWhiteSpace(destinationPath))
+        {
+            AddNotification("VM-Import abgebrochen (kein Zielordner ausgewählt).", "Info");
+            return;
+        }
+
+        var progress = new Progress<int>(percent =>
+        {
+            BusyProgressPercent = percent;
+            BusyText = $"VM wird importiert... {percent}%";
+        });
+
         await ExecuteBusyActionAsync("VM wird importiert...", async token =>
         {
-            var importedVmName = await _hyperVService.ImportVmAsync(importPath, token);
-            AddNotification($"VM '{importedVmName}' erfolgreich importiert.", "Success");
+            var importResult = await _hyperVService.ImportVmAsync(importPath, destinationPath, progress, token);
+            AddNotification($"VM '{importResult.VmName}' erfolgreich als neue VM importiert (Ziel: {destinationPath}).", "Success");
+
+            if (importResult.RenamedDueToConflict
+                && !string.Equals(importResult.OriginalName, importResult.VmName, StringComparison.OrdinalIgnoreCase))
+            {
+                AddNotification($"Namenskonflikt erkannt: '{importResult.OriginalName}' wurde automatisch zu '{importResult.VmName}' umbenannt.", "Warning");
+            }
         });
 
         await LoadVmsFromHyperVAsync();
@@ -2118,6 +2164,25 @@ public partial class MainViewModel : ViewModelBase
         return Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0";
     }
 
+    private static string FormatByteSize(long bytes)
+    {
+        if (bytes <= 0)
+        {
+            return "0 B";
+        }
+
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        double value = bytes;
+        var unitIndex = 0;
+        while (value >= 1024 && unitIndex < units.Length - 1)
+        {
+            value /= 1024;
+            unitIndex++;
+        }
+
+        return $"{value:0.##} {units[unitIndex]}";
+    }
+
     private async Task ExecuteBusyActionAsync(string busyText, Func<CancellationToken, Task> action, bool showNotificationOnErrorOnly = false)
     {
         if (IsBusy)
@@ -2127,6 +2192,7 @@ public partial class MainViewModel : ViewModelBase
 
         IsBusy = true;
         BusyText = busyText;
+        BusyProgressPercent = -1;
 
         try
         {
@@ -2148,6 +2214,7 @@ public partial class MainViewModel : ViewModelBase
         {
             IsBusy = false;
             BusyText = "Bitte warten...";
+            BusyProgressPercent = -1;
 
             if (!showNotificationOnErrorOnly && !StatusText.Equals("Fehler", StringComparison.OrdinalIgnoreCase))
             {

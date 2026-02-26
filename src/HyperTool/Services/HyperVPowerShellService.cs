@@ -254,15 +254,91 @@ public sealed class HyperVPowerShellService : IHyperVService
         return Task.CompletedTask;
     }
 
-    public Task ExportVmAsync(string vmName, string destinationPath, CancellationToken cancellationToken) =>
-        InvokeNonQueryAsync(
-            $"Export-VM -Name {ToPsSingleQuoted(vmName)} -Path {ToPsSingleQuoted(destinationPath)} -Confirm:$false",
-            cancellationToken);
+    public async Task<(bool HasEnoughSpace, long RequiredBytes, long AvailableBytes, string TargetDrive)> CheckExportDiskSpaceAsync(
+        string vmName,
+        string destinationPath,
+        CancellationToken cancellationToken)
+    {
+        var script =
+            $"$vmName = {ToPsSingleQuoted(vmName)}; " +
+            $"$destinationPath = {ToPsSingleQuoted(destinationPath)}; " +
+            "$required = 0; " +
+            "$measure = Measure-VM -VMName $vmName -ErrorAction SilentlyContinue; " +
+            "if ($null -ne $measure -and $null -ne $measure.TotalDiskAllocation) { $required = [int64]$measure.TotalDiskAllocation }; " +
+            "if ($required -le 0) { " +
+            "$diskBytes = @(Get-VMHardDiskDrive -VMName $vmName -ErrorAction SilentlyContinue | ForEach-Object { if ($null -ne $_.Path -and (Test-Path -LiteralPath $_.Path -PathType Leaf)) { (Get-Item -LiteralPath $_.Path).Length } else { 0 } }); " +
+            "$required = [int64](($diskBytes | Measure-Object -Sum).Sum) " +
+            "}; " +
+            "if ($required -le 0) { $required = 1 }; " +
+            "$root = [System.IO.Path]::GetPathRoot($destinationPath); " +
+            "if ([string]::IsNullOrWhiteSpace($root)) { $root = [System.IO.Path]::GetPathRoot((Get-Location).Path) }; " +
+            "if ([string]::IsNullOrWhiteSpace($root)) { throw 'Ziellaufwerk konnte nicht ermittelt werden.' }; " +
+            "$available = [int64](New-Object System.IO.DriveInfo($root)).AvailableFreeSpace; " +
+            "[pscustomobject]@{ HasEnoughSpace = ($available -ge $required); RequiredBytes = $required; AvailableBytes = $available; TargetDrive = $root } | ConvertTo-Json -Depth 3 -Compress";
 
-    public async Task<string> ImportVmAsync(string importPath, CancellationToken cancellationToken)
+        var rows = await InvokeJsonArrayAsync(script, cancellationToken);
+        var row = rows.FirstOrDefault();
+        if (row.ValueKind == JsonValueKind.Undefined)
+        {
+            return (false, 0, 0, string.Empty);
+        }
+
+        return (
+            HasEnoughSpace: GetBoolean(row, "HasEnoughSpace"),
+            RequiredBytes: GetInt64(row, "RequiredBytes"),
+            AvailableBytes: GetInt64(row, "AvailableBytes"),
+            TargetDrive: GetString(row, "TargetDrive"));
+    }
+
+    public async Task ExportVmAsync(string vmName, string destinationPath, IProgress<int>? progress, CancellationToken cancellationToken)
+    {
+        var script =
+            $"$vmName = {ToPsSingleQuoted(vmName)}; " +
+            $"$destinationPath = {ToPsSingleQuoted(destinationPath)}; " +
+            "$job = Export-VM -Name $vmName -Path $destinationPath -Confirm:$false -AsJob; " +
+            "if ($null -eq $job) { throw 'Export-Job konnte nicht gestartet werden.' }; " +
+            "$lastProgress = -1; " +
+            "while ($true) { " +
+            "$job = Get-Job -Id $job.Id -ErrorAction SilentlyContinue; " +
+            "if ($null -eq $job) { break }; " +
+            "if ($job.State -ne 'Running' -and $job.State -ne 'NotStarted') { break }; " +
+            "$percent = 0; " +
+            "if ($job.ChildJobs.Count -gt 0) { $progressRecord = $job.ChildJobs[0].Progress | Select-Object -Last 1; if ($null -ne $progressRecord -and $null -ne $progressRecord.PercentComplete) { $percent = [int]$progressRecord.PercentComplete } }; " +
+            "if ($percent -ne $lastProgress) { Write-Output ('HT_PROGRESS:' + $percent); $lastProgress = $percent }; " +
+            "Start-Sleep -Milliseconds 500 " +
+            "}; " +
+            "Wait-Job -Id $job.Id | Out-Null; " +
+            "$job = Get-Job -Id $job.Id; " +
+            "if ($job.State -ne 'Completed') { " +
+            "$reason = ($job.ChildJobs | ForEach-Object { if ($null -ne $_.JobStateInfo -and $null -ne $_.JobStateInfo.Reason) { $_.JobStateInfo.Reason.Message } }) -join '; '; " +
+            "if ([string]::IsNullOrWhiteSpace($reason)) { $reason = (Receive-Job -Id $job.Id -Keep 2>&1 | Out-String) }; " +
+            "Remove-Job -Id $job.Id -Force -ErrorAction SilentlyContinue; " +
+            "throw $reason " +
+            "}; " +
+            "Receive-Job -Id $job.Id -Keep | Out-Null; " +
+            "Write-Output 'HT_PROGRESS:100'; " +
+            "Remove-Job -Id $job.Id -Force -ErrorAction SilentlyContinue";
+
+        progress?.Report(0);
+        _ = await InvokePowerShellWithProgressAsync(script, progress, cancellationToken);
+        progress?.Report(100);
+    }
+
+    public async Task<ImportVmResult> ImportVmAsync(string importPath, string destinationPath, IProgress<int>? progress, CancellationToken cancellationToken)
     {
         var script = $"$importPath = {ToPsSingleQuoted(importPath)}; " +
+                     $"$destinationPath = {ToPsSingleQuoted(destinationPath)}; " +
                      "if (-not (Test-Path -LiteralPath $importPath)) { throw \"Import-Pfad nicht gefunden: $importPath\" }; " +
+                     "if ([string]::IsNullOrWhiteSpace($destinationPath)) { throw \"Zielpfad für den Import fehlt.\" }; " +
+                     "if (-not (Test-Path -LiteralPath $destinationPath -PathType Container)) { New-Item -Path $destinationPath -ItemType Directory -Force | Out-Null }; " +
+                     "$existingVmNames = @(Get-VM -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name); " +
+                     "function Get-UniqueVmName([string]$baseName, [string[]]$reservedNames) { " +
+                     "if ([string]::IsNullOrWhiteSpace($baseName)) { $baseName = 'Imported-VM' }; " +
+                     "$candidate = $baseName; " +
+                     "$index = 1; " +
+                     "while ($reservedNames | Where-Object { $_ -ceq $candidate }) { $candidate = $baseName + '-' + $index; $index++ }; " +
+                     "return $candidate " +
+                     "}; " +
                      "$configPath = $importPath; " +
                      "if (Test-Path -LiteralPath $importPath -PathType Container) { " +
                      "$configFile = Get-ChildItem -LiteralPath $importPath -Recurse -File | " +
@@ -272,12 +348,82 @@ public sealed class HyperVPowerShellService : IHyperVService
                      "if ($null -eq $configFile) { throw \"Keine VM-Konfigurationsdatei (.vmcx/.xml) im Ordner gefunden.\" }; " +
                      "$configPath = $configFile.FullName; " +
                      "}; " +
-                     "$importedVm = Import-VM -Path $configPath -Confirm:$false; " +
+                     "$job = Import-VM -Path $configPath -Copy -GenerateNewId -VirtualMachinePath $destinationPath -VhdDestinationPath $destinationPath -SnapshotFilePath $destinationPath -SmartPagingFilePath $destinationPath -Confirm:$false -AsJob; " +
+                     "if ($null -eq $job) { throw 'Import-Job konnte nicht gestartet werden.' }; " +
+                     "$lastProgress = -1; " +
+                     "while ($true) { " +
+                     "$job = Get-Job -Id $job.Id -ErrorAction SilentlyContinue; " +
+                     "if ($null -eq $job) { break }; " +
+                     "if ($job.State -ne 'Running' -and $job.State -ne 'NotStarted') { break }; " +
+                     "$percent = 0; " +
+                     "if ($job.ChildJobs.Count -gt 0) { $progressRecord = $job.ChildJobs[0].Progress | Select-Object -Last 1; if ($null -ne $progressRecord -and $null -ne $progressRecord.PercentComplete) { $percent = [int]$progressRecord.PercentComplete } }; " +
+                     "if ($percent -ne $lastProgress) { Write-Output ('HT_PROGRESS:' + $percent); $lastProgress = $percent }; " +
+                     "Start-Sleep -Milliseconds 500 " +
+                     "}; " +
+                     "Wait-Job -Id $job.Id | Out-Null; " +
+                     "$job = Get-Job -Id $job.Id; " +
+                     "if ($job.State -ne 'Completed') { " +
+                     "$reason = ($job.ChildJobs | ForEach-Object { if ($null -ne $_.JobStateInfo -and $null -ne $_.JobStateInfo.Reason) { $_.JobStateInfo.Reason.Message } }) -join '; '; " +
+                     "if ([string]::IsNullOrWhiteSpace($reason)) { $reason = (Receive-Job -Id $job.Id -Keep 2>&1 | Out-String) }; " +
+                     "if ($reason -match 'same name|gleichen Namen|bereits vorhanden|already exists') { $reason = $reason + ' | Hinweis: HyperTool versucht Konflikte per Suffix zu vermeiden. Bitte Importquelle prüfen.' }; " +
+                     "Remove-Job -Id $job.Id -Force -ErrorAction SilentlyContinue; " +
+                     "throw $reason " +
+                     "}; " +
+                     "$importedVm = Receive-Job -Id $job.Id -Keep | Select-Object -First 1; " +
+                     "Remove-Job -Id $job.Id -Force -ErrorAction SilentlyContinue; " +
                      "if ($null -eq $importedVm) { throw \"Import-VM hat keine VM zurückgegeben.\" }; " +
-                     "$importedVm.Name";
+                     "$importedName = if ($null -ne $importedVm.Name) { $importedVm.Name } else { '' }; " +
+                     "$renamed = $false; " +
+                     "$originalName = $importedName; " +
+                     "if (-not [string]::IsNullOrWhiteSpace($importedName) -and ($existingVmNames | Where-Object { $_ -ceq $importedName })) { " +
+                     "$targetName = Get-UniqueVmName ($importedName + '-import') @($existingVmNames + $importedName); " +
+                     "Rename-VM -VM $importedVm -NewName $targetName -Confirm:$false -ErrorAction Stop; " +
+                     "$importedName = $targetName; " +
+                     "$renamed = $true; " +
+                     "}; " +
+                     "Write-Output 'HT_PROGRESS:100'; " +
+                     "Write-Output ('HT_RESULT:' + $importedName); " +
+                     "Write-Output ('HT_ORIGINAL:' + $originalName); " +
+                     "Write-Output ('HT_RENAMED:' + $renamed)";
 
-        var importedName = await InvokePowerShellAsync(script, cancellationToken);
-        return importedName.Trim();
+        progress?.Report(0);
+        var output = await InvokePowerShellWithProgressAsync(script, progress, cancellationToken);
+        progress?.Report(100);
+
+        var importedName = output
+            .Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Trim())
+            .LastOrDefault(line => line.StartsWith("HT_RESULT:", StringComparison.Ordinal));
+
+        var originalName = output
+            .Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Trim())
+            .LastOrDefault(line => line.StartsWith("HT_ORIGINAL:", StringComparison.Ordinal));
+
+        var renamedFlag = output
+            .Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Trim())
+            .LastOrDefault(line => line.StartsWith("HT_RENAMED:", StringComparison.Ordinal));
+
+        if (string.IsNullOrWhiteSpace(importedName))
+        {
+            throw new InvalidOperationException("Import-VM hat keinen VM-Namen zurückgegeben.");
+        }
+
+        var resolvedImportedName = importedName["HT_RESULT:".Length..].Trim();
+        var resolvedOriginalName = string.IsNullOrWhiteSpace(originalName)
+            ? resolvedImportedName
+            : originalName["HT_ORIGINAL:".Length..].Trim();
+        var renamedDueToConflict = !string.IsNullOrWhiteSpace(renamedFlag)
+            && bool.TryParse(renamedFlag["HT_RENAMED:".Length..].Trim(), out var parsedRenamed)
+            && parsedRenamed;
+
+        return new ImportVmResult
+        {
+            VmName = resolvedImportedName,
+            OriginalName = resolvedOriginalName,
+            RenamedDueToConflict = renamedDueToConflict
+        };
     }
 
     private async Task InvokeNonQueryAsync(string script, CancellationToken cancellationToken)
@@ -380,6 +526,104 @@ public sealed class HyperVPowerShellService : IHyperVService
         return standardOutput.Trim();
     }
 
+    private static async Task<string> InvokePowerShellWithProgressAsync(string script, IProgress<int>? progress, CancellationToken cancellationToken)
+    {
+        var wrappedScript = "$ErrorActionPreference = 'Stop'; " +
+                            "[Console]::InputEncoding = [System.Text.Encoding]::UTF8; " +
+                            "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; " +
+                            "$OutputEncoding = [System.Text.Encoding]::UTF8; " +
+                            $"Import-Module Hyper-V -ErrorAction Stop; {script}";
+
+        var processStartInfo = new ProcessStartInfo
+        {
+            FileName = "powershell.exe",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+
+        processStartInfo.ArgumentList.Add("-NoProfile");
+        processStartInfo.ArgumentList.Add("-NonInteractive");
+        processStartInfo.ArgumentList.Add("-ExecutionPolicy");
+        processStartInfo.ArgumentList.Add("Bypass");
+        processStartInfo.ArgumentList.Add("-Command");
+        processStartInfo.ArgumentList.Add(wrappedScript);
+        processStartInfo.StandardOutputEncoding = Encoding.UTF8;
+        processStartInfo.StandardErrorEncoding = Encoding.UTF8;
+
+        using var process = Process.Start(processStartInfo);
+        if (process is null)
+        {
+            throw new InvalidOperationException("PowerShell konnte nicht gestartet werden.");
+        }
+
+        var outputBuilder = new StringBuilder();
+        var errorBuilder = new StringBuilder();
+
+        process.OutputDataReceived += (_, args) =>
+        {
+            if (string.IsNullOrWhiteSpace(args.Data))
+            {
+                return;
+            }
+
+            if (TryParseProgressLine(args.Data, out var percent))
+            {
+                progress?.Report(percent);
+                return;
+            }
+
+            outputBuilder.AppendLine(args.Data);
+        };
+
+        process.ErrorDataReceived += (_, args) =>
+        {
+            if (!string.IsNullOrWhiteSpace(args.Data))
+            {
+                errorBuilder.AppendLine(args.Data);
+            }
+        };
+
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
+
+        try
+        {
+            await process.WaitForExitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            try
+            {
+                if (!process.HasExited)
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+            }
+            catch
+            {
+            }
+
+            throw;
+        }
+
+        if (process.ExitCode != 0)
+        {
+            var message = errorBuilder.Length == 0 ? outputBuilder.ToString() : errorBuilder.ToString();
+
+            if (IsHyperVPermissionError(message))
+            {
+                throw new UnauthorizedAccessException(
+                    "Keine Berechtigung für Hyper-V. Bitte HyperTool als Administrator starten oder den Benutzer zur Gruppe 'Hyper-V-Administratoren' hinzufügen.");
+            }
+
+            throw new InvalidOperationException($"Hyper-V PowerShell command failed:{Environment.NewLine}{message.Trim()}");
+        }
+
+        return outputBuilder.ToString().Trim();
+    }
+
     private static string ToPsSingleQuoted(string value)
     {
         var escaped = (value ?? string.Empty).Replace("'", "''", StringComparison.Ordinal);
@@ -415,6 +659,21 @@ public sealed class HyperVPowerShellService : IHyperVService
         };
     }
 
+    private static long GetInt64(JsonElement source, string propertyName)
+    {
+        if (!source.TryGetProperty(propertyName, out var value))
+        {
+            return 0;
+        }
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.Number when value.TryGetInt64(out var parsed) => parsed,
+            JsonValueKind.String when long.TryParse(value.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) => parsed,
+            _ => 0
+        };
+    }
+
     private static bool GetBoolean(JsonElement source, string propertyName)
     {
         if (!source.TryGetProperty(propertyName, out var value))
@@ -429,6 +688,25 @@ public sealed class HyperVPowerShellService : IHyperVService
             JsonValueKind.String when bool.TryParse(value.GetString(), out var parsed) => parsed,
             _ => false
         };
+    }
+
+    private static bool TryParseProgressLine(string line, out int percent)
+    {
+        percent = 0;
+        const string prefix = "HT_PROGRESS:";
+        if (!line.StartsWith(prefix, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var value = line[prefix.Length..].Trim();
+        if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
+        {
+            return false;
+        }
+
+        percent = Math.Clamp(parsed, 0, 100);
+        return true;
     }
 
     private static bool IsHyperVPermissionError(string? message)
