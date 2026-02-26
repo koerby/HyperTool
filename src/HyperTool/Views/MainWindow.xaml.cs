@@ -1,9 +1,11 @@
 using ControlzEx.Theming;
+using HyperTool.Models;
 using HyperTool.Services;
 using HyperTool.ViewModels;
 using MahApps.Metro.Controls;
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Controls;
 
 namespace HyperTool.Views;
 
@@ -76,5 +78,48 @@ public partial class MainWindow : MetroWindow
         }
 
         _helpWindow.Activate();
+    }
+
+    private async void HostNetworkButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentViewModel is null)
+        {
+            return;
+        }
+
+        var adapters = await _currentViewModel.GetHostNetworkAdaptersWithUplinkAsync();
+        if (adapters.Count == 0)
+        {
+            System.Windows.MessageBox.Show(
+                this,
+                "Keine Host-Netzwerkkarten mit aktivem Uplink gefunden.",
+                "Host Network",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        var popup = new HostNetworkWindow(adapters)
+        {
+            Owner = this
+        };
+
+        var detectedTheme = ThemeManager.Current.DetectTheme(this);
+        if (detectedTheme is not null)
+        {
+            ThemeManager.Current.ChangeTheme(popup, detectedTheme.Name);
+        }
+
+        popup.ShowDialog();
+    }
+
+    private void CheckpointTreeView_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
+    {
+        if (_currentViewModel is null)
+        {
+            return;
+        }
+
+        _currentViewModel.SelectedCheckpointNode = e.NewValue as HyperVCheckpointTreeItem;
     }
 }

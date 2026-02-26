@@ -62,6 +62,23 @@ public sealed class HyperVPowerShellService : IHyperVService
         }).ToList();
     }
 
+    public async Task<IReadOnlyList<HyperVVmNetworkAdapterInfo>> GetVmNetworkAdaptersAsync(string vmName, CancellationToken cancellationToken)
+    {
+        var script =
+            $"@(Get-VMNetworkAdapter -VMName {ToPsSingleQuoted(vmName)} -ErrorAction SilentlyContinue | " +
+            "ForEach-Object { [pscustomobject]@{ Name = if ($null -ne $_.Name) { $_.Name } else { '' }; " +
+            "SwitchName = if ($null -ne $_.SwitchName) { $_.SwitchName } else { '' }; " +
+            "MacAddress = if ($null -ne $_.MacAddress) { $_.MacAddress } else { '' } } }) | ConvertTo-Json -Depth 4 -Compress";
+
+        var rows = await InvokeJsonArrayAsync(script, cancellationToken);
+        return rows.Select(row => new HyperVVmNetworkAdapterInfo
+        {
+            Name = GetString(row, "Name"),
+            SwitchName = GetString(row, "SwitchName"),
+            MacAddress = GetString(row, "MacAddress")
+        }).ToList();
+    }
+
     public async Task<string?> GetVmCurrentSwitchNameAsync(string vmName, CancellationToken cancellationToken)
     {
         var script = $"$adapter = Get-VMNetworkAdapter -VMName {ToPsSingleQuoted(vmName)} -ErrorAction SilentlyContinue | Select-Object -First 1; if ($null -eq $adapter -or $null -eq $adapter.SwitchName) {{ '' }} else {{ $adapter.SwitchName }}";
@@ -70,24 +87,78 @@ public sealed class HyperVPowerShellService : IHyperVService
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 
-    public Task ConnectVmNetworkAdapterAsync(string vmName, string switchName, CancellationToken cancellationToken) =>
-        InvokeNonQueryAsync(
-            $"Connect-VMNetworkAdapter -VMName {ToPsSingleQuoted(vmName)} -SwitchName {ToPsSingleQuoted(switchName)}",
-            cancellationToken);
+    public Task ConnectVmNetworkAdapterAsync(string vmName, string switchName, string? adapterName, CancellationToken cancellationToken)
+    {
+        var script = string.IsNullOrWhiteSpace(adapterName)
+            ? $"Connect-VMNetworkAdapter -VMName {ToPsSingleQuoted(vmName)} -SwitchName {ToPsSingleQuoted(switchName)}"
+            : $"Connect-VMNetworkAdapter -VMName {ToPsSingleQuoted(vmName)} -Name {ToPsSingleQuoted(adapterName)} -SwitchName {ToPsSingleQuoted(switchName)}";
 
-    public Task DisconnectVmNetworkAdapterAsync(string vmName, CancellationToken cancellationToken) =>
-        InvokeNonQueryAsync(
-            $"Disconnect-VMNetworkAdapter -VMName {ToPsSingleQuoted(vmName)}",
-            cancellationToken);
+        return InvokeNonQueryAsync(script, cancellationToken);
+    }
+
+    public Task DisconnectVmNetworkAdapterAsync(string vmName, string? adapterName, CancellationToken cancellationToken)
+    {
+        var script = string.IsNullOrWhiteSpace(adapterName)
+            ? $"Disconnect-VMNetworkAdapter -VMName {ToPsSingleQuoted(vmName)}"
+            : $"Disconnect-VMNetworkAdapter -VMName {ToPsSingleQuoted(vmName)} -Name {ToPsSingleQuoted(adapterName)}";
+
+        return InvokeNonQueryAsync(script, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<HostNetworkAdapterInfo>> GetHostNetworkAdaptersWithUplinkAsync(CancellationToken cancellationToken)
+    {
+        const string script = """
+            @(
+                Get-NetAdapter -ErrorAction SilentlyContinue |
+                    Where-Object {
+                        $_.Status -eq 'Up' -and
+                        ($null -eq $_.MediaConnectionState -or $_.MediaConnectionState -eq 'Connected')
+                    } |
+                    ForEach-Object {
+                        $adapter = $_
+                        $ipConfig = Get-NetIPConfiguration -InterfaceIndex $adapter.ifIndex -ErrorAction SilentlyContinue
+                        $ipv4Addresses = @($ipConfig.IPv4Address | Where-Object { $null -ne $_ -and -not [string]::IsNullOrWhiteSpace($_.IPAddress) })
+                        $dnsServers = @($ipConfig.DnsServer.ServerAddresses | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+                        $gateway = if ($null -ne $ipConfig.IPv4DefaultGateway -and -not [string]::IsNullOrWhiteSpace($ipConfig.IPv4DefaultGateway.NextHop)) {
+                            $ipConfig.IPv4DefaultGateway.NextHop
+                        } else {
+                            ''
+                        }
+
+                        [pscustomobject]@{
+                            AdapterName = if ($null -ne $adapter.Name) { $adapter.Name } else { '' }
+                            InterfaceDescription = if ($null -ne $adapter.InterfaceDescription) { $adapter.InterfaceDescription } else { '' }
+                            IpAddresses = if ($ipv4Addresses.Count -gt 0) { ($ipv4Addresses | ForEach-Object { $_.IPAddress }) -join ', ' } else { '' }
+                            Subnets = if ($ipv4Addresses.Count -gt 0) { ($ipv4Addresses | ForEach-Object { '/' + $_.PrefixLength }) -join ', ' } else { '' }
+                            Gateway = $gateway
+                            DnsServers = if ($dnsServers.Count -gt 0) { $dnsServers -join ', ' } else { '' }
+                        }
+                    }
+            ) | Sort-Object AdapterName | ConvertTo-Json -Depth 4 -Compress
+            """;
+
+        var rows = await InvokeJsonArrayAsync(script, cancellationToken);
+        return rows.Select(row => new HostNetworkAdapterInfo
+        {
+            AdapterName = GetString(row, "AdapterName"),
+            InterfaceDescription = GetString(row, "InterfaceDescription"),
+            IpAddresses = GetString(row, "IpAddresses"),
+            Subnets = GetString(row, "Subnets"),
+            Gateway = GetString(row, "Gateway"),
+            DnsServers = GetString(row, "DnsServers")
+        }).ToList();
+    }
 
     public async Task<IReadOnlyList<HyperVCheckpointInfo>> GetCheckpointsAsync(string vmName, CancellationToken cancellationToken)
     {
-        var script = $"@(Get-VMCheckpoint -VMName {ToPsSingleQuoted(vmName)} | ForEach-Object {{ [pscustomobject]@{{ Id = if ($null -ne $_.VMCheckpointId) {{ $_.VMCheckpointId.ToString() }} elseif ($null -ne $_.Id) {{ $_.Id.ToString() }} else {{ '' }}; Name = if ($null -ne $_.Name) {{ $_.Name }} else {{ '' }}; CreationTime = if ($null -ne $_.CreationTime) {{ $_.CreationTime.ToString('o') }} else {{ '' }}; CheckpointType = if ($null -ne $_.CheckpointType) {{ $_.CheckpointType.ToString() }} else {{ '' }} }} }}) | ConvertTo-Json -Depth 4 -Compress";
+        var script = $"$vm = Get-VM -Name {ToPsSingleQuoted(vmName)} -ErrorAction SilentlyContinue; $currentSnapshotId = ''; if ($null -ne $vm -and $null -ne $vm.ParentSnapshotId) {{ $currentSnapshotId = $vm.ParentSnapshotId.ToString() }}; @(Get-VMCheckpoint -VMName {ToPsSingleQuoted(vmName)} | ForEach-Object {{ $id = if ($null -ne $_.VMCheckpointId) {{ $_.VMCheckpointId.ToString() }} elseif ($null -ne $_.Id) {{ $_.Id.ToString() }} else {{ '' }}; $parentId = ''; if ($null -ne $_.ParentCheckpointId) {{ $parentId = $_.ParentCheckpointId.ToString() }} elseif ($null -ne $_.Parent -and $null -ne $_.Parent.VMCheckpointId) {{ $parentId = $_.Parent.VMCheckpointId.ToString() }}; $isCurrent = $false; if ($null -ne $_.IsCurrentSnapshot) {{ $isCurrent = [bool]$_.IsCurrentSnapshot }}; if (-not $isCurrent -and -not [string]::IsNullOrWhiteSpace($currentSnapshotId) -and -not [string]::IsNullOrWhiteSpace($id) -and $id -ceq $currentSnapshotId) {{ $isCurrent = $true }}; [pscustomobject]@{{ Id = $id; ParentId = $parentId; IsCurrent = $isCurrent; Name = if ($null -ne $_.Name) {{ $_.Name }} else {{ '' }}; CreationTime = if ($null -ne $_.CreationTime) {{ $_.CreationTime.ToString('o') }} else {{ '' }}; CheckpointType = if ($null -ne $_.CheckpointType) {{ $_.CheckpointType.ToString() }} else {{ '' }} }} }}) | ConvertTo-Json -Depth 4 -Compress";
 
         var rows = await InvokeJsonArrayAsync(script, cancellationToken);
         return rows.Select(row => new HyperVCheckpointInfo
         {
             Id = GetString(row, "Id"),
+            ParentId = GetString(row, "ParentId"),
+            IsCurrent = GetBoolean(row, "IsCurrent"),
             Name = GetString(row, "Name"),
             Created = GetDateTime(row, "CreationTime"),
             Type = GetString(row, "CheckpointType")
@@ -341,6 +412,22 @@ public sealed class HyperVPowerShellService : IHyperVService
         {
             JsonValueKind.String when DateTime.TryParse(value.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var parsed) => parsed,
             _ => DateTime.MinValue
+        };
+    }
+
+    private static bool GetBoolean(JsonElement source, string propertyName)
+    {
+        if (!source.TryGetProperty(propertyName, out var value))
+        {
+            return false;
+        }
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.String when bool.TryParse(value.GetString(), out var parsed) => parsed,
+            _ => false
         };
     }
 

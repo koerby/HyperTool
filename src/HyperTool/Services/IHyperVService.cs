@@ -16,11 +16,15 @@ public interface IHyperVService
 
     Task<IReadOnlyList<HyperVSwitchInfo>> GetVmSwitchesAsync(CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<HyperVVmNetworkAdapterInfo>> GetVmNetworkAdaptersAsync(string vmName, CancellationToken cancellationToken);
+
     Task<string?> GetVmCurrentSwitchNameAsync(string vmName, CancellationToken cancellationToken);
 
-    Task ConnectVmNetworkAdapterAsync(string vmName, string switchName, CancellationToken cancellationToken);
+    Task ConnectVmNetworkAdapterAsync(string vmName, string switchName, string? adapterName, CancellationToken cancellationToken);
 
-    Task DisconnectVmNetworkAdapterAsync(string vmName, CancellationToken cancellationToken);
+    Task DisconnectVmNetworkAdapterAsync(string vmName, string? adapterName, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<HostNetworkAdapterInfo>> GetHostNetworkAdaptersWithUplinkAsync(CancellationToken cancellationToken);
 
     Task<IReadOnlyList<HyperVCheckpointInfo>> GetCheckpointsAsync(string vmName, CancellationToken cancellationToken);
 

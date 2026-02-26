@@ -36,7 +36,13 @@ public partial class MainViewModel : ViewModelBase
     private HyperVSwitchInfo? _selectedSwitch;
 
     [ObservableProperty]
+    private HyperVVmNetworkAdapterInfo? _selectedVmNetworkAdapter;
+
+    [ObservableProperty]
     private HyperVCheckpointInfo? _selectedCheckpoint;
+
+    [ObservableProperty]
+    private HyperVCheckpointTreeItem? _selectedCheckpointNode;
 
     [ObservableProperty]
     private string _newCheckpointName = string.Empty;
@@ -138,7 +144,11 @@ public partial class MainViewModel : ViewModelBase
 
     public ObservableCollection<HyperVSwitchInfo> AvailableSwitches { get; } = [];
 
+    public ObservableCollection<HyperVVmNetworkAdapterInfo> AvailableVmNetworkAdapters { get; } = [];
+
     public ObservableCollection<HyperVCheckpointInfo> AvailableCheckpoints { get; } = [];
+
+    public ObservableCollection<HyperVCheckpointTreeItem> AvailableCheckpointTree { get; } = [];
 
     public ObservableCollection<UiNotification> Notifications { get; } = [];
 
@@ -170,6 +180,26 @@ public partial class MainViewModel : ViewModelBase
     public string LogToggleText => IsLogExpanded ? "▾ Log einklappen" : "▸ Log ausklappen";
 
     public string SelectedVmDisplayName => SelectedVm?.DisplayLabel ?? "-";
+
+    public string SelectedVmAdapterSwitchDisplay
+    {
+        get
+        {
+            if (SelectedVm is null)
+            {
+                return "-";
+            }
+
+            if (SelectedVmNetworkAdapter is null)
+            {
+                return SelectedVmCurrentSwitch;
+            }
+
+            var adapterName = GetAdapterDisplayName(SelectedVmNetworkAdapter);
+            var switchName = NormalizeSwitchDisplayName(SelectedVmNetworkAdapter.SwitchName);
+            return $"{adapterName} | {switchName}";
+        }
+    }
 
     public IAsyncRelayCommand StartDefaultVmCommand { get; }
 
@@ -321,8 +351,8 @@ public partial class MainViewModel : ViewModelBase
 
         LoadSwitchesCommand = new AsyncRelayCommand(RefreshSwitchesAsync, () => !IsBusy);
         RefreshSwitchesCommand = new AsyncRelayCommand(RefreshSwitchesAsync, () => !IsBusy);
-        ConnectSelectedSwitchCommand = new AsyncRelayCommand(ConnectSelectedSwitchAsync, () => !IsBusy && SelectedVm is not null && SelectedSwitch is not null && AreSwitchesLoaded);
-        DisconnectSwitchCommand = new AsyncRelayCommand(DisconnectSwitchAsync, CanExecuteVmAction);
+        ConnectSelectedSwitchCommand = new AsyncRelayCommand(ConnectSelectedSwitchAsync, () => !IsBusy && SelectedVm is not null && SelectedVmNetworkAdapter is not null && SelectedSwitch is not null && AreSwitchesLoaded);
+        DisconnectSwitchCommand = new AsyncRelayCommand(DisconnectSwitchAsync, () => !IsBusy && SelectedVm is not null && SelectedVmNetworkAdapter is not null);
         RefreshVmStatusCommand = new AsyncRelayCommand(RefreshRuntimeDataAsync, () => !IsBusy);
 
         LoadCheckpointsCommand = new AsyncRelayCommand(LoadCheckpointsAsync, () => SelectedVm is not null);
@@ -429,16 +459,21 @@ public partial class MainViewModel : ViewModelBase
         CreateCheckpointCommand.NotifyCanExecuteChanged();
         SelectedVmForConfig = value;
         OnPropertyChanged(nameof(SelectedVmDisplayName));
+        OnPropertyChanged(nameof(SelectedVmAdapterSwitchDisplay));
         NotifyTrayStateChanged();
 
         if (value is null)
         {
             SelectedVmState = "Unbekannt";
             SelectedVmCurrentSwitch = NotConnectedSwitchDisplay;
+            AvailableVmNetworkAdapters.Clear();
+            SelectedVmNetworkAdapter = null;
             SelectedSwitch = null;
             NetworkSwitchStatusHint = "Keine VM ausgewählt.";
             AvailableCheckpoints.Clear();
+            AvailableCheckpointTree.Clear();
             SelectedCheckpoint = null;
+            SelectedCheckpointNode = null;
             return;
         }
 
@@ -453,7 +488,7 @@ public partial class MainViewModel : ViewModelBase
         SyncSelectedSwitchWithCurrentVm(showNotificationOnMissingSwitch: false);
         _ = PersistSelectedVmAsync(value.Name);
 
-        _ = EnsureSelectedVmSwitchSelectionAsync();
+        _ = EnsureSelectedVmNetworkSelectionAsync(showNotificationOnMissingSwitch: false);
         _ = RefreshSelectedVmStatusAfterSelectionAsync(value.Name);
         _ = LoadCheckpointsAsync();
     }
@@ -480,7 +515,7 @@ public partial class MainViewModel : ViewModelBase
 
     private async Task HandleNetworkTabActivatedAsync()
     {
-        await EnsureSelectedVmSwitchSelectionAsync();
+        await EnsureSelectedVmNetworkSelectionAsync(showNotificationOnMissingSwitch: false);
 
         if (!AreSwitchesLoaded)
         {
@@ -510,15 +545,56 @@ public partial class MainViewModel : ViewModelBase
         OpenConsoleCommand.NotifyCanExecuteChanged();
     }
 
+    partial void OnSelectedVmCurrentSwitchChanged(string value)
+    {
+        OnPropertyChanged(nameof(SelectedVmAdapterSwitchDisplay));
+    }
+
     partial void OnSelectedSwitchChanged(HyperVSwitchInfo? value)
     {
         ConnectSelectedSwitchCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnSelectedVmNetworkAdapterChanged(HyperVVmNetworkAdapterInfo? value)
+    {
+        ConnectSelectedSwitchCommand.NotifyCanExecuteChanged();
+        DisconnectSwitchCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(SelectedVmAdapterSwitchDisplay));
+
+        if (SelectedVm is null || value is null)
+        {
+            if (SelectedVm is not null && AvailableVmNetworkAdapters.Count == 0)
+            {
+                SelectedVmCurrentSwitch = NotConnectedSwitchDisplay;
+                NetworkSwitchStatusHint = "Keine VM-Netzwerkkarten gefunden.";
+                SelectedSwitch = null;
+            }
+
+            return;
+        }
+
+        SelectedVmCurrentSwitch = NormalizeSwitchDisplayName(value.SwitchName);
+
+        var selectedVmEntry = AvailableVms.FirstOrDefault(vm =>
+            string.Equals(vm.Name, SelectedVm.Name, StringComparison.OrdinalIgnoreCase));
+
+        if (selectedVmEntry is not null)
+        {
+            selectedVmEntry.RuntimeSwitchName = SelectedVmCurrentSwitch;
+        }
+
+        SyncSelectedSwitchWithCurrentVm(showNotificationOnMissingSwitch: false);
     }
 
     partial void OnSelectedCheckpointChanged(HyperVCheckpointInfo? value)
     {
         ApplyCheckpointCommand.NotifyCanExecuteChanged();
         DeleteCheckpointCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnSelectedCheckpointNodeChanged(HyperVCheckpointTreeItem? value)
+    {
+        SelectedCheckpoint = value?.Checkpoint;
     }
 
     partial void OnSelectedVmForConfigChanged(VmDefinition? value)
@@ -788,10 +864,12 @@ public partial class MainViewModel : ViewModelBase
         await RefreshVmStatusAsync();
     }
 
-    private async Task EnsureSelectedVmSwitchSelectionAsync()
+    private async Task EnsureSelectedVmNetworkSelectionAsync(bool showNotificationOnMissingSwitch)
     {
         if (SelectedVm is null)
         {
+            AvailableVmNetworkAdapters.Clear();
+            SelectedVmNetworkAdapter = null;
             SelectedSwitch = null;
             NetworkSwitchStatusHint = "Keine VM ausgewählt.";
             return;
@@ -799,23 +877,52 @@ public partial class MainViewModel : ViewModelBase
 
         try
         {
-            var vmSwitchName = await _hyperVService.GetVmCurrentSwitchNameAsync(SelectedVm.Name, _lifetimeCancellation.Token);
-            SelectedVmCurrentSwitch = NormalizeSwitchDisplayName(vmSwitchName);
+            var selectedVmName = SelectedVm.Name;
+            var previouslySelectedAdapterName = SelectedVmNetworkAdapter?.Name;
+            var adapters = await _hyperVService.GetVmNetworkAdaptersAsync(selectedVmName, _lifetimeCancellation.Token);
+
+            if (SelectedVm is null || !string.Equals(SelectedVm.Name, selectedVmName, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            AvailableVmNetworkAdapters.Clear();
+            foreach (var adapter in adapters.OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase))
+            {
+                AvailableVmNetworkAdapters.Add(adapter);
+            }
+
+            if (AvailableVmNetworkAdapters.Count == 0)
+            {
+                SelectedVmNetworkAdapter = null;
+                SelectedVmCurrentSwitch = NotConnectedSwitchDisplay;
+                SelectedSwitch = null;
+                NetworkSwitchStatusHint = "Keine VM-Netzwerkkarten gefunden.";
+                ConnectSelectedSwitchCommand.NotifyCanExecuteChanged();
+                DisconnectSwitchCommand.NotifyCanExecuteChanged();
+                return;
+            }
+
+            SelectedVmNetworkAdapter = AvailableVmNetworkAdapters.FirstOrDefault(item =>
+                                          string.Equals(item.Name, previouslySelectedAdapterName, StringComparison.OrdinalIgnoreCase))
+                                      ?? AvailableVmNetworkAdapters.FirstOrDefault();
+
+            SelectedVmCurrentSwitch = NormalizeSwitchDisplayName(SelectedVmNetworkAdapter?.SwitchName);
 
             var selectedVmEntry = AvailableVms.FirstOrDefault(vm =>
-                string.Equals(vm.Name, SelectedVm.Name, StringComparison.OrdinalIgnoreCase));
+                string.Equals(vm.Name, selectedVmName, StringComparison.OrdinalIgnoreCase));
 
             if (selectedVmEntry is not null)
             {
                 selectedVmEntry.RuntimeSwitchName = SelectedVmCurrentSwitch;
             }
 
-            SyncSelectedSwitchWithCurrentVm(showNotificationOnMissingSwitch: true);
+            SyncSelectedSwitchWithCurrentVm(showNotificationOnMissingSwitch);
             NotifyTrayStateChanged();
         }
         catch (Exception ex)
         {
-            Log.Warning(ex, "Aktiver Switch für VM {VmName} konnte nicht gelesen werden.", SelectedVm.Name);
+            Log.Warning(ex, "Netzwerkkarten für VM {VmName} konnten nicht gelesen werden.", SelectedVm.Name);
         }
     }
 
@@ -825,6 +932,14 @@ public partial class MainViewModel : ViewModelBase
         {
             SelectedSwitch = null;
             NetworkSwitchStatusHint = "Switch-Liste noch nicht geladen.";
+            ConnectSelectedSwitchCommand.NotifyCanExecuteChanged();
+            return;
+        }
+
+        if (SelectedVmNetworkAdapter is null)
+        {
+            SelectedSwitch = null;
+            NetworkSwitchStatusHint = "Bitte VM-Netzwerkkarte auswählen.";
             ConnectSelectedSwitchCommand.NotifyCanExecuteChanged();
             return;
         }
@@ -840,7 +955,7 @@ public partial class MainViewModel : ViewModelBase
         if (IsNotConnectedSwitchDisplay(SelectedVmCurrentSwitch))
         {
             SelectedSwitch = null;
-            NetworkSwitchStatusHint = NotConnectedSwitchDisplay;
+            NetworkSwitchStatusHint = $"{GetAdapterDisplayName(SelectedVmNetworkAdapter)}: {NotConnectedSwitchDisplay}";
             ConnectSelectedSwitchCommand.NotifyCanExecuteChanged();
             return;
         }
@@ -851,7 +966,7 @@ public partial class MainViewModel : ViewModelBase
         if (matchingSwitch is null)
         {
             SelectedSwitch = null;
-            NetworkSwitchStatusHint = $"Aktiver Switch '{SelectedVmCurrentSwitch}' ist nicht in der aktuellen Liste.";
+            NetworkSwitchStatusHint = $"Aktiver Switch '{SelectedVmCurrentSwitch}' für '{GetAdapterDisplayName(SelectedVmNetworkAdapter)}' ist nicht in der aktuellen Liste.";
             if (showNotificationOnMissingSwitch)
             {
                 AddNotification(NetworkSwitchStatusHint, "Warning");
@@ -862,7 +977,7 @@ public partial class MainViewModel : ViewModelBase
         }
 
         SelectedSwitch = matchingSwitch;
-        NetworkSwitchStatusHint = $"Aktiver Switch: {matchingSwitch.Name}";
+        NetworkSwitchStatusHint = $"Aktiver Switch ({GetAdapterDisplayName(SelectedVmNetworkAdapter)}): {matchingSwitch.Name}";
         ConnectSelectedSwitchCommand.NotifyCanExecuteChanged();
     }
 
@@ -878,17 +993,27 @@ public partial class MainViewModel : ViewModelBase
                || string.Equals(switchName, NotConnectedSwitchDisplay, StringComparison.OrdinalIgnoreCase);
     }
 
+    private static string GetAdapterDisplayName(HyperVVmNetworkAdapterInfo? adapter)
+    {
+        if (adapter is null)
+        {
+            return "Network Adapter";
+        }
+
+        return string.IsNullOrWhiteSpace(adapter.Name) ? "Network Adapter" : adapter.Name;
+    }
+
     private async Task ConnectSelectedSwitchAsync()
     {
-        if (SelectedSwitch is null || SelectedVm is null)
+        if (SelectedSwitch is null || SelectedVm is null || SelectedVmNetworkAdapter is null)
         {
             return;
         }
 
         await ExecuteBusyActionAsync("VM-Netzwerk wird verbunden...", async token =>
         {
-            await _hyperVService.ConnectVmNetworkAdapterAsync(SelectedVm.Name, SelectedSwitch.Name, token);
-            AddNotification($"'{SelectedVm.Name}' mit '{SelectedSwitch.Name}' verbunden.", "Success");
+            await _hyperVService.ConnectVmNetworkAdapterAsync(SelectedVm.Name, SelectedSwitch.Name, SelectedVmNetworkAdapter.Name, token);
+            AddNotification($"'{SelectedVm.Name}' Adapter '{GetAdapterDisplayName(SelectedVmNetworkAdapter)}' mit '{SelectedSwitch.Name}' verbunden.", "Success");
 
             if (ShouldAutoRestartHnsAfterConnect(SelectedSwitch.Name))
             {
@@ -903,10 +1028,15 @@ public partial class MainViewModel : ViewModelBase
 
     private async Task DisconnectSwitchAsync()
     {
+        if (SelectedVm is null || SelectedVmNetworkAdapter is null)
+        {
+            return;
+        }
+
         await ExecuteBusyActionAsync("VM-Netzwerk wird getrennt...", async token =>
         {
-            await _hyperVService.DisconnectVmNetworkAdapterAsync(SelectedVm!.Name, token);
-            AddNotification($"Netzwerk von '{SelectedVm.Name}' getrennt.", "Warning");
+            await _hyperVService.DisconnectVmNetworkAdapterAsync(SelectedVm.Name, SelectedVmNetworkAdapter.Name, token);
+            AddNotification($"Netzwerkkarte '{GetAdapterDisplayName(SelectedVmNetworkAdapter)}' von '{SelectedVm.Name}' getrennt.", "Warning");
         });
         await RefreshVmStatusAsync();
     }
@@ -924,7 +1054,7 @@ public partial class MainViewModel : ViewModelBase
 
         await ExecuteBusyActionAsync("Default VM wird mit Default Switch verbunden...", async token =>
         {
-            await _hyperVService.ConnectVmNetworkAdapterAsync(targetVm, DefaultSwitchName, token);
+            await _hyperVService.ConnectVmNetworkAdapterAsync(targetVm, DefaultSwitchName, null, token);
             AddNotification($"'{targetVm}' mit '{DefaultSwitchName}' verbunden.", "Success");
 
             if (ShouldAutoRestartHnsAfterConnect(DefaultSwitchName))
@@ -1002,10 +1132,11 @@ public partial class MainViewModel : ViewModelBase
             var vmInfo = vms.FirstOrDefault(item => string.Equals(item.Name, SelectedVm.Name, StringComparison.OrdinalIgnoreCase));
             SelectedVmState = vmInfo?.State ?? "Unbekannt";
             SelectedVmCurrentSwitch = NormalizeSwitchDisplayName(vmInfo?.CurrentSwitchName);
-            SyncSelectedSwitchWithCurrentVm(showNotificationOnMissingSwitch: false);
             NotifyTrayStateChanged();
             StatusText = vmInfo is null ? "VM nicht gefunden" : $"{vmInfo.Name}: {vmInfo.State}";
         }, showNotificationOnErrorOnly: true);
+
+        await EnsureSelectedVmNetworkSelectionAsync(showNotificationOnMissingSwitch: false);
     }
 
     private void UpdateVmRuntimeStates(IReadOnlyList<HyperVVmInfo> runtimeVms)
@@ -1072,7 +1203,24 @@ public partial class MainViewModel : ViewModelBase
                 AvailableCheckpoints.Add(checkpoint);
             }
 
-            SelectedCheckpoint = AvailableCheckpoints.FirstOrDefault();
+            RebuildCheckpointTree(checkpoints);
+
+            var newestCheckpoint = checkpoints
+                .OrderByDescending(item => item.Created)
+                .ThenByDescending(item => item.Name, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault();
+
+            if (newestCheckpoint is null)
+            {
+                SelectedCheckpointNode = null;
+                SelectedCheckpoint = null;
+            }
+            else
+            {
+                SelectedCheckpointNode = FindCheckpointNodeById(newestCheckpoint.Id);
+                SelectedCheckpoint = newestCheckpoint;
+            }
+
             AddNotification($"{AvailableCheckpoints.Count} Checkpoint(s) für '{vmName}' geladen.", "Info");
         }
         catch (UnauthorizedAccessException ex)
@@ -1147,6 +1295,122 @@ public partial class MainViewModel : ViewModelBase
         });
 
         await LoadCheckpointsAsync();
+    }
+
+    private void RebuildCheckpointTree(IReadOnlyList<HyperVCheckpointInfo> checkpoints)
+    {
+        AvailableCheckpointTree.Clear();
+        if (checkpoints.Count == 0)
+        {
+            return;
+        }
+
+        var latestId = checkpoints
+            .OrderByDescending(item => item.Created)
+            .ThenByDescending(item => item.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(item => item.Id)
+            .FirstOrDefault() ?? string.Empty;
+
+        var nodesById = new Dictionary<string, HyperVCheckpointTreeItem>(StringComparer.OrdinalIgnoreCase);
+        var allNodes = checkpoints
+            .Select(checkpoint => new HyperVCheckpointTreeItem
+            {
+                Checkpoint = checkpoint,
+                IsLatest = !string.IsNullOrWhiteSpace(checkpoint.Id)
+                           && string.Equals(checkpoint.Id, latestId, StringComparison.OrdinalIgnoreCase)
+            })
+            .ToList();
+
+        foreach (var node in allNodes)
+        {
+            if (!string.IsNullOrWhiteSpace(node.Checkpoint.Id)
+                && !nodesById.ContainsKey(node.Checkpoint.Id))
+            {
+                nodesById.Add(node.Checkpoint.Id, node);
+            }
+        }
+
+        var rootNodes = new List<HyperVCheckpointTreeItem>();
+        foreach (var node in allNodes)
+        {
+            var parentId = node.Checkpoint.ParentId;
+            if (!string.IsNullOrWhiteSpace(parentId)
+                && nodesById.TryGetValue(parentId, out var parentNode)
+                && !ReferenceEquals(parentNode, node))
+            {
+                parentNode.Children.Add(node);
+            }
+            else
+            {
+                rootNodes.Add(node);
+            }
+        }
+
+        foreach (var root in rootNodes
+                     .OrderBy(item => item.Created)
+                     .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            SortCheckpointTreeRecursively(root);
+            AvailableCheckpointTree.Add(root);
+        }
+    }
+
+    private static void SortCheckpointTreeRecursively(HyperVCheckpointTreeItem node)
+    {
+        if (node.Children.Count == 0)
+        {
+            return;
+        }
+
+        var orderedChildren = node.Children
+            .OrderBy(item => item.Created)
+            .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        node.Children.Clear();
+        foreach (var child in orderedChildren)
+        {
+            SortCheckpointTreeRecursively(child);
+            node.Children.Add(child);
+        }
+    }
+
+    private HyperVCheckpointTreeItem? FindCheckpointNodeById(string checkpointId)
+    {
+        if (string.IsNullOrWhiteSpace(checkpointId))
+        {
+            return null;
+        }
+
+        foreach (var root in AvailableCheckpointTree)
+        {
+            var found = FindCheckpointNodeByIdRecursive(root, checkpointId);
+            if (found is not null)
+            {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
+    private static HyperVCheckpointTreeItem? FindCheckpointNodeByIdRecursive(HyperVCheckpointTreeItem node, string checkpointId)
+    {
+        if (string.Equals(node.Checkpoint.Id, checkpointId, StringComparison.OrdinalIgnoreCase))
+        {
+            return node;
+        }
+
+        foreach (var child in node.Children)
+        {
+            var found = FindCheckpointNodeByIdRecursive(child, checkpointId);
+            if (found is not null)
+            {
+                return found;
+            }
+        }
+
+        return null;
     }
 
     private void AddVm()
@@ -1402,7 +1666,7 @@ public partial class MainViewModel : ViewModelBase
     {
         await ExecuteBusyActionAsync($"'{vmName}' wird mit '{switchName}' verbunden...", async token =>
         {
-            await _hyperVService.ConnectVmNetworkAdapterAsync(vmName, switchName, token);
+            await _hyperVService.ConnectVmNetworkAdapterAsync(vmName, switchName, null, token);
             AddNotification($"'{vmName}' mit '{switchName}' verbunden.", "Success");
 
             if (ShouldAutoRestartHnsAfterConnect(switchName))
@@ -1415,6 +1679,34 @@ public partial class MainViewModel : ViewModelBase
         });
 
         await RefreshVmStatusByNameAsync(vmName);
+    }
+
+    public async Task<IReadOnlyList<HostNetworkAdapterInfo>> GetHostNetworkAdaptersWithUplinkAsync()
+    {
+        if (IsBusy)
+        {
+            AddNotification("Bitte warten, ein anderer Vorgang läuft noch.", "Info");
+            return [];
+        }
+
+        var adapters = Array.Empty<HostNetworkAdapterInfo>();
+
+        await ExecuteBusyActionAsync("Host-Netzwerkdaten werden geladen...", async token =>
+        {
+            var result = await _hyperVService.GetHostNetworkAdaptersWithUplinkAsync(token);
+            adapters = result
+                .OrderBy(item => item.AdapterName, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }, showNotificationOnErrorOnly: true);
+
+        if (adapters.Length == 0)
+        {
+            AddNotification("Keine Host-Netzwerkkarten mit Uplink gefunden.", "Warning");
+            return adapters;
+        }
+
+        AddNotification($"{adapters.Length} Host-Netzwerkkarte(n) mit Uplink geladen.", "Info");
+        return adapters;
     }
 
     private async Task RefreshVmStatusByNameAsync(string vmName)

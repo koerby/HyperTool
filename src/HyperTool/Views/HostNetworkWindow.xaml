@@ -1,0 +1,57 @@
+<mah:MetroWindow x:Class="HyperTool.Views.HostNetworkWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+                 Title="Host Network"
+                 Width="980"
+                 Height="620"
+                 MinWidth="760"
+                 MinHeight="420"
+                 WindowStartupLocation="CenterOwner"
+                 ResizeMode="CanResize"
+                 Background="{DynamicResource PageBackground}">
+    <Grid Margin="14" Background="{DynamicResource PageBackground}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="10" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="12" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <TextBlock Foreground="{DynamicResource TextPrimary}" FontSize="22" FontWeight="SemiBold" Text="Host Netzwerkkarten (Uplink)" />
+            <TextBlock Margin="0,4,0,0"
+                       Foreground="{DynamicResource TextMuted}"
+                       Text="Es werden nur Adapter mit aktivem Uplink angezeigt." />
+        </StackPanel>
+
+        <Border Grid.Row="2"
+                CornerRadius="10"
+                Background="{DynamicResource PanelBackground}"
+                BorderBrush="{DynamicResource PanelBorder}"
+                BorderThickness="1"
+                Padding="8">
+            <ListView ItemsSource="{Binding}"
+                      Foreground="{DynamicResource TextPrimary}"
+                      Background="{DynamicResource InputBackground}"
+                      BorderBrush="{DynamicResource InputBorder}"
+                      BorderThickness="1">
+                <ListView.View>
+                    <GridView>
+                        <GridViewColumn Header="Adapter" Width="150" DisplayMemberBinding="{Binding AdapterName}" />
+                        <GridViewColumn Header="Beschreibung" Width="220" DisplayMemberBinding="{Binding InterfaceDescription}" />
+                        <GridViewColumn Header="IP" Width="170" DisplayMemberBinding="{Binding IpAddresses}" />
+                        <GridViewColumn Header="Subnetz" Width="90" DisplayMemberBinding="{Binding Subnets}" />
+                        <GridViewColumn Header="Gateway" Width="130" DisplayMemberBinding="{Binding Gateway}" />
+                        <GridViewColumn Header="DNS" Width="200" DisplayMemberBinding="{Binding DnsServers}" />
+                    </GridView>
+                </ListView.View>
+            </ListView>
+        </Border>
+
+        <WrapPanel Grid.Row="4" HorizontalAlignment="Right">
+            <Button Padding="12,6" Click="CloseButton_Click" Content="Schließen" />
+        </WrapPanel>
+    </Grid>
+</mah:MetroWindow>
