@@ -2,8 +2,10 @@ using HyperTool.Models;
 using Serilog;
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
+using System.Windows.Forms;
 
 namespace HyperTool.Services;
 
@@ -441,6 +443,48 @@ public sealed class HyperVPowerShellService : IHyperVService
         return OpenVmConnectAsync(vmName, computerName, openWithSessionEdit: true, cancellationToken);
     }
 
+    public async Task ReopenVmConnectToLocalResourcesAsync(string vmName, string computerName, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        try
+        {
+            CloseExistingVmConnectWindows(vmName, computerName);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Existing vmconnect windows could not be fully closed for VM {VmName}", vmName);
+        }
+
+        var processStartInfo = new ProcessStartInfo("vmconnect.exe")
+        {
+            UseShellExecute = true
+        };
+
+        processStartInfo.ArgumentList.Add(computerName);
+        processStartInfo.ArgumentList.Add(vmName);
+        processStartInfo.ArgumentList.Add("/edit");
+
+        Process? process;
+        try
+        {
+            process = Process.Start(processStartInfo);
+            Log.Information("vmconnect started for VM {VmName} on host {ComputerName} with local resources jump", vmName, computerName);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to start vmconnect local-resources flow for VM {VmName}", vmName);
+            throw;
+        }
+
+        if (process is null)
+        {
+            return;
+        }
+
+        await FocusWindowAndJumpToLocalResourcesAsync(process, cancellationToken);
+    }
+
     private static void CloseExistingVmConnectWindows(string vmName, string computerName)
     {
         var titleNeedles = new[]
@@ -485,6 +529,35 @@ public sealed class HyperVPowerShellService : IHyperVService
             }
         }
     }
+
+    private static async Task FocusWindowAndJumpToLocalResourcesAsync(Process process, CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; attempt < 40; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (process.HasExited)
+            {
+                return;
+            }
+
+            process.Refresh();
+            var handle = process.MainWindowHandle;
+            if (handle != IntPtr.Zero)
+            {
+                SetForegroundWindow(handle);
+                await Task.Delay(180, cancellationToken);
+                SendKeys.SendWait("^{TAB}");
+                return;
+            }
+
+            await Task.Delay(120, cancellationToken);
+        }
+    }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
 
     public async Task<(bool HasEnoughSpace, long RequiredBytes, long AvailableBytes, string TargetDrive)> CheckExportDiskSpaceAsync(
         string vmName,

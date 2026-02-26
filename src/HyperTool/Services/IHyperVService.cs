@@ -40,6 +40,8 @@ public interface IHyperVService
 
     Task ReopenVmConnectWithSessionEditAsync(string vmName, string computerName, CancellationToken cancellationToken);
 
+    Task ReopenVmConnectToLocalResourcesAsync(string vmName, string computerName, CancellationToken cancellationToken);
+
     Task<(bool HasEnoughSpace, long RequiredBytes, long AvailableBytes, string TargetDrive)> CheckExportDiskSpaceAsync(string vmName, string destinationPath, CancellationToken cancellationToken);
 
     Task ExportVmAsync(string vmName, string destinationPath, IProgress<int>? progress, CancellationToken cancellationToken);
