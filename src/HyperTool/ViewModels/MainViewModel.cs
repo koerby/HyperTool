@@ -345,7 +345,7 @@ public partial class MainViewModel : ViewModelBase
         HnsEnabled = configResult.Config.Hns.Enabled;
         HnsAutoRestartAfterDefaultSwitch = configResult.Config.Hns.AutoRestartAfterDefaultSwitch;
         HnsAutoRestartAfterAnyConnect = configResult.Config.Hns.AutoRestartAfterAnyConnect;
-        UiEnableTrayIcon = configResult.Config.Ui.EnableTrayIcon;
+        UiEnableTrayIcon = true;
         UiEnableTrayMenu = configResult.Config.Ui.EnableTrayMenu;
         UiStartMinimized = configResult.Config.Ui.StartMinimized;
         UiStartWithWindows = configResult.Config.Ui.StartWithWindows;
@@ -1807,7 +1807,7 @@ public partial class MainViewModel : ViewModelBase
                     Theme = NormalizeUiTheme(UiTheme),
                     StartMinimized = UiStartMinimized,
                     MinimizeToTray = true,
-                    EnableTrayIcon = UiEnableTrayIcon,
+                    EnableTrayIcon = true,
                     EnableTrayMenu = UiEnableTrayMenu,
                     StartWithWindows = UiStartWithWindows,
                     TrayVmNames = [.. _trayVmNames]
@@ -2082,7 +2082,7 @@ public partial class MainViewModel : ViewModelBase
             DefaultVmName = config.DefaultVmName;
             LastSelectedVmName = config.LastSelectedVmName;
             VmConnectComputerName = NormalizeVmConnectComputerName(config.VmConnectComputerName);
-            UiEnableTrayIcon = config.Ui.EnableTrayIcon;
+            UiEnableTrayIcon = true;
             UiEnableTrayMenu = config.Ui.EnableTrayMenu;
             UiStartMinimized = config.Ui.StartMinimized;
             UiStartWithWindows = config.Ui.StartWithWindows;

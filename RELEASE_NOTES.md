@@ -1,5 +1,66 @@
 # HyperTool Release Notes
 
+## v1.4.0
+
+### Highlights
+
+- Netzwerkverwaltung auf Multi-NIC erweitert: adaptergenaues Verbinden/Trennen statt pauschal pro VM.
+- Host-Network Popup deutlich ausgebaut: alle gefundenen Host-Adapter inkl. Netzwerkdetails und Badge-Infos.
+- Snapshot-Bereich auf Baumansicht mit Status-Badges umgestellt (neuester/aktueller Stand).
+- Export/Import-Workflow robuster: Prozent-Fortschritt, Speicherplatzprüfung, sicherer Import als neue VM.
+- Tray-Verhalten feiner steuerbar: Show/Hide/Exit immer verfügbar, Fachmenüs optional ausblendbar.
+
+### Neu
+
+- Network-Tab:
+	- Auswahl von VM-Netzwerkadaptern (pro Adapter eigener Switch-Connect/Disconnect).
+	- `Host Network`-Button mit Detailfenster für Host-Adapter.
+- Host-Network Fenster:
+	- Anzeige von Adapter, Beschreibung, IP, Subnetz, Gateway und DNS.
+	- Gateway-Badge für Adapter mit Gateway.
+	- Default-Switch-Badge für Hyper-V Default Switch (ICS).
+- Snapshots:
+	- Tree-View (Parent/Child) statt flacher Liste.
+	- Kennzeichnung `Neueste` und `Jetzt`.
+- Config/VM:
+	- Tray-Adapter pro VM konfigurierbar.
+	- Umbenennen von VM-Adaptern inkl. Validierung (leer/ungültige Zeichen/Duplikate/identischer Name).
+- Tray:
+	- Neue Option `Tasktray-Menü aktiv`.
+	- Bei deaktivierter Option bleiben `Show`, `Hide`, `Exit` sichtbar; `VM Aktionen`, `Switch umstellen`, `Aktualisieren` werden ausgeblendet.
+- Easter Egg:
+	- Klick auf Logo startet Rotation und spielt optionalen custom WAV-Sound.
+
+### Verbessert
+
+- Dropdown-Usability: Aufklappen über Klick auf die gesamte ComboBox-Fläche.
+- Host-Adapter-Erkennung robuster inklusive Default-Switch-Fallbacks.
+- Sortierung im Host-Network Fenster verbessert (Gateway-relevante Adapter zuerst).
+- Dunkelmodus-/Kontextmenü-Darstellung in VM-Chips überarbeitet.
+- Host-Network Fenstergröße angepasst, um unnötige Scrollbars zu reduzieren.
+
+### Export/Import
+
+- Export:
+	- Fortschrittsanzeige in Prozent.
+	- Vorabprüfung auf ausreichend freien Speicher im Zielpfad.
+- Import:
+	- Immer als neue VM (`-Copy -GenerateNewId`).
+	- Zielpfad wird abgefragt.
+	- Namenskonflikte werden automatisch mit Suffix aufgelöst.
+
+### Behoben
+
+- Default Switch (ICS) wurde im Host-Network Popup teilweise ohne Details angezeigt.
+- Tray-Switching bei Multi-NIC ist jetzt auf konfigurierbaren Adapter begrenzbar.
+- Mehrere UI-Konsistenzprobleme im Netzwerk-/Tray-/Darkmode-Bereich.
+
+### Kompatibilität
+
+- Windows 10/11
+- Hyper-V aktiviert
+- .NET 8
+
 ## v1.3.0
 
 ### Highlights

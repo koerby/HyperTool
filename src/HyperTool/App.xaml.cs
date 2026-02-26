@@ -61,14 +61,11 @@ public partial class App : System.Windows.Application
 				DataContext = mainViewModel
 			};
 
-			if (uiConfig.EnableTrayIcon)
-			{
-				TryInitializeTray(mainWindow, mainViewModel);
-			}
+			TryInitializeTray(mainWindow, mainViewModel);
 
 			mainWindow.StateChanged += (_, _) =>
 			{
-				if (uiConfig.EnableTrayIcon && uiConfig.MinimizeToTray && mainWindow.WindowState == WindowState.Minimized)
+				if (_trayService is not null && uiConfig.MinimizeToTray && mainWindow.WindowState == WindowState.Minimized)
 				{
 					mainWindow.Hide();
 				}
@@ -81,7 +78,7 @@ public partial class App : System.Windows.Application
 					return;
 				}
 
-				if (!uiConfig.EnableTrayIcon || !uiConfig.MinimizeToTray)
+				if (_trayService is null || !uiConfig.MinimizeToTray)
 				{
 					return;
 				}

@@ -1,6 +1,5 @@
 using HyperTool.Models;
 using Serilog;
-using System.ComponentModel;
 using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
@@ -60,14 +59,8 @@ public sealed class TrayService : ITrayService
         _unsubscribeTrayStateChanged = unsubscribeTrayStateChanged;
 
         _contextMenu = new ContextMenuStrip();
-        _contextMenu.Opening += (_, e) =>
+        _contextMenu.Opening += (_, _) =>
         {
-            if (!IsTrayMenuEnabled())
-            {
-                e.Cancel = true;
-                return;
-            }
-
             _isContextMenuOpen = true;
             UpdateTrayMenu();
         };
@@ -90,11 +83,9 @@ public sealed class TrayService : ITrayService
         {
             Icon = ResolveTrayIcon(),
             Text = "HyperTool",
-            ContextMenuStrip = null,
+            ContextMenuStrip = _contextMenu,
             Visible = true
         };
-
-        ApplyTrayMenuVisibility();
 
         _notifyIcon.DoubleClick += (_, _) => _showAction?.Invoke();
         Log.Information("Tray icon initialized.");
@@ -102,13 +93,6 @@ public sealed class TrayService : ITrayService
 
     public void UpdateTrayMenu()
     {
-        ApplyTrayMenuVisibility();
-
-        if (!IsTrayMenuEnabled())
-        {
-            return;
-        }
-
         if (_contextMenu is null
             || _showAction is null
             || _hideAction is null
@@ -140,24 +124,28 @@ public sealed class TrayService : ITrayService
 
         _contextMenu.Items.Add(new ToolStripSeparator());
 
-        var vms = _getVms();
-        var switches = _getSwitches();
-
-        _contextMenu.Items.Add(BuildVmActionsMenu(vms));
-        _contextMenu.Items.Add(BuildSwitchActionMenu(vms, switches));
-
-        _contextMenu.Items.Add(new ToolStripSeparator());
-        _contextMenu.Items.Add("Aktualisieren", null, (_, _) => ExecuteMenuAction(async () =>
+        if (IsTrayMenuEnabled())
         {
-            if (_refreshTrayDataAction is not null)
+            var vms = _getVms();
+            var switches = _getSwitches();
+
+            _contextMenu.Items.Add(BuildVmActionsMenu(vms));
+            _contextMenu.Items.Add(BuildSwitchActionMenu(vms, switches));
+
+            _contextMenu.Items.Add(new ToolStripSeparator());
+            _contextMenu.Items.Add("Aktualisieren", null, (_, _) => ExecuteMenuAction(async () =>
             {
-                await _refreshTrayDataAction();
-            }
+                if (_refreshTrayDataAction is not null)
+                {
+                    await _refreshTrayDataAction();
+                }
 
-            UpdateTrayMenuThreadSafe();
-        }, "refresh"));
+                UpdateTrayMenuThreadSafe();
+            }, "refresh"));
 
-        _contextMenu.Items.Add(new ToolStripSeparator());
+            _contextMenu.Items.Add(new ToolStripSeparator());
+        }
+
         _contextMenu.Items.Add("Exit", null, (_, _) => ExecuteMenuAction(() =>
         {
             _exitAction();
@@ -334,43 +322,17 @@ public sealed class TrayService : ITrayService
         {
             _contextMenu.BeginInvoke(new Action(() =>
             {
-                ApplyTrayMenuVisibility();
                 UpdateTrayMenu();
             }));
             return;
         }
 
-        ApplyTrayMenuVisibility();
         UpdateTrayMenu();
     }
 
     private bool IsTrayMenuEnabled()
     {
         return _isTrayMenuEnabled?.Invoke() ?? true;
-    }
-
-    private void ApplyTrayMenuVisibility()
-    {
-        if (_notifyIcon is null || _contextMenu is null)
-        {
-            return;
-        }
-
-        if (IsTrayMenuEnabled())
-        {
-            if (!ReferenceEquals(_notifyIcon.ContextMenuStrip, _contextMenu))
-            {
-                _notifyIcon.ContextMenuStrip = _contextMenu;
-            }
-
-            return;
-        }
-
-        _contextMenu.Items.Clear();
-        if (_notifyIcon.ContextMenuStrip is not null)
-        {
-            _notifyIcon.ContextMenuStrip = null;
-        }
     }
 
     private static Icon ResolveTrayIcon()

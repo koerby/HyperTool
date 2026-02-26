@@ -248,6 +248,12 @@ public sealed class ConfigService : IConfigService
             wasUpdated = true;
         }
 
+        if (!config.Ui.EnableTrayIcon)
+        {
+            config.Ui.EnableTrayIcon = true;
+            wasUpdated = true;
+        }
+
         if (string.IsNullOrWhiteSpace(config.Update.GitHubOwner))
         {
             config.Update.GitHubOwner = "koerby";

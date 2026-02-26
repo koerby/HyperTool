@@ -5,11 +5,13 @@ HyperTool ist ein Windows-Tool zur Steuerung von Hyper-V VMs mit moderner WPF-Ob
 ## Überblick
 
 - VM-Aktionen: Start, Stop, Hard Off, Restart, Konsole öffnen
-- VM-Backup: Exportieren und Importieren von Hyper-V VMs
-- Netzwerk: Switch verbinden/trennen, Default Connect
-- Snapshots: erstellen, laden, anwenden, löschen
-- Tray-Integration: VM starten/stoppen, Konsole öffnen, Snapshot, Switch umstellen
+- VM-Backup: Exportieren und Importieren mit Fortschritt in Prozent
+- Netzwerk: adaptergenaues Switch verbinden/trennen (Multi-NIC), Default Connect
+- Host Network Popup: alle gefundenen Host-Adapter inkl. IP/Subnetz/Gateway/DNS, Badges für Gateway und Default Switch
+- Snapshots: Tree-Ansicht (Parent/Child) mit Markierung für neuesten und aktuellen Stand
+- Tray-Integration: VM starten/stoppen, Konsole öffnen, Snapshot, Switch umstellen; Menübereiche optional ausblendbar
 - Collapsible Notifications Log: eingeklappt/ausgeklappt, Copy/Clear
+- VM-Adapter umbenennen inkl. Eingabevalidierung
 - Konfiguration per JSON, Logging mit Serilog
 
 ## Tech Stack
@@ -82,6 +84,7 @@ Wichtige Felder:
 - vmConnectComputerName: vmconnect Host (z. B. `localhost` oder ein Zertifikats-Hostname)
 - hns: HNS-Verhalten
 - ui: Tray/Autostart Optionen
+- ui.enableTrayMenu: blendet VM/Switch/Aktualisieren im Tray-Menü ein/aus (Show/Hide/Exit bleiben immer sichtbar)
 - ui.theme: `Dark` oder `Light`
 - update: GitHub Updateprüfung
 - ui.trayVmNames: optionale Liste der VM-Namen, die im Tray-Menü erscheinen sollen (leer = alle)
@@ -101,6 +104,30 @@ VMs werden zur Laufzeit automatisch aus Hyper-V geladen (Auto-Discovery).
 - Der `❔ Hilfe`-Button oben rechts öffnet ein eigenes Hilfe-Fenster (nicht mehr Info-Tab-Navigation)
 - Enthält Kurz-Erklärungen zu Start/Stop, Network, Snapshots, HNS, Tray
 - Schnellaktionen im Popup: `Logs öffnen`, `Config öffnen`, `GitHub Repo`
+
+## Network & Host Adapter
+
+- Netzwerk-Aktionen sind adaptergenau (pro VM-NIC auswählbar)
+- `Host Network` zeigt alle gefundenen Host-Adapter, nicht nur Uplink-Adapter
+- Default Switch (ICS) wird gesondert erkannt und mit Badge markiert
+
+## Export & Import Details
+
+- Export zeigt Fortschritt (0-100%) und prüft vorher den verfügbaren Speicherplatz
+- Import läuft als neue VM (`-Copy -GenerateNewId`) und fragt Zielordner ab
+- Bei Namenskonflikten wird automatisch ein eindeutiger Name mit Suffix erzeugt
+
+## Tray Verhalten
+
+- Das Tray-Icon bleibt aktiv (wichtig für minimierten Start und Wiederöffnen)
+- Option `Tasktray-Menü aktiv` steuert nur Zusatzpunkte:
+	- aktiv: VM Aktionen, Switch umstellen, Aktualisieren sichtbar
+	- inaktiv: nur Show/Hide/Exit sichtbar
+
+## Easter Egg
+
+- Klick auf das Logo oben rechts startet eine kurze Dreh-Animation
+- Optionaler Sound über `src/HyperTool/Assets/logo-spin.wav` (Wiedergabe mit 30% Lautstärke)
 
 ## UI-Verhalten (wichtig)
 

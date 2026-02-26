@@ -18,7 +18,7 @@ namespace HyperTool.Views;
 public partial class MainWindow : MetroWindow
 {
     private const string LogoEasterEggSoundFileName = "logo-spin.wav";
-    private const double LogoEasterEggSoundVolume = 0.55;
+    private const double LogoEasterEggSoundVolume = 0.30;
 
     private readonly IThemeService _themeService;
     private MainViewModel? _currentViewModel;
