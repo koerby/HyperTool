@@ -542,7 +542,7 @@
                                         Margin="0"
                                         Style="{StaticResource ActionButton}"
                                         Command="{Binding ReopenConsoleWithSessionEditCommand}"
-                                    Content="🛠 Lokale Ressourcen öffnen (Konsole neu aufbauen)" />
+                                    Content="🛠 Konsole neu aufbauen (Sitzungsbearbeitung)" />
                             </Grid>
                         </TabItem>
 

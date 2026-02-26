@@ -900,8 +900,8 @@ public partial class MainViewModel : ViewModelBase
 
         await ExecuteBusyActionAsync("Konsole wird mit Sitzungsbearbeitung neu aufgebaut...", async token =>
         {
-            await _hyperVService.ReopenVmConnectToLocalResourcesAsync(vmName, VmConnectComputerName, token);
-            AddNotification($"Konsole für '{vmName}' neu aufgebaut und auf 'Lokale Ressourcen' gewechselt.", "Info");
+            await _hyperVService.ReopenVmConnectWithSessionEditAsync(vmName, VmConnectComputerName, token);
+            AddNotification($"Konsole für '{vmName}' wurde mit Sitzungsbearbeitung neu aufgebaut.", "Info");
         });
     }
 

@@ -154,13 +154,27 @@ public partial class MainWindow : MetroWindow
             LogoImage.RenderTransformOrigin = new System.Windows.Point(0.5, 0.5);
         }
 
-        var spinAnimation = new DoubleAnimation
+        rotateTransform.Angle = 0;
+
+        var spinAnimation = new DoubleAnimationUsingKeyFrames
         {
-            From = 0,
-            To = 360,
-            Duration = TimeSpan.FromMilliseconds(700),
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut }
+            Duration = TimeSpan.FromMilliseconds(1700)
         };
+
+        spinAnimation.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.Zero))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut }
+        });
+        spinAnimation.KeyFrames.Add(new EasingDoubleKeyFrame(360, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(700)))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut }
+        });
+        spinAnimation.KeyFrames.Add(new DiscreteDoubleKeyFrame(360, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(900))));
+        spinAnimation.KeyFrames.Add(new EasingDoubleKeyFrame(720, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(1600)))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut }
+        });
+        spinAnimation.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(1700))));
 
         rotateTransform.BeginAnimation(RotateTransform.AngleProperty, spinAnimation);
         PlayLogoEasterEggSound();
