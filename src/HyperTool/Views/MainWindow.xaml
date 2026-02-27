@@ -24,7 +24,7 @@
         <conv:StringEqualsConverter x:Key="StringEqualsConverter" />
 
         <Style x:Key="CardBorder" TargetType="Border">
-            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="CornerRadius" Value="16" />
             <Setter Property="Background" Value="{DynamicResource PanelBackground}" />
             <Setter Property="BorderBrush" Value="{DynamicResource PanelBorder}" />
             <Setter Property="BorderThickness" Value="1" />
@@ -35,10 +35,24 @@
             <Setter Property="Background" Value="{DynamicResource ButtonBackground}" />
             <Setter Property="BorderBrush" Value="{DynamicResource ButtonBorder}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="mah:ControlsHelper.CornerRadius" Value="8" />
-            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="mah:ControlsHelper.CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="12,9" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Margin" Value="0,0,10,0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource ButtonHoverBackground}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource ButtonHoverBorder}" />
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource ButtonPressedBackground}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource ButtonPressedBorder}" />
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.62" />
+                </Trigger>
+            </Style.Triggers>
         </Style>
 
         <Style x:Key="VmChipContextMenuStyle" TargetType="ContextMenu">
@@ -259,7 +273,7 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="ListBoxItem">
                         <Border x:Name="NavBorder"
-                                CornerRadius="10"
+                            CornerRadius="12"
                                 Background="Transparent"
                                 BorderBrush="Transparent"
                                 BorderThickness="1"
@@ -281,7 +295,7 @@
         </Style>
     </mah:MetroWindow.Resources>
 
-    <Grid Margin="18" Background="{DynamicResource PageBackground}">
+    <Grid Margin="20" Background="{DynamicResource PageBackground}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="12" />
@@ -305,7 +319,7 @@
             <RowDefinition Height="0" />
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Style="{StaticResource CardBorder}" Padding="14">
+        <Border Grid.Row="0" Style="{StaticResource CardBorder}" Padding="16">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -325,7 +339,7 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Button Margin="0,0,8,8"
-                                        Padding="10,6"
+                                    Padding="12,7"
                                         Command="{Binding DataContext.SelectVmFromChipCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                         CommandParameter="{Binding}">
                                     <Button.ContextMenu>
@@ -362,6 +376,7 @@
                                             <Setter Property="Background" Value="{DynamicResource VmChipBaseBackground}" />
                                             <Setter Property="BorderBrush" Value="{DynamicResource VmChipBaseBorder}" />
                                             <Setter Property="BorderThickness" Value="1" />
+                                            <Setter Property="Cursor" Value="Hand" />
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding RuntimeState}" Value="Running">
                                                     <Setter Property="Background" Value="{DynamicResource VmChipRunningBackground}" />
@@ -381,6 +396,12 @@
                                                     <Setter Property="BorderBrush" Value="{DynamicResource VmChipSelectedBorder}" />
                                                     <Setter Property="BorderThickness" Value="2" />
                                                 </DataTrigger>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="Opacity" Value="0.94" />
+                                                </Trigger>
+                                                <Trigger Property="IsPressed" Value="True">
+                                                    <Setter Property="Opacity" Value="0.88" />
+                                                </Trigger>
                                             </Style.Triggers>
                                         </Style>
                                     </Button.Style>
@@ -438,7 +459,7 @@
             <TextBlock Foreground="{DynamicResource WarningText}" TextWrapping="Wrap" Text="{Binding ConfigurationNotice}" />
         </Border>
 
-        <Border Grid.Row="4" Style="{StaticResource CardBorder}" Padding="12">
+        <Border Grid.Row="4" Style="{StaticResource CardBorder}" Padding="14">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="88" />
@@ -1023,7 +1044,7 @@
             </Grid>
         </Border>
 
-        <Border Grid.Row="6" Style="{StaticResource CardBorder}" Padding="12">
+        <Border Grid.Row="6" Style="{StaticResource CardBorder}" Padding="14">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />

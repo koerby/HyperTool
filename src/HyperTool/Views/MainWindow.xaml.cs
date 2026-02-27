@@ -22,6 +22,7 @@ public partial class MainWindow : MetroWindow
     private const string LogoEasterEggSoundFileName = "logo-spin.wav";
     private const double LogoEasterEggSoundVolume = 0.30;
     private const int DwmWindowCornerPreferenceAttribute = 33;
+    private const int WindowCornerRadius = 16;
 
     private readonly IThemeService _themeService;
     private MainViewModel? _currentViewModel;
@@ -34,6 +35,8 @@ public partial class MainWindow : MetroWindow
         _themeService = themeService;
         InitializeComponent();
         SourceInitialized += OnSourceInitialized;
+        SizeChanged += OnWindowShapeChanged;
+        StateChanged += OnWindowShapeChanged;
         DataContextChanged += OnDataContextChanged;
         Closed += OnWindowClosed;
     }
@@ -44,6 +47,22 @@ public partial class MainWindow : MetroWindow
         int dwAttribute,
         ref DwmWindowCornerPreference pvAttribute,
         int cbAttribute);
+
+    [DllImport("gdi32.dll")]
+    private static extern IntPtr CreateRoundRectRgn(
+        int nLeftRect,
+        int nTopRect,
+        int nRightRect,
+        int nBottomRect,
+        int nWidthEllipse,
+        int nHeightEllipse);
+
+    [DllImport("user32.dll")]
+    private static extern int SetWindowRgn(IntPtr hWnd, IntPtr hRgn, bool bRedraw);
+
+    [DllImport("gdi32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool DeleteObject(IntPtr hObject);
 
     private enum DwmWindowCornerPreference
     {
@@ -56,6 +75,49 @@ public partial class MainWindow : MetroWindow
     private void OnSourceInitialized(object? sender, EventArgs e)
     {
         TryApplyRoundedCorners();
+        UpdateWindowRegion();
+    }
+
+    private void OnWindowShapeChanged(object? sender, EventArgs e)
+    {
+        UpdateWindowRegion();
+    }
+
+    private void UpdateWindowRegion()
+    {
+        try
+        {
+            var windowHandle = new WindowInteropHelper(this).Handle;
+            if (windowHandle == IntPtr.Zero)
+            {
+                return;
+            }
+
+            if (WindowState == WindowState.Maximized)
+            {
+                _ = SetWindowRgn(windowHandle, IntPtr.Zero, true);
+                return;
+            }
+
+            var width = Math.Max(1, (int)ActualWidth);
+            var height = Math.Max(1, (int)ActualHeight);
+            var diameter = WindowCornerRadius * 2;
+
+            var regionHandle = CreateRoundRectRgn(0, 0, width + 1, height + 1, diameter, diameter);
+            if (regionHandle == IntPtr.Zero)
+            {
+                return;
+            }
+
+            var result = SetWindowRgn(windowHandle, regionHandle, true);
+            if (result == 0)
+            {
+                _ = DeleteObject(regionHandle);
+            }
+        }
+        catch
+        {
+        }
     }
 
     private void TryApplyRoundedCorners()

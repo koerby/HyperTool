@@ -2,15 +2,19 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <SolidColorBrush x:Key="PageBackground" Color="#F3F6FB" />
     <SolidColorBrush x:Key="PanelBackground" Color="#FFFFFF" />
-    <SolidColorBrush x:Key="PanelBorder" Color="#C4D1E2" />
+    <SolidColorBrush x:Key="PanelBorder" Color="#CFDAE9" />
     <SolidColorBrush x:Key="TextPrimary" Color="#0F172A" />
     <SolidColorBrush x:Key="TextMuted" Color="#334155" />
     <SolidColorBrush x:Key="InputBackground" Color="#FFFFFF" />
     <SolidColorBrush x:Key="InputBorder" Color="#A0B3CC" />
     <SolidColorBrush x:Key="SidebarBackground" Color="#E9F0F8" />
     <SolidColorBrush x:Key="OverlayBackground" Color="#ECF2F9" />
-    <SolidColorBrush x:Key="ButtonBackground" Color="#2A5B91" />
-    <SolidColorBrush x:Key="ButtonBorder" Color="#1E4B7A" />
+    <SolidColorBrush x:Key="ButtonBackground" Color="#3267A0" />
+    <SolidColorBrush x:Key="ButtonBorder" Color="#2A5A8D" />
+    <SolidColorBrush x:Key="ButtonHoverBackground" Color="#3D76B3" />
+    <SolidColorBrush x:Key="ButtonHoverBorder" Color="#2F649C" />
+    <SolidColorBrush x:Key="ButtonPressedBackground" Color="#255486" />
+    <SolidColorBrush x:Key="ButtonPressedBorder" Color="#1E4B7A" />
     <SolidColorBrush x:Key="ButtonForeground" Color="#FFFFFF" />
     <SolidColorBrush x:Key="NavHoverBackground" Color="#D9E6F5" />
     <SolidColorBrush x:Key="NavSelectedBackground" Color="#C2D8F2" />
@@ -19,8 +23,8 @@
     <SolidColorBrush x:Key="AccentStrong" Color="#2A7BC7" />
     <SolidColorBrush x:Key="AccentText" Color="#0F172A" />
 
-    <SolidColorBrush x:Key="VmChipBaseBackground" Color="#D6E6F8" />
-    <SolidColorBrush x:Key="VmChipBaseBorder" Color="#8FB1D5" />
+    <SolidColorBrush x:Key="VmChipBaseBackground" Color="#DDEBFA" />
+    <SolidColorBrush x:Key="VmChipBaseBorder" Color="#9AB9DA" />
     <SolidColorBrush x:Key="VmChipRunningBackground" Color="#BFEACC" />
     <SolidColorBrush x:Key="VmChipRunningBorder" Color="#5EA378" />
     <SolidColorBrush x:Key="VmChipOffBackground" Color="#F5CEDC" />
