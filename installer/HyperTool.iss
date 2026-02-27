@@ -35,16 +35,27 @@ UninstallDisplayIcon={app}\HyperTool.exe
 Name: "german"; MessagesFile: "compiler:Languages\German.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
+[CustomMessages]
+english.DesktopIconTask=Create desktop shortcut
+english.AdditionalTasks=Additional tasks:
+english.UninstallShortcut=Uninstall HyperTool
+english.RunAfterInstall=Launch HyperTool
+
+german.DesktopIconTask=Desktop-Verknüpfung erstellen
+german.AdditionalTasks=Zusätzliche Aufgaben:
+german.UninstallShortcut=HyperTool deinstallieren
+german.RunAfterInstall=HyperTool starten
+
 [Tasks]
-Name: "desktopicon"; Description: "Desktop-Verknüpfung erstellen"; GroupDescription: "Zusätzliche Aufgaben:"; Flags: unchecked
+Name: "desktopicon"; Description: "{cm:DesktopIconTask}"; GroupDescription: "{cm:AdditionalTasks}"; Flags: unchecked
 
 [Files]
 Source: "{#MySourceDir}\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion createallsubdirs
 
 [Icons]
 Name: "{group}\HyperTool"; Filename: "{app}\HyperTool.exe"
-Name: "{group}\HyperTool deinstallieren"; Filename: "{uninstallexe}"
+Name: "{group}\{cm:UninstallShortcut}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\HyperTool"; Filename: "{app}\HyperTool.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\HyperTool.exe"; Description: "HyperTool starten"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\HyperTool.exe"; Description: "{cm:RunAfterInstall}"; Flags: nowait postinstall skipifsilent
