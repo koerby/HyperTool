@@ -1,3 +1,4 @@
+using HyperTool.Helpers;
 using HyperTool.Models;
 using MahApps.Metro.Controls;
 using System.Collections.Generic;
@@ -15,6 +16,7 @@ public partial class HostNetworkWindow : MetroWindow
     public HostNetworkWindow(IReadOnlyList<HostNetworkAdapterInfo> adapters)
     {
         InitializeComponent();
+        SourceInitialized += (_, _) => DwmWindowHelper.ApplyRoundedCorners(this);
         Adapters = adapters
             .Where(adapter => adapter is not null)
             .ToList();

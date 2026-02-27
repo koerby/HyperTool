@@ -1,4 +1,5 @@
 using ControlzEx.Theming;
+using HyperTool.Helpers;
 using HyperTool.Models;
 using HyperTool.Services;
 using HyperTool.ViewModels;
@@ -7,11 +8,9 @@ using System;
 using System.ComponentModel;
 using System.IO;
 using System.Media;
-using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 
@@ -21,7 +20,6 @@ public partial class MainWindow : MetroWindow
 {
     private const string LogoEasterEggSoundFileName = "logo-spin.wav";
     private const double LogoEasterEggSoundVolume = 0.30;
-    private const int DwmWindowCornerPreferenceAttribute = 33;
 
     private readonly IThemeService _themeService;
     private MainViewModel? _currentViewModel;
@@ -38,51 +36,9 @@ public partial class MainWindow : MetroWindow
         Closed += OnWindowClosed;
     }
 
-    [DllImport("dwmapi.dll")]
-    private static extern int DwmSetWindowAttribute(
-        IntPtr hwnd,
-        int dwAttribute,
-        ref DwmWindowCornerPreference pvAttribute,
-        int cbAttribute);
-
-    private enum DwmWindowCornerPreference
-    {
-        Default = 0,
-        DoNotRound = 1,
-        Round = 2,
-        RoundSmall = 3
-    }
-
     private void OnSourceInitialized(object? sender, EventArgs e)
     {
-        TryApplyRoundedCorners();
-    }
-
-    private void TryApplyRoundedCorners()
-    {
-        if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000))
-        {
-            return;
-        }
-
-        try
-        {
-            var windowHandle = new WindowInteropHelper(this).Handle;
-            if (windowHandle == IntPtr.Zero)
-            {
-                return;
-            }
-
-            var preference = DwmWindowCornerPreference.Round;
-            _ = DwmSetWindowAttribute(
-                windowHandle,
-                DwmWindowCornerPreferenceAttribute,
-                ref preference,
-                Marshal.SizeOf<DwmWindowCornerPreference>());
-        }
-        catch
-        {
-        }
+        DwmWindowHelper.ApplyRoundedCorners(this);
     }
 
     private void OnWindowClosed(object? sender, EventArgs e)

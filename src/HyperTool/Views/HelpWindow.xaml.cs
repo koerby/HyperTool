@@ -1,3 +1,4 @@
+using HyperTool.Helpers;
 using MahApps.Metro.Controls;
 using System.Diagnostics;
 using System.IO;
@@ -13,6 +14,7 @@ public partial class HelpWindow : MetroWindow
     public HelpWindow(string configPath, string repoUrl)
     {
         InitializeComponent();
+        SourceInitialized += (_, _) => DwmWindowHelper.ApplyRoundedCorners(this);
         _configPath = configPath;
         _repoUrl = repoUrl;
     }
