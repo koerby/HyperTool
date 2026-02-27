@@ -971,24 +971,23 @@
                                                             <Grid.ColumnDefinitions>
                                                                 <ColumnDefinition Width="*" />
                                                                 <ColumnDefinition Width="8" />
-                                                                <ColumnDefinition Width="200" />
-                                                                <ColumnDefinition Width="8" />
                                                                 <ColumnDefinition Width="140" />
                                                             </Grid.ColumnDefinitions>
 
                                                             <ComboBox Grid.Row="0"
                                                                       Grid.Column="0"
-                                                                      Grid.ColumnSpan="5"
+                                                                      Grid.ColumnSpan="3"
                                                                       Style="{StaticResource ReadableComboBoxStyle}"
                                                                       ItemsSource="{Binding AvailableVmAdaptersForRename}"
                                                                       DisplayMemberPath="DisplayName"
                                                                       SelectedItem="{Binding SelectedVmAdapterForRename, Mode=TwoWay}" />
                                                             <TextBox Grid.Row="2"
-                                                                     Grid.Column="2"
+                                                                     Grid.Column="0"
                                                                      Style="{StaticResource ReadableTextBoxStyle}"
+                                                                     VerticalContentAlignment="Center"
                                                                      Text="{Binding NewVmAdapterName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                                             <Button Grid.Row="2"
-                                                                    Grid.Column="4"
+                                                                    Grid.Column="2"
                                                                     Margin="0"
                                                                     Style="{StaticResource ActionButton}"
                                                                     Command="{Binding RenameVmAdapterCommand}"
