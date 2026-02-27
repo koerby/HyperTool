@@ -339,6 +339,18 @@ public sealed class TrayService : ITrayService
     {
         try
         {
+            var preferredIconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "HyperTool.Tray.ico");
+            if (File.Exists(preferredIconPath))
+            {
+                return new Icon(preferredIconPath);
+            }
+        }
+        catch
+        {
+        }
+
+        try
+        {
             var processPath = Environment.ProcessPath;
             if (!string.IsNullOrWhiteSpace(processPath))
             {
@@ -355,7 +367,7 @@ public sealed class TrayService : ITrayService
 
         try
         {
-            var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "HyperTool.ico");
+            var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "HyperTool.Transparent.ico");
             if (File.Exists(iconPath))
             {
                 return new Icon(iconPath);

@@ -8,12 +8,16 @@
         xmlns:conv="clr-namespace:HyperTool.Converters"
         mc:Ignorable="d"
         Title="{Binding WindowTitle}"
-        Icon="/Assets/HyperTool.ico"
+        Icon="/Assets/HyperTool.Transparent.ico"
         Width="1300"
         Height="920"
         MinWidth="1040"
         MinHeight="760"
         WindowStartupLocation="CenterScreen"
+        BorderThickness="0"
+        GlowBrush="{DynamicResource Accent}"
+        NonActiveGlowBrush="{DynamicResource PanelBorder}"
+        WindowTransitionsEnabled="True"
         Background="{DynamicResource PageBackground}">
     <mah:MetroWindow.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
@@ -31,6 +35,7 @@
             <Setter Property="Background" Value="{DynamicResource ButtonBackground}" />
             <Setter Property="BorderBrush" Value="{DynamicResource ButtonBorder}" />
             <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="mah:ControlsHelper.CornerRadius" Value="8" />
             <Setter Property="Padding" Value="12,8" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Margin" Value="0,0,10,0" />
@@ -128,6 +133,7 @@
             <Setter Property="Background" Value="{DynamicResource InputBackground}" />
             <Setter Property="BorderBrush" Value="{DynamicResource InputBorder}" />
             <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="mah:ControlsHelper.CornerRadius" Value="8" />
             <Setter Property="Padding" Value="8,4" />
             <Setter Property="TextElement.Foreground" Value="{DynamicResource TextPrimary}" />
             <Setter Property="FontWeight" Value="SemiBold" />
@@ -190,6 +196,7 @@
             <Setter Property="Background" Value="{DynamicResource InputBackground}" />
             <Setter Property="BorderBrush" Value="{DynamicResource InputBorder}" />
             <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="mah:ControlsHelper.CornerRadius" Value="8" />
             <Setter Property="Padding" Value="8,4" />
         </Style>
 

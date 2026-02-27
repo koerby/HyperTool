@@ -8,13 +8,22 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
-    <ApplicationIcon>Assets\HyperTool.ico</ApplicationIcon>
-    <Win32Icon>Assets\HyperTool.ico</Win32Icon>
+    <ApplicationIcon>Assets\HyperTool.Transparent.ico</ApplicationIcon>
+    <Win32Icon>Assets\HyperTool.Transparent.ico</Win32Icon>
   </PropertyGroup>
 
   <ItemGroup>
     <Resource Include="Assets\HyperTool.ico" />
+    <Resource Include="Assets\HyperTool.Transparent.ico" />
+    <Resource Include="Assets\HyperTool.Tray.ico" />
+    <Resource Include="Assets\HyperTool.Icon.Transparent.png" />
     <Resource Include="Assets\Logo.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Assets\HyperTool.Tray.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
   <ItemGroup>
