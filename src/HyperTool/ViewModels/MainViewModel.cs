@@ -1800,13 +1800,24 @@ public partial class MainViewModel : ViewModelBase
                 AvailableVmAdaptersForRename.Add(adapter);
             }
 
-            SelectedVmTrayAdapterOption = AvailableVmTrayAdapterOptions.FirstOrDefault(option =>
-                                           string.Equals(option.AdapterName, vm.TrayAdapterName, StringComparison.OrdinalIgnoreCase))
-                                       ?? AvailableVmTrayAdapterOptions.FirstOrDefault();
+            var initialTrayAdapterOption = AvailableVmTrayAdapterOptions.FirstOrDefault(option =>
+                                               string.Equals(option.AdapterName, vm.TrayAdapterName, StringComparison.OrdinalIgnoreCase))
+                                           ?? AvailableVmTrayAdapterOptions.FirstOrDefault();
 
-            SelectedVmAdapterForRename = AvailableVmAdaptersForRename.FirstOrDefault(option =>
+            var initialAdapterForRename = AvailableVmAdaptersForRename.FirstOrDefault(option =>
                 string.Equals(option.Name, vm.TrayAdapterName, StringComparison.OrdinalIgnoreCase))
                 ?? AvailableVmAdaptersForRename.FirstOrDefault();
+
+            _configChangeSuppressionDepth++;
+            try
+            {
+                SelectedVmTrayAdapterOption = initialTrayAdapterOption;
+                SelectedVmAdapterForRename = initialAdapterForRename;
+            }
+            finally
+            {
+                _configChangeSuppressionDepth--;
+            }
         }
         catch (Exception ex)
         {

@@ -1216,7 +1216,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="8" />
-                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
                     <WrapPanel>
@@ -1235,8 +1235,7 @@
                             Background="{DynamicResource InputBackground}"
                             BorderBrush="{DynamicResource InputBorder}"
                             BorderThickness="1"
-                            Padding="8"
-                            MaxHeight="280">
+                            Padding="8">
                         <ListBox Style="{StaticResource ReadableListBoxStyle}"
                                  ItemContainerStyle="{StaticResource ReadableListBoxItemStyle}"
                                  BorderThickness="0"
