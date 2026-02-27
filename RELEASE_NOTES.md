@@ -1,5 +1,46 @@
 # HyperTool Release Notes
 
+## v1.3.4
+
+### Highlights
+
+- App-/Tray-Icon überarbeitet: saubere Transparenz außen herum, ohne den alten HyperTool-Iconstil zu verlieren.
+- Fensteroptik modernisiert: echte abgerundete App-Ecken und weicheres Gesamtbild.
+- „Modern clean“-Feintuning für Buttons, VM-Chips und Hauptpanels umgesetzt.
+- Dark- und Light-Theme weiterhin vollständig unterstützt und konsistent gehalten.
+
+### Neu
+
+- Fenster-Rundung technisch ergänzt:
+	- Abgerundete Fensterecken werden jetzt aktiv auf Window-Ebene angewendet.
+	- Rundung wird bei Größenänderung/Fensterstatus sauber aktualisiert.
+	- Bei maximiertem Fenster wird korrekt auf rechteckige Darstellung zurückgeschaltet.
+- Theme-Interaktion erweitert:
+	- Neue Theme-Brushes für Button `Hover` und `Pressed` (Dark/Light).
+
+### Verbessert
+
+- Icons:
+	- Altes `HyperTool.ico` bleibt Basis.
+	- Äußerer Hintergrund/Verlauf wurde transparent gemacht für sauberere Darstellung in `.exe` und Tasktray.
+	- Tray nutzt dediziertes Icon-Fallback, dadurch konsistenteres Erscheinungsbild bei kleinen Größen.
+- UI/Design:
+	- Rahmenfarben in Dark/Light subtil entschärft (weniger harte Kanten).
+	- `ActionButton` mit modernerem Verhalten (Hover/Pressed/Disabled, besseres Padding, Hand-Cursor).
+	- VM-Auswahl-Chips leicht modernisiert (Padding/Interaktionsfeedback), ohne Funktionsänderung.
+	- Hauptpanel-Abstände und Card-Padding dezent erhöht für luftigere, ruhigere Oberfläche.
+
+### Behoben
+
+- Fensterkanten wirkten trotz vorheriger Anpassung teils noch eckig; jetzt echte Rundung der App-Form.
+- Uneinheitliche Button-/Chip-Anmutung wurde vereinheitlicht, ohne bestehende Abläufe zu verändern.
+
+### Kompatibilität
+
+- Windows 10/11
+- Hyper-V aktiviert
+- .NET 8
+
 ## v1.3.3
 
 ### Highlights
