@@ -3,10 +3,10 @@
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
                  Title="Host Network"
-                 Width="1220"
-                 Height="720"
-                 MinWidth="1120"
-                 MinHeight="560"
+                 Width="1060"
+                 Height="640"
+                 MinWidth="900"
+                 MinHeight="500"
                  WindowStartupLocation="CenterOwner"
                  ResizeMode="CanResize"
                  Background="{DynamicResource PageBackground}">
@@ -14,17 +14,17 @@
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
     </mah:MetroWindow.Resources>
 
-    <Grid Margin="14" Background="{DynamicResource PageBackground}">
+    <Grid Margin="12" Background="{DynamicResource PageBackground}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="10" />
+            <RowDefinition Height="8" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="12" />
+            <RowDefinition Height="10" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0">
-            <TextBlock Foreground="{DynamicResource TextPrimary}" FontSize="22" FontWeight="SemiBold" Text="Host Netzwerkkarten" />
+            <TextBlock Foreground="{DynamicResource TextPrimary}" FontSize="20" FontWeight="SemiBold" Text="Host Netzwerkkarten" />
             <TextBlock Margin="0,4,0,0"
                        Foreground="{DynamicResource TextMuted}"
                        Text="Es werden alle gefundenen Host-Adapter angezeigt." />
@@ -46,7 +46,7 @@
                       BorderThickness="1">
                 <ListView.View>
                     <GridView>
-                        <GridViewColumn Header="Adapter" Width="210">
+                        <GridViewColumn Header="Adapter" Width="180">
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate>
                                     <StackPanel Orientation="Horizontal">
@@ -73,11 +73,11 @@
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>
-                        <GridViewColumn Header="Beschreibung" Width="220" DisplayMemberBinding="{Binding InterfaceDescription}" />
-                        <GridViewColumn Header="IP" Width="170" DisplayMemberBinding="{Binding IpAddresses}" />
-                        <GridViewColumn Header="Subnetz" Width="90" DisplayMemberBinding="{Binding Subnets}" />
-                        <GridViewColumn Header="Gateway" Width="130" DisplayMemberBinding="{Binding Gateway}" />
-                        <GridViewColumn Header="DNS" Width="200" DisplayMemberBinding="{Binding DnsServers}" />
+                        <GridViewColumn Header="Beschreibung" Width="190" DisplayMemberBinding="{Binding InterfaceDescription}" />
+                        <GridViewColumn Header="IP" Width="150" DisplayMemberBinding="{Binding IpAddresses}" />
+                        <GridViewColumn Header="Subnetz" Width="88" DisplayMemberBinding="{Binding Subnets}" />
+                        <GridViewColumn Header="Gateway" Width="120" DisplayMemberBinding="{Binding Gateway}" />
+                        <GridViewColumn Header="DNS" Width="170" DisplayMemberBinding="{Binding DnsServers}" />
                     </GridView>
                 </ListView.View>
             </ListView>
