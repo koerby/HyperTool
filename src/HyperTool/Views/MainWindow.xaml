@@ -357,7 +357,7 @@
                         <Image Source="/Assets/HyperTool.ico"
                                Width="20"
                                Height="20"
-                               Margin="0,0,8,0"
+                               Margin="0,0,7,0"
                                Stretch="Uniform"
                                SnapsToDevicePixels="True" />
                         <TextBlock Foreground="{DynamicResource TextPrimary}" FontSize="24" FontWeight="SemiBold" Text="HyperTool" />
@@ -856,52 +856,73 @@
                             <Grid Margin="4">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="10" />
+                                    <RowDefinition Height="12" />
                                     <RowDefinition Height="*" />
                                 </Grid.RowDefinitions>
 
-                                <WrapPanel Grid.Row="0">
-                                    <Button Style="{StaticResource ActionButton}" Command="{Binding SaveConfigCommand}" Content="💾 Speichern" />
-                                    <Button Style="{StaticResource ActionButton}" Command="{Binding ReloadConfigCommand}" Content="⟳ Neu laden" />
-                                    <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource TextMuted}" Text="{Binding ConfigPath, StringFormat=Aktive Config: {0}}" />
-                                </WrapPanel>
+                                <Border Grid.Row="0" Style="{StaticResource CardBorder}" Padding="12" Background="{DynamicResource OverlayBackground}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="8" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="16" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <Button Grid.Column="0" Style="{StaticResource ActionButton}" Command="{Binding SaveConfigCommand}" Content="💾 Speichern" />
+                                        <Button Grid.Column="2" Margin="0" Style="{StaticResource ActionButton}" Command="{Binding ReloadConfigCommand}" Content="⟳ Neu laden" />
+                                        <TextBlock Grid.Column="4"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextMuted}"
+                                                   Text="{Binding ConfigPath, StringFormat=Aktive Config: {0}}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </Grid>
+                                </Border>
 
                                 <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="2*" />
-                                            <ColumnDefinition Width="12" />
+                                            <ColumnDefinition Width="14" />
                                             <ColumnDefinition Width="3*" />
                                         </Grid.ColumnDefinitions>
 
-                                        <ListBox Grid.Column="0"
-                                                 Style="{StaticResource ReadableListBoxStyle}"
-                                                 ItemContainerStyle="{StaticResource ConfigVmListBoxItemStyle}"
-                                                 SelectedItem="{Binding SelectedVmForConfig}"
-                                                 ItemsSource="{Binding AvailableVms}">
-                                            <ListBox.ItemTemplate>
-                                                <DataTemplate>
-                                                    <Grid Margin="0,2,0,2">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="220" />
-                                                            <ColumnDefinition Width="120" />
-                                                            <ColumnDefinition Width="*" />
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock Grid.Column="0" Foreground="{DynamicResource TextPrimary}" Text="{Binding Name}" />
-                                                        <TextBlock Grid.Column="1" Foreground="{DynamicResource TextMuted}" Text="{Binding RuntimeState}" />
-                                                        <TextBlock Grid.Column="2" Foreground="{DynamicResource TextMuted}" Text="{Binding RuntimeSwitchName}" />
-                                                    </Grid>
-                                                </DataTemplate>
-                                            </ListBox.ItemTemplate>
-                                        </ListBox>
+                                        <Border Grid.Column="0" Style="{StaticResource CardBorder}" Padding="10" Background="{DynamicResource OverlayBackground}">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="10" />
+                                                    <RowDefinition Height="*" />
+                                                </Grid.RowDefinitions>
+
+                                                <TextBlock Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" Text="VMs" />
+
+                                                <ListBox Grid.Row="2"
+                                                         Style="{StaticResource ReadableListBoxStyle}"
+                                                         ItemContainerStyle="{StaticResource ConfigVmListBoxItemStyle}"
+                                                         SelectedItem="{Binding SelectedVmForConfig}"
+                                                         ItemsSource="{Binding AvailableVms}">
+                                                    <ListBox.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Margin="0,2,0,2"
+                                                                       Foreground="{DynamicResource TextPrimary}"
+                                                                       Text="{Binding Name}" />
+                                                        </DataTemplate>
+                                                    </ListBox.ItemTemplate>
+                                                </ListBox>
+                                            </Grid>
+                                        </Border>
 
                                         <StackPanel Grid.Column="2">
-                                            <Border Style="{StaticResource CardBorder}" Padding="10" Background="{DynamicResource OverlayBackground}">
+                                            <Border Style="{StaticResource CardBorder}" Padding="12" Background="{DynamicResource OverlayBackground}">
                                                 <StackPanel>
+                                                    <TextBlock Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" Text="VM-Konfiguration" />
                                                     <TextBlock Foreground="{DynamicResource TextMuted}"
+                                                               Margin="0,6,0,0"
                                                                TextWrapping="Wrap"
                                                                Text="Links VM auswählen. Export nutzt immer die ausgewählte VM. Default-VM wird separat gesetzt." />
-                                                    <Grid Margin="0,10,0,0">
+                                                    <Grid Margin="0,12,0,0">
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="170" />
                                                             <ColumnDefinition Width="*" />
@@ -979,51 +1000,58 @@
                                                 </StackPanel>
                                             </Border>
 
-                                            <GroupBox Margin="0,14,0,0" Header="HNS" Foreground="{DynamicResource TextPrimary}" BorderBrush="{DynamicResource InputBorder}">
-                                                <StackPanel Margin="8">
-                                                    <CheckBox Margin="0,0,0,6" Foreground="{DynamicResource TextPrimary}" IsChecked="{Binding HnsAutoRestartAfterDefaultSwitch}" Content="Auto-Restart nach Default-Switch Connect" />
-                                                    <CheckBox Margin="0,0,0,10" Foreground="{DynamicResource TextPrimary}" IsChecked="{Binding HnsAutoRestartAfterAnyConnect}" Content="Auto-Restart nach jedem Connect" />
-                                                    <Button Margin="0" Style="{StaticResource ActionButton}" Command="{Binding RestartHnsCommand}" Content="⚙ HNS neu starten" />
-                                                </StackPanel>
-                                            </GroupBox>
+                                            <Border Margin="0,14,0,0" Style="{StaticResource CardBorder}" Padding="12" Background="{DynamicResource OverlayBackground}">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="14" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
 
-                                            <GroupBox Margin="0,14,0,0" Header="System" Foreground="{DynamicResource TextPrimary}" BorderBrush="{DynamicResource InputBorder}">
-                                                <StackPanel Margin="8">
-                                                    <CheckBox Margin="0,0,0,8"
-                                                              Foreground="{DynamicResource TextPrimary}"
-                                                              IsChecked="{Binding UiEnableTrayMenu}"
-                                                              Content="Tasktray-Menü aktiv" />
-                                                    <CheckBox Margin="0,0,0,8" Foreground="{DynamicResource TextPrimary}" IsChecked="{Binding UiStartMinimized}" Content="Beim Start minimiert (nur Tray)" />
-                                                    <CheckBox Margin="0,0,0,8" Foreground="{DynamicResource TextPrimary}" IsChecked="{Binding UiStartWithWindows}" Content="Mit Windows starten" />
-                                                    <Grid Margin="0,0,0,8">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="120" />
-                                                            <ColumnDefinition Width="*" />
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource TextPrimary}" Text="Theme" />
-                                                        <ComboBox Grid.Column="1"
-                                                                  Style="{StaticResource ReadableComboBoxStyle}"
-                                                                  ItemsSource="{Binding AvailableUiThemes}"
-                                                                  SelectedItem="{Binding UiTheme, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                                    </Grid>
-                                                    <Grid>
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="120" />
-                                                            <ColumnDefinition Width="*" />
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource TextPrimary}" Text="VMConnect Host" />
-                                                        <TextBox Grid.Column="1"
-                                                                 Style="{StaticResource ReadableTextBoxStyle}"
-                                                                 Text="{Binding VmConnectComputerName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                                    </Grid>
-                                                </StackPanel>
-                                            </GroupBox>
+                                                    <StackPanel Grid.Column="0">
+                                                        <TextBlock Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" Text="System" />
+                                                        <CheckBox Margin="0,8,0,8"
+                                                                  Foreground="{DynamicResource TextPrimary}"
+                                                                  IsChecked="{Binding UiEnableTrayMenu}"
+                                                                  Content="Tasktray-Menü aktiv" />
+                                                        <CheckBox Margin="0,0,0,8" Foreground="{DynamicResource TextPrimary}" IsChecked="{Binding UiStartMinimized}" Content="Beim Start minimiert (nur Tray)" />
+                                                        <CheckBox Margin="0,0,0,8" Foreground="{DynamicResource TextPrimary}" IsChecked="{Binding UiStartWithWindows}" Content="Mit Windows starten" />
 
-                                            <GroupBox Margin="0,14,0,0" Header="Updates" Foreground="{DynamicResource TextPrimary}" BorderBrush="{DynamicResource InputBorder}">
-                                                <StackPanel Margin="8">
-                                                    <CheckBox Margin="0,0,0,8" Foreground="{DynamicResource TextPrimary}" IsChecked="{Binding UpdateCheckOnStartup}" Content="Beim Start auf Updates prüfen" />
-                                                </StackPanel>
-                                            </GroupBox>
+                                                        <Grid Margin="0,0,0,8">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="120" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource TextPrimary}" Text="Theme" />
+                                                            <ComboBox Grid.Column="1"
+                                                                      Style="{StaticResource ReadableComboBoxStyle}"
+                                                                      ItemsSource="{Binding AvailableUiThemes}"
+                                                                      SelectedItem="{Binding UiTheme, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                        </Grid>
+
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="120" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource TextPrimary}" Text="VMConnect Host" />
+                                                            <TextBox Grid.Column="1"
+                                                                     Style="{StaticResource ReadableTextBoxStyle}"
+                                                                     Text="{Binding VmConnectComputerName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                        </Grid>
+                                                    </StackPanel>
+
+                                                    <StackPanel Grid.Column="2">
+                                                        <TextBlock Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" Text="HNS" />
+                                                        <CheckBox Margin="0,8,0,6" Foreground="{DynamicResource TextPrimary}" IsChecked="{Binding HnsAutoRestartAfterDefaultSwitch}" Content="Auto-Restart nach Default-Switch Connect" />
+                                                        <CheckBox Margin="0,0,0,10" Foreground="{DynamicResource TextPrimary}" IsChecked="{Binding HnsAutoRestartAfterAnyConnect}" Content="Auto-Restart nach jedem Connect" />
+                                                        <Button Margin="0" Style="{StaticResource ActionButton}" Command="{Binding RestartHnsCommand}" Content="⚙ HNS neu starten" />
+
+                                                        <TextBlock Margin="0,14,0,0" Foreground="{DynamicResource TextPrimary}" FontWeight="SemiBold" Text="Updates" />
+                                                        <CheckBox Margin="0,8,0,0" Foreground="{DynamicResource TextPrimary}" IsChecked="{Binding UpdateCheckOnStartup}" Content="Beim Start auf Updates prüfen" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
                                         </StackPanel>
                                     </Grid>
                                 </ScrollViewer>
