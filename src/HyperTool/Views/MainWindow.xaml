@@ -963,23 +963,32 @@
 
                                                         <TextBlock Grid.Row="8" Foreground="{DynamicResource TextMuted}" FontWeight="SemiBold" Text="Adapter umbenennen" />
                                                         <Grid Grid.Row="8" Grid.Column="1">
+                                                            <Grid.RowDefinitions>
+                                                                <RowDefinition Height="Auto" />
+                                                                <RowDefinition Height="8" />
+                                                                <RowDefinition Height="Auto" />
+                                                            </Grid.RowDefinitions>
                                                             <Grid.ColumnDefinitions>
                                                                 <ColumnDefinition Width="*" />
                                                                 <ColumnDefinition Width="8" />
-                                                                <ColumnDefinition Width="180" />
+                                                                <ColumnDefinition Width="200" />
                                                                 <ColumnDefinition Width="8" />
                                                                 <ColumnDefinition Width="140" />
                                                             </Grid.ColumnDefinitions>
 
-                                                            <ComboBox Grid.Column="0"
+                                                            <ComboBox Grid.Row="0"
+                                                                      Grid.Column="0"
+                                                                      Grid.ColumnSpan="5"
                                                                       Style="{StaticResource ReadableComboBoxStyle}"
                                                                       ItemsSource="{Binding AvailableVmAdaptersForRename}"
                                                                       DisplayMemberPath="DisplayName"
                                                                       SelectedItem="{Binding SelectedVmAdapterForRename, Mode=TwoWay}" />
-                                                            <TextBox Grid.Column="2"
+                                                            <TextBox Grid.Row="2"
+                                                                     Grid.Column="2"
                                                                      Style="{StaticResource ReadableTextBoxStyle}"
                                                                      Text="{Binding NewVmAdapterName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                                            <Button Grid.Column="4"
+                                                            <Button Grid.Row="2"
+                                                                    Grid.Column="4"
                                                                     Margin="0"
                                                                     Style="{StaticResource ActionButton}"
                                                                     Command="{Binding RenameVmAdapterCommand}"
