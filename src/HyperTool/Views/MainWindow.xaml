@@ -10,9 +10,12 @@
         Title="{Binding WindowTitle}"
         Icon="/Assets/HyperTool.ico"
         Width="1220"
-        Height="920"
-        MinWidth="960"
-        MinHeight="760"
+        Height="1050"
+        MinWidth="1220"
+        MinHeight="1050"
+        MaxWidth="1220"
+        MaxHeight="1050"
+        ResizeMode="CanMinimize"
         WindowStartupLocation="CenterScreen"
         BorderThickness="0"
         GlowBrush="Transparent"
@@ -355,8 +358,8 @@
                 <StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <Image Source="/Assets/HyperTool.ico"
-                               Width="20"
-                               Height="20"
+                               Width="24"
+                               Height="24"
                                Margin="0,0,7,0"
                                Stretch="Uniform"
                                SnapsToDevicePixels="True" />
