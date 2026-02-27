@@ -13,8 +13,6 @@
         Height="980"
         MinWidth="960"
         MinHeight="760"
-        MaxWidth="{x:Static SystemParameters.WorkArea.Width}"
-        MaxHeight="{x:Static SystemParameters.WorkArea.Height}"
         ResizeMode="CanResize"
         WindowStartupLocation="CenterScreen"
         BorderThickness="0"
