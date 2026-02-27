@@ -15,10 +15,24 @@
         MinHeight="760"
         WindowStartupLocation="CenterScreen"
         BorderThickness="0"
-        GlowBrush="{DynamicResource Accent}"
-        NonActiveGlowBrush="{DynamicResource PanelBorder}"
+        GlowBrush="Transparent"
+        NonActiveGlowBrush="Transparent"
+        ShowIconOnTitleBar="False"
         WindowTransitionsEnabled="True"
         Background="{DynamicResource PageBackground}">
+    <mah:MetroWindow.LeftWindowCommands>
+        <mah:WindowCommands>
+            <Image Source="/Assets/HyperTool.ico"
+                   Width="16"
+                   Height="16"
+                   Stretch="Uniform"
+                   Margin="10,0,4,0"
+                   VerticalAlignment="Center"
+                   SnapsToDevicePixels="True"
+                   RenderOptions.BitmapScalingMode="HighQuality" />
+        </mah:WindowCommands>
+    </mah:MetroWindow.LeftWindowCommands>
+
     <mah:MetroWindow.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <conv:StringEqualsConverter x:Key="StringEqualsConverter" />

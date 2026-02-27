@@ -9,6 +9,7 @@ set "RUNTIME=win-x64"
 set "SELF_CONTAINED=true"
 set "NO_PAUSE=false"
 set "CREATE_INSTALLER=false"
+set "INSTALLER_DECIDED=false"
 set "VERSION=1.2.0"
 set "VERSION_ARG="
 set "VERSION_PROMPT=Bitte Version eingeben (Default 1.2.0): "
@@ -17,7 +18,14 @@ for %%A in (%*) do (
     if /I "%%~A"=="self-contained" set "SELF_CONTAINED=true"
     if /I "%%~A"=="framework-dependent" set "SELF_CONTAINED=false"
     if /I "%%~A"=="no-pause" set "NO_PAUSE=true"
-    if /I "%%~A"=="installer" set "CREATE_INSTALLER=true"
+    if /I "%%~A"=="installer" (
+        set "CREATE_INSTALLER=true"
+        set "INSTALLER_DECIDED=true"
+    )
+    if /I "%%~A"=="no-installer" (
+        set "CREATE_INSTALLER=false"
+        set "INSTALLER_DECIDED=true"
+    )
     echo %%~A | findstr /I /B "version=" >nul && set "VERSION_ARG=%%~A"
 )
 
@@ -61,6 +69,18 @@ if errorlevel 1 goto :fail
 echo [4/4] Copy default config...
 copy /Y "%ROOT%HyperTool.config.json" "%DIST_DIR%\HyperTool.config.json" >nul
 if errorlevel 1 goto :fail
+
+if /I "%INSTALLER_DECIDED%"=="false" (
+    if /I "%NO_PAUSE%"=="false" (
+        echo.
+        choice /C JN /N /M "Installer auch erstellen? [J/N]: "
+        if errorlevel 2 (
+            set "CREATE_INSTALLER=false"
+        ) else (
+            set "CREATE_INSTALLER=true"
+        )
+    )
+)
 
 if /I "%CREATE_INSTALLER%"=="true" (
     echo [5/5] Erzeuge Installer...
