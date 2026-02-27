@@ -5,6 +5,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:conv="clr-namespace:HyperTool.Converters"
         mc:Ignorable="d"
         Title="{Binding WindowTitle}"
@@ -15,11 +16,19 @@
         MinHeight="760"
         WindowStartupLocation="CenterScreen"
         BorderThickness="0"
-        GlowBrush="Transparent"
-        NonActiveGlowBrush="Transparent"
+        GlowBrush="{DynamicResource Accent}"
+        NonActiveGlowBrush="{DynamicResource PanelBorder}"
         ShowIconOnTitleBar="False"
         WindowTransitionsEnabled="True"
         Background="Transparent">
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="32"
+                            ResizeBorderThickness="7"
+                            CornerRadius="16"
+                            GlassFrameThickness="0"
+                            UseAeroCaptionButtons="True" />
+    </shell:WindowChrome.WindowChrome>
+
     <mah:MetroWindow.LeftWindowCommands>
         <mah:WindowCommands>
             <Image Source="/Assets/HyperTool.ico"
