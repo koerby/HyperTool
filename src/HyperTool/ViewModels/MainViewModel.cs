@@ -16,6 +16,7 @@ namespace HyperTool.ViewModels;
 public partial class MainViewModel : ViewModelBase
 {
     private const string NotConnectedSwitchDisplay = "Nicht verbunden";
+    private const int ConfigMenuIndex = 2;
 
     [ObservableProperty]
     private string _windowTitle = "HyperTool";
@@ -331,6 +332,8 @@ public partial class MainViewModel : ViewModelBase
     private static readonly char[] VmAdapterInvalidNameChars = ['\\', '/', ':', '*', '?', '"', '<', '>', '|'];
     private int _selectedVmChangeSuppressionDepth;
     private int _configChangeSuppressionDepth;
+    private int _lastSelectedMenuIndex;
+    private bool _isHandlingMenuSelectionChange;
     private static readonly HttpClient UpdateDownloadClient = new();
 
     public event EventHandler? TrayStateChanged;
@@ -446,6 +449,7 @@ public partial class MainViewModel : ViewModelBase
 
         _configChangeSuppressionDepth--;
         HasPendingConfigChanges = false;
+        _lastSelectedMenuIndex = SelectedMenuIndex;
 
         _ = InitializeAsync();
     }
@@ -511,6 +515,36 @@ public partial class MainViewModel : ViewModelBase
 
     partial void OnSelectedMenuIndexChanged(int value)
     {
+        if (_isHandlingMenuSelectionChange)
+        {
+            _lastSelectedMenuIndex = value;
+
+            if (value == 0)
+            {
+                _ = HandleNetworkTabActivatedAsync();
+            }
+
+            return;
+        }
+
+        if (ShouldPromptSaveWhenLeavingConfig(value) && !TryPromptSaveConfigChanges())
+        {
+            _isHandlingMenuSelectionChange = true;
+            try
+            {
+                SelectedMenuIndex = ConfigMenuIndex;
+            }
+            finally
+            {
+                _isHandlingMenuSelectionChange = false;
+            }
+
+            _lastSelectedMenuIndex = ConfigMenuIndex;
+            return;
+        }
+
+        _lastSelectedMenuIndex = value;
+
         if (value == 0)
         {
             _ = HandleNetworkTabActivatedAsync();
@@ -2310,6 +2344,19 @@ public partial class MainViewModel : ViewModelBase
     }
 
     public bool TryPromptSaveConfigOnClose()
+    {
+        return TryPromptSaveConfigChanges();
+    }
+
+    private bool ShouldPromptSaveWhenLeavingConfig(int newMenuIndex)
+    {
+        return _lastSelectedMenuIndex == ConfigMenuIndex
+               && newMenuIndex != ConfigMenuIndex
+               && HasPendingConfigChanges
+               && !IsBusy;
+    }
+
+    private bool TryPromptSaveConfigChanges()
     {
         if (!CanPromptSaveOnClose)
         {

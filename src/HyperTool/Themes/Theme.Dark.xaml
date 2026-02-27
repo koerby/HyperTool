@@ -9,6 +9,10 @@
     <SolidColorBrush x:Key="InputBorder" Color="#4D74A5" />
     <SolidColorBrush x:Key="SidebarBackground" Color="#10192B" />
     <SolidColorBrush x:Key="OverlayBackground" Color="#0F1A2A" />
+    <SolidColorBrush x:Key="TitleBarBackground" Color="#0E1728" />
+    <SolidColorBrush x:Key="TitleBarInactiveBackground" Color="#0B1422" />
+    <SolidColorBrush x:Key="TitleBarForeground" Color="#E6EEFF" />
+    <SolidColorBrush x:Key="TitleBarInactiveForeground" Color="#9AAECC" />
     <SolidColorBrush x:Key="ButtonBackground" Color="#2A507E" />
     <SolidColorBrush x:Key="ButtonBorder" Color="#4B78AE" />
     <SolidColorBrush x:Key="ButtonHoverBackground" Color="#34619A" />
