@@ -511,7 +511,7 @@ public partial class MainViewModel : ViewModelBase
 
     partial void OnSelectedMenuIndexChanged(int value)
     {
-        if (value == 1)
+        if (value == 0)
         {
             _ = HandleNetworkTabActivatedAsync();
         }

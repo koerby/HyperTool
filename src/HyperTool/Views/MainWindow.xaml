@@ -5,29 +5,21 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
-        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:conv="clr-namespace:HyperTool.Converters"
         mc:Ignorable="d"
         Title="{Binding WindowTitle}"
         Icon="/Assets/HyperTool.ico"
-        Width="1300"
+        Width="1220"
         Height="920"
-        MinWidth="1040"
+        MinWidth="960"
         MinHeight="760"
         WindowStartupLocation="CenterScreen"
         BorderThickness="0"
-        GlowBrush="{DynamicResource Accent}"
-        NonActiveGlowBrush="{DynamicResource PanelBorder}"
+        GlowBrush="Transparent"
+        NonActiveGlowBrush="Transparent"
         ShowIconOnTitleBar="False"
         WindowTransitionsEnabled="True"
-        Background="Transparent">
-    <shell:WindowChrome.WindowChrome>
-        <shell:WindowChrome CaptionHeight="32"
-                            ResizeBorderThickness="7"
-                            CornerRadius="16"
-                            GlassFrameThickness="0"
-                            UseAeroCaptionButtons="True" />
-    </shell:WindowChrome.WindowChrome>
+        Background="{DynamicResource PageBackground}">
 
     <mah:MetroWindow.LeftWindowCommands>
         <mah:WindowCommands>
@@ -318,24 +310,7 @@
         </Style>
     </mah:MetroWindow.Resources>
 
-        <Grid Margin="8" Background="Transparent">
-        <Border Margin="0"
-            CornerRadius="20"
-            BorderBrush="{DynamicResource Accent}"
-            BorderThickness="1"
-            Opacity="0.28"
-            IsHitTestVisible="False"
-            SnapsToDevicePixels="True" />
-
-        <Border Margin="2"
-            CornerRadius="18"
-            BorderBrush="{DynamicResource Accent}"
-            BorderThickness="1"
-            Opacity="0.16"
-            IsHitTestVisible="False"
-            SnapsToDevicePixels="True" />
-
-        <Grid Margin="12" Background="{DynamicResource PageBackground}">
+    <Grid Margin="20" Background="{DynamicResource PageBackground}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="12" />
@@ -514,13 +489,7 @@
                         <ListBoxItem>
                             <StackPanel HorizontalAlignment="Center">
                                 <TextBlock Text="▶" Foreground="{DynamicResource Accent}" FontSize="20" HorizontalAlignment="Center" />
-                                <TextBlock Text="Start" Foreground="{DynamicResource TextMuted}" FontSize="11" HorizontalAlignment="Center" />
-                            </StackPanel>
-                        </ListBoxItem>
-                        <ListBoxItem>
-                            <StackPanel HorizontalAlignment="Center">
-                                <TextBlock Text="⇆" Foreground="{DynamicResource Accent}" FontSize="20" HorizontalAlignment="Center" />
-                                <TextBlock Text="Network" Foreground="{DynamicResource TextMuted}" FontSize="11" HorizontalAlignment="Center" />
+                                <TextBlock Text="VM" Foreground="{DynamicResource TextMuted}" FontSize="11" HorizontalAlignment="Center" />
                             </StackPanel>
                         </ListBoxItem>
                         <ListBoxItem>
@@ -581,13 +550,19 @@
                     <TabControl Grid.Row="2"
                                 Style="{StaticResource HiddenTabControlStyle}"
                                 SelectedIndex="{Binding SelectedMenuIndex, Mode=TwoWay}">
-                        <TabItem Header="Start">
+                        <TabItem Header="VM">
                             <Grid Margin="4">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="12" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="12" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="14" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="10" />
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="10" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
                                 <Grid.ColumnDefinitions>
@@ -611,25 +586,37 @@
                                         Style="{StaticResource ActionButton}"
                                         Command="{Binding ReopenConsoleWithSessionEditCommand}"
                                     Content="🛠 Konsole neu aufbauen (Sitzungsbearbeitung)" />
-                            </Grid>
-                        </TabItem>
 
-                        <TabItem Header="Network">
-                            <StackPanel Margin="4">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
+                                <Border Grid.Row="6"
+                                        Grid.Column="0"
+                                        Grid.ColumnSpan="3"
+                                        CornerRadius="10"
+                                        BorderBrush="{DynamicResource PanelBorder}"
+                                        BorderThickness="1"
+                                        Background="{DynamicResource OverlayBackground}"
+                                        Padding="10">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
 
-                                    <TextBlock VerticalAlignment="Center"
-                                               Foreground="{DynamicResource TextMuted}"
-                                               Text="Switch direkt pro Adapter wählen (aktiver Switch ist hervorgehoben)" />
+                                        <TextBlock VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextMuted}"
+                                                   Text="Switch direkt pro Adapter wählen (aktiver Switch ist hervorgehoben)" />
 
-                                    <Button Grid.Column="1" Margin="0" Style="{StaticResource ActionButton}" Command="{Binding RefreshSwitchesCommand}" Content="⟳ Refresh Switches" />
-                                </Grid>
+                                        <Button Grid.Column="1"
+                                                Margin="0"
+                                                Style="{StaticResource ActionButton}"
+                                                Command="{Binding RefreshSwitchesCommand}"
+                                                Content="⟳ Refresh Switches" />
+                                    </Grid>
+                                </Border>
 
-                                <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding AvailableVmNetworkAdapters}">
+                                <ItemsControl Grid.Row="8"
+                                              Grid.Column="0"
+                                              Grid.ColumnSpan="3"
+                                              ItemsSource="{Binding AvailableVmNetworkAdapters}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <Border Margin="0,0,0,10"
@@ -673,7 +660,7 @@
                                                             <DataTemplate>
                                                                 <Button Margin="0,0,10,10"
                                                                         Command="{Binding DataContext.ConnectAdapterToSwitchByKeyCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                    Content="{Binding Name}"
+                                                                        Content="{Binding Name}"
                                                                         IsEnabled="{Binding DataContext.AreSwitchesLoaded, RelativeSource={RelativeSource AncestorType=Window}}">
                                                                     <Button.CommandParameter>
                                                                         <MultiBinding StringFormat="{}{0}|||{1}">
@@ -709,20 +696,22 @@
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
 
-                                <TextBlock Margin="0,8,0,0"
-                                           Foreground="{DynamicResource TextMuted}"
-                                           TextWrapping="Wrap"
-                                           Text="{Binding NetworkSwitchStatusHint}" />
-
-                                <Grid Margin="0,4,0,0">
+                                <Grid Grid.Row="10"
+                                      Grid.Column="0"
+                                      Grid.ColumnSpan="3">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
 
-                                    <TextBlock VerticalAlignment="Center"
-                                               Foreground="{DynamicResource TextMuted}"
-                                               Text="{Binding VmConnectComputerName, StringFormat=vmconnect host: {0}}" />
+                                    <StackPanel>
+                                        <TextBlock Foreground="{DynamicResource TextMuted}"
+                                                   TextWrapping="Wrap"
+                                                   Text="{Binding NetworkSwitchStatusHint}" />
+                                        <TextBlock Margin="0,4,0,0"
+                                                   Foreground="{DynamicResource TextMuted}"
+                                                   Text="{Binding VmConnectComputerName, StringFormat=vmconnect host: {0}}" />
+                                    </StackPanel>
 
                                     <Button Grid.Column="1"
                                             Margin="0"
@@ -730,7 +719,7 @@
                                             Click="HostNetworkButton_Click"
                                             Content="🌐 Host Network" />
                                 </Grid>
-                            </StackPanel>
+                            </Grid>
                         </TabItem>
 
                         <TabItem Header="Snapshots">
@@ -1220,7 +1209,6 @@
                     </Border>
                 </Grid>
             </Grid>
-        </Border>
-            </Grid>
+            </Border>
     </Grid>
 </mah:MetroWindow>

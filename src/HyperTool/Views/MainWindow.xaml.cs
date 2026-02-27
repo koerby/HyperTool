@@ -22,7 +22,6 @@ public partial class MainWindow : MetroWindow
     private const string LogoEasterEggSoundFileName = "logo-spin.wav";
     private const double LogoEasterEggSoundVolume = 0.30;
     private const int DwmWindowCornerPreferenceAttribute = 33;
-    private const int DwmBorderColorAttribute = 34;
 
     private readonly IThemeService _themeService;
     private MainViewModel? _currentViewModel;
@@ -46,13 +45,6 @@ public partial class MainWindow : MetroWindow
         ref DwmWindowCornerPreference pvAttribute,
         int cbAttribute);
 
-    [DllImport("dwmapi.dll")]
-    private static extern int DwmSetWindowAttribute(
-        IntPtr hwnd,
-        int dwAttribute,
-        ref uint pvAttribute,
-        int cbAttribute);
-
     private enum DwmWindowCornerPreference
     {
         Default = 0,
@@ -64,7 +56,6 @@ public partial class MainWindow : MetroWindow
     private void OnSourceInitialized(object? sender, EventArgs e)
     {
         TryApplyRoundedCorners();
-        TryApplyWindowBorderAccent();
     }
 
     private void TryApplyRoundedCorners()
@@ -88,47 +79,10 @@ public partial class MainWindow : MetroWindow
                 DwmWindowCornerPreferenceAttribute,
                 ref preference,
                 Marshal.SizeOf<DwmWindowCornerPreference>());
-
-            TryApplyWindowBorderAccent();
         }
         catch
         {
         }
-    }
-
-    private void TryApplyWindowBorderAccent()
-    {
-        if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000))
-        {
-            return;
-        }
-
-        try
-        {
-            var windowHandle = new WindowInteropHelper(this).Handle;
-            if (windowHandle == IntPtr.Zero)
-            {
-                return;
-            }
-
-            var accentBrush = TryFindResource("Accent") as SolidColorBrush;
-            var accentColor = accentBrush?.Color ?? Colors.DeepSkyBlue;
-            var borderColorRef = ToColorRef(accentColor);
-
-            _ = DwmSetWindowAttribute(
-                windowHandle,
-                DwmBorderColorAttribute,
-                ref borderColorRef,
-                Marshal.SizeOf<uint>());
-        }
-        catch
-        {
-        }
-    }
-
-    private static uint ToColorRef(System.Windows.Media.Color color)
-    {
-        return (uint)(color.R | (color.G << 8) | (color.B << 16));
     }
 
     private void OnWindowClosed(object? sender, EventArgs e)
@@ -167,7 +121,6 @@ public partial class MainWindow : MetroWindow
         if (string.Equals(e.PropertyName, nameof(MainViewModel.UiTheme), StringComparison.Ordinal))
         {
             _themeService.ApplyTheme(vm.UiTheme);
-            TryApplyWindowBorderAccent();
         }
     }
 
