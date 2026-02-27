@@ -5,7 +5,6 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
-        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:conv="clr-namespace:HyperTool.Converters"
         mc:Ignorable="d"
         Title="{Binding WindowTitle}"
@@ -16,19 +15,11 @@
         MinHeight="760"
         WindowStartupLocation="CenterScreen"
         BorderThickness="0"
-        GlowBrush="{DynamicResource Accent}"
-        NonActiveGlowBrush="{DynamicResource PanelBorder}"
+        GlowBrush="Transparent"
+        NonActiveGlowBrush="Transparent"
         ShowIconOnTitleBar="False"
         WindowTransitionsEnabled="True"
-        Background="{DynamicResource PageBackground}">
-    <shell:WindowChrome.WindowChrome>
-        <shell:WindowChrome CaptionHeight="30"
-                           ResizeBorderThickness="7"
-                           CornerRadius="16"
-                           GlassFrameThickness="0"
-                           UseAeroCaptionButtons="False" />
-    </shell:WindowChrome.WindowChrome>
-
+        Background="Transparent">
     <mah:MetroWindow.LeftWindowCommands>
         <mah:WindowCommands>
             <Image Source="/Assets/HyperTool.ico"
@@ -318,7 +309,24 @@
         </Style>
     </mah:MetroWindow.Resources>
 
-    <Grid Margin="20" Background="{DynamicResource PageBackground}">
+        <Grid Margin="8" Background="Transparent">
+        <Border Margin="0"
+            CornerRadius="20"
+            BorderBrush="{DynamicResource Accent}"
+            BorderThickness="1"
+            Opacity="0.28"
+            IsHitTestVisible="False"
+            SnapsToDevicePixels="True" />
+
+        <Border Margin="2"
+            CornerRadius="18"
+            BorderBrush="{DynamicResource Accent}"
+            BorderThickness="1"
+            Opacity="0.16"
+            IsHitTestVisible="False"
+            SnapsToDevicePixels="True" />
+
+        <Grid Margin="12" Background="{DynamicResource PageBackground}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="12" />
@@ -1204,5 +1212,6 @@
                 </Grid>
             </Grid>
         </Border>
+            </Grid>
     </Grid>
 </mah:MetroWindow>
