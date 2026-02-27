@@ -6,11 +6,13 @@ cd /d "%ROOT%"
 
 set "VERSION=1.2.0"
 set "NO_PAUSE=false"
+set "NO_VERSION_PROMPT=false"
 set "VERSION_ARG="
 set "VERSION_PROMPT=Bitte Version eingeben (Default 1.2.0): "
 
 for %%A in (%*) do (
     if /I "%%~A"=="no-pause" set "NO_PAUSE=true"
+    if /I "%%~A"=="no-version-prompt" set "NO_VERSION_PROMPT=true"
     echo %%~A | findstr /I /B "version=" >nul && set "VERSION_ARG=%%~A"
 )
 
@@ -18,7 +20,7 @@ if defined VERSION_ARG (
     for /f "tokens=1,* delims==" %%K in ("%VERSION_ARG%") do set "VERSION=%%L"
 )
 
-if not defined VERSION_ARG (
+if not defined VERSION_ARG if /I "%NO_VERSION_PROMPT%"=="false" (
     set /p "VERSION=!VERSION_PROMPT!"
 )
 

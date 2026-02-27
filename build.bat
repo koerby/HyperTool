@@ -84,7 +84,7 @@ if /I "%INSTALLER_DECIDED%"=="false" (
 
 if /I "%CREATE_INSTALLER%"=="true" (
     echo [5/5] Erzeuge Installer...
-    call "%ROOT%build-installer.bat" version=%VERSION% no-pause
+    call "%ROOT%build-installer.bat" "version=%VERSION%" no-version-prompt no-pause
     if errorlevel 1 goto :fail
 )
 

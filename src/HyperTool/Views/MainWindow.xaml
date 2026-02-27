@@ -19,7 +19,7 @@
         NonActiveGlowBrush="Transparent"
         ShowIconOnTitleBar="False"
         WindowTransitionsEnabled="True"
-        Background="{DynamicResource PageBackground}">
+        Background="Transparent">
     <mah:MetroWindow.LeftWindowCommands>
         <mah:WindowCommands>
             <Image Source="/Assets/HyperTool.ico"
@@ -309,7 +309,19 @@
         </Style>
     </mah:MetroWindow.Resources>
 
-    <Grid Margin="20" Background="{DynamicResource PageBackground}">
+    <Border Margin="8"
+            CornerRadius="20"
+            BorderBrush="{DynamicResource Accent}"
+            BorderThickness="1"
+            Opacity="0.55"
+            SnapsToDevicePixels="True">
+        <Border Margin="1"
+                CornerRadius="19"
+                Background="{DynamicResource PageBackground}"
+                BorderBrush="{DynamicResource PanelBorder}"
+                BorderThickness="1"
+                SnapsToDevicePixels="True">
+            <Grid Margin="20" Background="{DynamicResource PageBackground}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="12" />
@@ -1211,5 +1223,7 @@
                 </Grid>
             </Grid>
         </Border>
-    </Grid>
+            </Grid>
+        </Border>
+    </Border>
 </mah:MetroWindow>
