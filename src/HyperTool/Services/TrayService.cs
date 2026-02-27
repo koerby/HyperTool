@@ -367,7 +367,7 @@ public sealed class TrayService : ITrayService
 
         try
         {
-            var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "HyperTool.Transparent.ico");
+            var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "HyperTool.ico");
             if (File.Exists(iconPath))
             {
                 return new Icon(iconPath);

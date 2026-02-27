@@ -8,7 +8,7 @@
         xmlns:conv="clr-namespace:HyperTool.Converters"
         mc:Ignorable="d"
         Title="{Binding WindowTitle}"
-        Icon="/Assets/HyperTool.Transparent.ico"
+        Icon="/Assets/HyperTool.ico"
         Width="1300"
         Height="920"
         MinWidth="1040"
