@@ -45,7 +45,6 @@ echo ROOT: %ROOT%
 echo CONFIG: %CONFIG%
 echo RUNTIME: %RUNTIME%
 echo SELF_CONTAINED: %SELF_CONTAINED%
-echo CREATE_INSTALLER: %CREATE_INSTALLER%
 echo VERSION: %VERSION%
 echo ==========================================
 echo.

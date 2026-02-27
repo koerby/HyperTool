@@ -19,7 +19,7 @@
         NonActiveGlowBrush="Transparent"
         ShowIconOnTitleBar="False"
         WindowTransitionsEnabled="True"
-        Background="Transparent">
+        Background="{DynamicResource PageBackground}">
     <mah:MetroWindow.LeftWindowCommands>
         <mah:WindowCommands>
             <Image Source="/Assets/HyperTool.ico"
@@ -309,19 +309,7 @@
         </Style>
     </mah:MetroWindow.Resources>
 
-    <Border Margin="8"
-            CornerRadius="20"
-            BorderBrush="{DynamicResource Accent}"
-            BorderThickness="1"
-            Opacity="0.55"
-            SnapsToDevicePixels="True">
-        <Border Margin="1"
-                CornerRadius="19"
-                Background="{DynamicResource PageBackground}"
-                BorderBrush="{DynamicResource PanelBorder}"
-                BorderThickness="1"
-                SnapsToDevicePixels="True">
-            <Grid Margin="20" Background="{DynamicResource PageBackground}">
+    <Grid Margin="20" Background="{DynamicResource PageBackground}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="12" />
@@ -344,22 +332,6 @@
             <RowDefinition Height="0" />
             <RowDefinition Height="0" />
         </Grid.RowDefinitions>
-
-            <Border Grid.RowSpan="9"
-                Margin="-6"
-                CornerRadius="22"
-                BorderBrush="{DynamicResource Accent}"
-                BorderThickness="1.5"
-                Opacity="0.24"
-                IsHitTestVisible="False" />
-
-            <Border Grid.RowSpan="9"
-                Margin="-2"
-                CornerRadius="18"
-                BorderBrush="{DynamicResource PanelBorder}"
-                BorderThickness="1"
-                Opacity="0.9"
-                IsHitTestVisible="False" />
 
         <Border Grid.Row="0" Style="{StaticResource CardBorder}" Padding="16">
             <Grid>
@@ -1223,7 +1195,5 @@
                 </Grid>
             </Grid>
         </Border>
-            </Grid>
-        </Border>
-    </Border>
+    </Grid>
 </mah:MetroWindow>
