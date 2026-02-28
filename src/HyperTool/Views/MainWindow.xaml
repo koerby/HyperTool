@@ -1157,11 +1157,14 @@
                 </Grid>
 
                 <Border Grid.Row="2"
+                    Margin="0,0,0,1"
                         CornerRadius="8"
                         Background="{DynamicResource InputBackground}"
                         BorderBrush="{DynamicResource InputBorder}"
                         BorderThickness="1"
-                        Padding="10">
+                    Padding="10"
+                    UseLayoutRounding="True"
+                    SnapsToDevicePixels="True">
                     <Border.Style>
                         <Style TargetType="Border">
                             <Setter Property="Visibility" Value="Visible" />
@@ -1207,12 +1210,14 @@
                                 Content="Clear" />
                     </WrapPanel>
 
-                    <Border Grid.Row="2"
+                        <Border Grid.Row="2"
                             CornerRadius="8"
                             Background="{DynamicResource InputBackground}"
                             BorderBrush="{DynamicResource InputBorder}"
                             BorderThickness="1"
-                            Padding="8">
+                            Padding="8"
+                            UseLayoutRounding="True"
+                            SnapsToDevicePixels="True">
                         <ListBox Style="{StaticResource ReadableListBoxStyle}"
                                  ItemContainerStyle="{StaticResource ReadableListBoxItemStyle}"
                                  BorderThickness="0"

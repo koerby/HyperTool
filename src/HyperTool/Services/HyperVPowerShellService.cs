@@ -502,11 +502,26 @@ public sealed class HyperVPowerShellService : IHyperVService
             "$required = [int64](($diskBytes | Measure-Object -Sum).Sum) " +
             "}; " +
             "if ($required -le 0) { $required = 1 }; " +
-            "$root = [System.IO.Path]::GetPathRoot($destinationPath); " +
-            "if ([string]::IsNullOrWhiteSpace($root)) { $root = [System.IO.Path]::GetPathRoot((Get-Location).Path) }; " +
-            "if ([string]::IsNullOrWhiteSpace($root)) { throw 'Ziellaufwerk konnte nicht ermittelt werden.' }; " +
-            "$available = [int64](New-Object System.IO.DriveInfo($root)).AvailableFreeSpace; " +
-            "[pscustomobject]@{ HasEnoughSpace = ($available -ge $required); RequiredBytes = $required; AvailableBytes = $available; TargetDrive = $root } | ConvertTo-Json -Depth 3 -Compress";
+            "$available = -1; " +
+            "$targetDrive = ''; " +
+            "$uncRoot = $null; " +
+            "if ($destinationPath -match '^(\\\\[^\\]+\\[^\\]+)') { $uncRoot = $Matches[1]; $targetDrive = $uncRoot }; " +
+            "if ([string]::IsNullOrWhiteSpace($targetDrive)) { $targetDrive = [System.IO.Path]::GetPathRoot($destinationPath) }; " +
+            "if ([string]::IsNullOrWhiteSpace($targetDrive)) { $targetDrive = [System.IO.Path]::GetPathRoot((Get-Location).Path) }; " +
+            "if (-not [string]::IsNullOrWhiteSpace($uncRoot)) { " +
+            "$tempDriveName = 'HT' + [System.Guid]::NewGuid().ToString('N').Substring(0, 8); " +
+            "try { " +
+            "$uncDrive = New-PSDrive -Name $tempDriveName -PSProvider FileSystem -Root $uncRoot -ErrorAction Stop; " +
+            "if ($null -ne $uncDrive -and $null -ne $uncDrive.Free) { $available = [int64]$uncDrive.Free } " +
+            "} catch { $available = -1 } " +
+            "finally { Remove-PSDrive -Name $tempDriveName -Force -ErrorAction SilentlyContinue } " +
+            "} else { " +
+            "if (-not [string]::IsNullOrWhiteSpace($targetDrive)) { " +
+            "try { $available = [int64](New-Object System.IO.DriveInfo($targetDrive)).AvailableFreeSpace } catch { $available = -1 } " +
+            "} " +
+            "}; " +
+            "$hasEnoughSpace = if ($available -ge 0) { $available -ge $required } else { $true }; " +
+            "[pscustomobject]@{ HasEnoughSpace = $hasEnoughSpace; RequiredBytes = $required; AvailableBytes = $available; TargetDrive = $targetDrive } | ConvertTo-Json -Depth 3 -Compress";
 
         var rows = await InvokeJsonArrayAsync(script, cancellationToken);
         var row = rows.FirstOrDefault();
@@ -527,6 +542,14 @@ public sealed class HyperVPowerShellService : IHyperVService
         var script =
             $"$vmName = {ToPsSingleQuoted(vmName)}; " +
             $"$destinationPath = {ToPsSingleQuoted(destinationPath)}; " +
+            "$expectedBytes = 0; " +
+            "$measure = Measure-VM -VMName $vmName -ErrorAction SilentlyContinue; " +
+            "if ($null -ne $measure -and $null -ne $measure.TotalDiskAllocation) { $expectedBytes = [int64]$measure.TotalDiskAllocation }; " +
+            "if ($expectedBytes -le 0) { " +
+            "$diskBytes = @(Get-VMHardDiskDrive -VMName $vmName -ErrorAction SilentlyContinue | ForEach-Object { if ($null -ne $_.Path -and (Test-Path -LiteralPath $_.Path -PathType Leaf)) { (Get-Item -LiteralPath $_.Path).Length } else { 0 } }); " +
+            "$expectedBytes = [int64](($diskBytes | Measure-Object -Sum).Sum) " +
+            "}; " +
+            "if ($expectedBytes -le 0) { $expectedBytes = 1 }; " +
             "$job = Export-VM -Name $vmName -Path $destinationPath -Confirm:$false -AsJob; " +
             "if ($null -eq $job) { throw 'Export-Job konnte nicht gestartet werden.' }; " +
             "$lastProgress = -1; " +
@@ -534,10 +557,19 @@ public sealed class HyperVPowerShellService : IHyperVService
             "$job = Get-Job -Id $job.Id -ErrorAction SilentlyContinue; " +
             "if ($null -eq $job) { break }; " +
             "if ($job.State -ne 'Running' -and $job.State -ne 'NotStarted') { break }; " +
-            "$percent = 0; " +
-            "if ($job.ChildJobs.Count -gt 0) { $progressRecord = $job.ChildJobs[0].Progress | Select-Object -Last 1; if ($null -ne $progressRecord -and $null -ne $progressRecord.PercentComplete) { $percent = [int]$progressRecord.PercentComplete } }; " +
+            "$percentFromJob = 0; " +
+            "if ($job.ChildJobs.Count -gt 0) { $progressRecord = $job.ChildJobs[0].Progress | Select-Object -Last 1; if ($null -ne $progressRecord -and $null -ne $progressRecord.PercentComplete) { $percentFromJob = [int]$progressRecord.PercentComplete } }; " +
+            "$percentFromSize = 0; " +
+            "if (Test-Path -LiteralPath $destinationPath -PathType Container) { " +
+            "try { " +
+            "$currentBytes = [int64]((Get-ChildItem -LiteralPath $destinationPath -Recurse -File -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum); " +
+            "if ($expectedBytes -gt 0) { $percentFromSize = [int][Math]::Floor(($currentBytes * 100.0) / $expectedBytes) } " +
+            "} catch { $percentFromSize = 0 } " +
+            "}; " +
+            "$percent = [Math]::Max($percentFromJob, $percentFromSize); " +
+            "if ($percent -ge 100) { $percent = 99 }; " +
             "if ($percent -ne $lastProgress) { Write-Output ('HT_PROGRESS:' + $percent); $lastProgress = $percent }; " +
-            "Start-Sleep -Milliseconds 500 " +
+            "Start-Sleep -Milliseconds 1000 " +
             "}; " +
             "Wait-Job -Id $job.Id | Out-Null; " +
             "$job = Get-Job -Id $job.Id; " +
