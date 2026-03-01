@@ -9,7 +9,7 @@
 ## 2) App bauen
 
 - [ ] Publish bauen:
-  - `build.bat version=1.2.0 no-pause`
+  - `build-winui.bat version=1.2.0 no-pause`
 - [ ] Ergebnis prüfen:
   - Ordner `dist/HyperTool` vorhanden
   - `HyperTool.exe` startet lokal
@@ -20,7 +20,7 @@
 Voraussetzung: Inno Setup 6 (`ISCC.exe`) auf Windows installiert.
 
 - [ ] Installer bauen:
-  - `build-installer.bat version=1.2.0 no-pause`
+  - `build-installer-winui.bat version=1.2.0 no-pause`
 - [ ] Ergebnis prüfen:
   - Datei in `dist/installer` vorhanden
   - Name ähnlich `HyperTool-Setup-1.2.0.exe`
@@ -52,4 +52,4 @@ Voraussetzung: Inno Setup 6 (`ISCC.exe`) auf Windows installiert.
 ## Optionale Schnellbefehle
 
 - App + Installer in einem Lauf:
-  - `build.bat installer version=1.2.0 no-pause`
+  - `build-winui.bat installer version=1.2.0 no-pause`

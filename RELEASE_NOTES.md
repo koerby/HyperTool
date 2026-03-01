@@ -164,11 +164,11 @@
 - Update: semantischer Versionsvergleich (inkl. `v`-Prefix und Prerelease)
 - Update: Installer-Asset-Erkennung in GitHub Releases (`.exe`/`.msi`)
 - Info-Tab: neuer Button "Update installieren" (Download + Start des Installers)
-- Build: neuer Installer-Workflow über `build-installer.bat` und Inno Setup Script (`installer/HyperTool.iss`)
+- Build: neuer Installer-Workflow über `build-installer-winui.bat` und Inno Setup Script (`installer/HyperTool.iss`)
 
 ### Verbessert
 
-- Release-Prozess erweitert: `build.bat installer version=x.y.z` erstellt App + Setup
+- Release-Prozess erweitert: `build-winui.bat installer version=x.y.z` erstellt App + Setup
 - README um Installer/Update-Prozess und neue Config-Felder ergänzt
 
 ### Behoben

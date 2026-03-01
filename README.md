@@ -1,6 +1,6 @@
 # HyperTool
 
-HyperTool ist ein Windows-Tool zur Steuerung von Hyper-V VMs mit moderner WPF-Oberfläche, Tray-Menü und klaren One-Click-Aktionen.
+HyperTool ist ein Windows-Tool zur Steuerung von Hyper-V VMs mit moderner WinUI-3 Oberfläche, Tray-Menü und klaren One-Click-Aktionen.
 
 ## Überblick
 
@@ -16,13 +16,10 @@ HyperTool ist ein Windows-Tool zur Steuerung von Hyper-V VMs mit moderner WPF-Ob
 
 ## Tech Stack
 
-- .NET 8, WPF (Windows-only)
+- .NET 8, WinUI 3 (Windows App SDK)
 - MVVM mit CommunityToolkit.Mvvm
-- MahApps.Metro als UI-Bibliothek
 - Serilog für Datei-Logging
 - Hyper-V-Operationen über PowerShell
-
-Hinweis: Es wird keine MaterialDesignInXaml oder WPF-UI Library verwendet.
 
 ## Voraussetzungen
 
@@ -34,35 +31,39 @@ Hinweis: Es wird keine MaterialDesignInXaml oder WPF-UI Library verwendet.
 ## Projektstruktur
 
 - HyperTool.sln
-- src/HyperTool
+- src/HyperTool.Core
+- src/HyperTool.WinUI
 - HyperTool.config.json
-- build.bat
-- dist/HyperTool (Publish-Ausgabe)
+- build-winui.bat
+- build-installer-winui.bat
+- dist/HyperTool.WinUI (Publish-Ausgabe)
 
 ## Schnellstart (Entwicklung)
 
 1. dotnet restore HyperTool.sln
 2. dotnet build HyperTool.sln -c Debug
-3. dotnet run --project src/HyperTool/HyperTool.csproj
+3. dotnet run --project src/HyperTool.WinUI/HyperTool.WinUI.csproj
 
 ## Build & Publish
 
 Standard:
 
-- build.bat
+- build-winui.bat
 
 Varianten:
 
-- build.bat framework-dependent
-- build.bat no-pause
-- build.bat self-contained no-pause
-- build.bat installer version=1.2.0
-- build-installer.bat (fragt Version interaktiv ab)
-- build-installer.bat version=1.2.0
+- build-winui.bat framework-dependent no-pause
+- build-winui.bat self-contained version=1.2.0
+- build-installer-winui.bat (fragt Version interaktiv ab)
+- build-installer-winui.bat version=1.2.0
 
-Ausgabe liegt unter dist/HyperTool.
+WinUI-Migration-Ausgabe liegt unter dist/HyperTool.WinUI.
 
-Installer-Ausgabe liegt unter dist/installer (benötigt Inno Setup 6 / ISCC).
+Installer-Ausgabe liegt unter dist/installer-winui (benötigt Inno Setup 6 / ISCC).
+
+## WinUI 3 Stand
+
+- Produktivzweig ist WinUI-only (`HyperTool.Core` + `HyperTool.WinUI`).
 
 ## Konfiguration
 
@@ -127,7 +128,7 @@ VMs werden zur Laufzeit automatisch aus Hyper-V geladen (Auto-Discovery).
 ## Easter Egg
 
 - Klick auf das Logo oben rechts startet eine kurze Dreh-Animation
-- Optionaler Sound über `src/HyperTool/Assets/logo-spin.wav` (Wiedergabe mit 30% Lautstärke)
+- Optionaler Sound über `src/HyperTool.WinUI/Assets/logo-spin.wav` (Wiedergabe mit 30% Lautstärke)
 
 ## UI-Verhalten (wichtig)
 
@@ -143,12 +144,12 @@ VMs werden zur Laufzeit automatisch aus Hyper-V geladen (Auto-Discovery).
 
 Logpfade:
 
-- dist/HyperTool/logs
+- dist/HyperTool.WinUI/logs
 - Fallback: %LOCALAPPDATA%/HyperTool/logs
 
 Wenn die App nicht startet:
 
-1. Aus dist/HyperTool starten
+1. Aus dist/HyperTool.WinUI starten
 2. Logdateien prüfen
 3. HyperTool.exe manuell in PowerShell starten
 
@@ -162,4 +163,4 @@ Wenn die App nicht startet:
 - HyperTool prüft GitHub Releases anhand der Versionsnummer (SemVer inkl. Prerelease).
 - Wenn im Release ein Installer-Asset (`.exe`/`.msi`) erkannt wird, ist im Info-Tab der Button `Update installieren` nutzbar.
 - Der Installer wird nach `%TEMP%\HyperTool\updates` geladen und direkt gestartet.
-- Für eigene Releases: erst `build.bat ...`, dann `build-installer.bat version=x.y.z`, anschließend Setup-Datei als Release-Asset auf GitHub anhängen.
+- Für eigene Releases: erst `build-winui.bat ...`, dann `build-installer-winui.bat version=x.y.z`, anschließend Setup-Datei als Release-Asset auf GitHub anhängen.
