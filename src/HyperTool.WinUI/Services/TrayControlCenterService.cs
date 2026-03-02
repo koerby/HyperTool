@@ -12,6 +12,8 @@ internal sealed class TrayControlCenterService : ITrayControlCenterService
 {
     private readonly DispatcherQueue _dispatcherQueue;
     private readonly object _syncLock = new();
+    private readonly SemaphoreSlim _refreshGate = new(1, 1);
+    private static readonly TimeSpan ToggleRefreshInterval = TimeSpan.FromSeconds(6);
 
     private TrayControlCenterWindow? _window;
     private Action? _showMainWindowAction;
@@ -36,6 +38,8 @@ internal sealed class TrayControlCenterService : ITrayControlCenterService
     private string? _selectedSwitchName;
     private bool _isInitialized;
     private bool _isBusy;
+    private bool _isBackgroundRefreshRunning;
+    private DateTime _lastBackendRefreshUtc = DateTime.MinValue;
     private TrayControlCenterMode _mode = TrayControlCenterMode.Full;
 
     public TrayControlCenterService(DispatcherQueue dispatcherQueue)
@@ -104,31 +108,33 @@ internal sealed class TrayControlCenterService : ITrayControlCenterService
         });
     }
 
-    private async Task ToggleInternalAsync(TrayControlCenterMode mode)
+    private Task ToggleInternalAsync(TrayControlCenterMode mode)
     {
         try
         {
             EnsureWindow();
             if (_window is null)
             {
-                return;
+                return Task.CompletedTask;
             }
 
             if (_window.AppWindow.IsVisible && _mode == mode)
             {
                 _window.AppWindow.Hide();
-                return;
+                return Task.CompletedTask;
             }
 
             _mode = mode;
 
-            await RefreshDataAsync();
+            ReloadDataFromSources();
             UpdateWindowTheme();
             UpdateWindowView();
             PositionWindowNearTray();
 
             _window.AppWindow.Show();
             _window.Activate();
+
+            StartBackgroundRefreshIfNeeded(force: false);
         }
         catch (Exception ex)
         {
@@ -142,6 +148,8 @@ internal sealed class TrayControlCenterService : ITrayControlCenterService
             {
             }
         }
+
+        return Task.CompletedTask;
     }
 
     public void Hide()
@@ -338,18 +346,37 @@ internal sealed class TrayControlCenterService : ITrayControlCenterService
 
     private async Task RefreshDataAsync()
     {
-        if (_refreshTrayDataAction is not null)
-        {
-            try
-            {
-                await _refreshTrayDataAction();
-            }
-            catch (Exception ex)
-            {
-                Log.Warning(ex, "Tray control center data refresh failed.");
-            }
-        }
+        await RefreshDataAsync(refreshBackend: true);
+    }
 
+    private async Task RefreshDataAsync(bool refreshBackend)
+    {
+        await _refreshGate.WaitAsync();
+        try
+        {
+            if (refreshBackend && _refreshTrayDataAction is not null)
+            {
+                try
+                {
+                    await _refreshTrayDataAction();
+                    _lastBackendRefreshUtc = DateTime.UtcNow;
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Tray control center data refresh failed.");
+                }
+            }
+
+            ReloadDataFromSources();
+        }
+        finally
+        {
+            _refreshGate.Release();
+        }
+    }
+
+    private void ReloadDataFromSources()
+    {
         var previousVmName = GetSelectedVm()?.Name;
 
         _vms.Clear();
@@ -376,6 +403,40 @@ internal sealed class TrayControlCenterService : ITrayControlCenterService
         }
 
         SyncSelectedSwitchWithVm();
+    }
+
+    private void StartBackgroundRefreshIfNeeded(bool force)
+    {
+        if (_isBackgroundRefreshRunning)
+        {
+            return;
+        }
+
+        var shouldRefresh = force || DateTime.UtcNow - _lastBackendRefreshUtc >= ToggleRefreshInterval;
+        if (!shouldRefresh)
+        {
+            return;
+        }
+
+        _isBackgroundRefreshRunning = true;
+        _ = RunBackgroundRefreshAsync();
+    }
+
+    private async Task RunBackgroundRefreshAsync()
+    {
+        try
+        {
+            await RefreshDataAsync(refreshBackend: true);
+            Enqueue(UpdateWindowView);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Tray control center background refresh failed.");
+        }
+        finally
+        {
+            Enqueue(() => _isBackgroundRefreshRunning = false);
+        }
     }
 
     private void SyncSelectedSwitchWithVm()

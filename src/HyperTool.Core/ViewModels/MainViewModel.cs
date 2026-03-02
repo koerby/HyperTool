@@ -2067,6 +2067,8 @@ public partial class MainViewModel : ViewModelBase
         }
 
         return trayVms
+            .OrderByDescending(vm => string.Equals(vm.Name, DefaultVmName, StringComparison.OrdinalIgnoreCase))
+            .ThenBy(vm => vm.DisplayLabel, StringComparer.OrdinalIgnoreCase)
             .Select(vm => new VmDefinition
             {
                 Name = vm.Name,

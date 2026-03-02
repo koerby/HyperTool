@@ -7,13 +7,13 @@
 - Major Release: HyperTool ist jetzt vollständig auf WinUI 3 umgestellt.
 - Modernisierte Oberfläche mit konsistentem Dark/Light Theme und verbessertem Window-/Tray-Verhalten.
 - Build- und Release-Prozess auf WinUI-only vereinheitlicht (App + Installer über BAT-Skripte).
-- Installer prüft .NET Desktop Runtime 8 automatisch und installiert diese bei Bedarf.
+- Installer-Flow für self-contained WinUI vereinfacht (keine separate Runtime-Abfrage im Setup).
 
 ### Neu
 
 - WinUI-3 App als neue Hauptanwendung (`HyperTool.Core` + `HyperTool.WinUI`).
 - Überarbeiteter Theme-Flow mit sauberem Übergang und robustem Rebuild der Hauptansicht.
-- Inno-Setup-Installer mit Runtime-Prüfung für `Microsoft.WindowsDesktop.App` (x64).
+- Inno-Setup-Installer für self-contained WinUI-Auslieferung ohne zusätzliche Runtime-Installation.
 - WinUI-Build-/Installer-Pipeline:
 	- `build-winui.bat`
 	- `build-installer-winui.bat`
@@ -37,7 +37,7 @@
 
 - Windows 10/11
 - Hyper-V aktiviert
-- .NET Desktop Runtime 8 (wird vom Installer bei Bedarf installiert)
+- Keine separate .NET Desktop Runtime-Installation über den HyperTool-Installer erforderlich (self-contained Build).
 
 ## v1.3.4
 

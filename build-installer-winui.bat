@@ -9,9 +9,6 @@ set "NO_PAUSE=false"
 set "NO_VERSION_PROMPT=false"
 set "VERSION_ARG="
 set "VERSION_PROMPT=Bitte Version fuer den WinUI Installer eingeben (Default 2.0.0): "
-set "REQUIRED_DOTNET_MAJOR=8"
-set "REQUIRED_DOTNET_VERSION=8.0.0"
-set "DOTNET_RUNTIME_URL=https://aka.ms/dotnet/8.0/windowsdesktop-runtime-win-x64.exe"
 
 for %%A in (%*) do (
     if /I "%%~A"=="no-pause" set "NO_PAUSE=true"
@@ -47,24 +44,10 @@ if not exist "%ISCC%" (
 
 set "OUT_DIR=%ROOT%dist\installer-winui"
 if not exist "%OUT_DIR%" mkdir "%OUT_DIR%"
-
-set "PREREQ_DIR=%OUT_DIR%\prerequisites"
-if not exist "%PREREQ_DIR%" mkdir "%PREREQ_DIR%"
-set "DOTNET_RUNTIME_INSTALLER=%PREREQ_DIR%\windowsdesktop-runtime-%REQUIRED_DOTNET_MAJOR%-x64.exe"
-
-echo Pruefe .NET Desktop Runtime Installer (%REQUIRED_DOTNET_VERSION%)...
-if not exist "%DOTNET_RUNTIME_INSTALLER%" (
-    echo Lade Runtime Installer von %DOTNET_RUNTIME_URL% ...
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri '%DOTNET_RUNTIME_URL%' -OutFile '%DOTNET_RUNTIME_INSTALLER%'"
-    if errorlevel 1 (
-        echo Download der .NET Desktop Runtime fehlgeschlagen.
-        if /I "%NO_PAUSE%"=="false" pause
-        exit /b 1
-    )
-)
+if exist "%OUT_DIR%\prerequisites" rmdir /s /q "%OUT_DIR%\prerequisites"
 
 echo Erzeuge WinUI Installer fuer Version %VERSION%...
-"%ISCC%" /DMyAppVersion=%VERSION% /DMySourceDir="%ROOT%dist\HyperTool.WinUI" /DMyOutputDir="%OUT_DIR%" /DRequiredDotNetVersion=%REQUIRED_DOTNET_VERSION% /DRequiredDotNetMajor=%REQUIRED_DOTNET_MAJOR% /DDotNetRuntimeInstaller="%DOTNET_RUNTIME_INSTALLER%" "%ROOT%installer\HyperTool.iss"
+"%ISCC%" /DMyAppVersion=%VERSION% /DMySourceDir="%ROOT%dist\HyperTool.WinUI" /DMyOutputDir="%OUT_DIR%" "%ROOT%installer\HyperTool.iss"
 
 if errorlevel 1 (
     echo WinUI Installer-Erstellung fehlgeschlagen.

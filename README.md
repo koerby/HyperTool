@@ -60,6 +60,7 @@ Varianten:
 WinUI-Migration-Ausgabe liegt unter dist/HyperTool.WinUI.
 
 Installer-Ausgabe liegt unter dist/installer-winui (benötigt Inno Setup 6 / ISCC).
+Der Installer ist für den self-contained WinUI-Build ausgelegt und enthält keine separate .NET Desktop Runtime-Abfrage.
 
 ## WinUI 3 Stand
 
@@ -163,4 +164,5 @@ Wenn die App nicht startet:
 - HyperTool prüft GitHub Releases anhand der Versionsnummer (SemVer inkl. Prerelease).
 - Wenn im Release ein Installer-Asset (`.exe`/`.msi`) erkannt wird, ist im Info-Tab der Button `Update installieren` nutzbar.
 - Der Installer wird nach `%TEMP%\HyperTool\updates` geladen und direkt gestartet.
+- Der ausgelieferte WinUI-Installer installiert nur HyperTool (self-contained), ohne zusätzliche Runtime-Installation im Setup-Dialog.
 - Für eigene Releases: erst `build-winui.bat ...`, dann `build-installer-winui.bat version=x.y.z`, anschließend Setup-Datei als Release-Asset auf GitHub anhängen.
