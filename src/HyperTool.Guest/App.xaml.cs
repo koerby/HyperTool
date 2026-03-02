@@ -9,8 +9,10 @@ using Microsoft.UI.Xaml;
 using System.Diagnostics;
 using System.IO.Pipes;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.Json;
 using Windows.Graphics;
 using Windows.UI;
 
@@ -51,6 +53,13 @@ public sealed partial class App : Application
     private string? _selectedUsbBusId;
     private bool _isUsbClientAvailable;
     private bool _usbClientMissingLogged;
+    private HyperVSocketUsbGuestProxy? _usbHyperVSocketProxy;
+    private bool _usbHyperVSocketTransportActive;
+    private bool _usbIpFallbackActive;
+    private bool _usbHyperVSocketServiceReachable;
+    private int _usbHyperVSocketProbeFailureCount;
+    private CancellationTokenSource? _usbDiagnosticsCts;
+    private Task? _usbDiagnosticsTask;
 
     public App()
     {
@@ -144,6 +153,8 @@ public sealed partial class App : Application
         _config = GuestConfigService.LoadOrCreate(_configPath, out _);
         GuestLogger.Initialize(_config.Logging);
         await RefreshUsbClientAvailabilityAsync();
+        UpdateUsbTransportBridge();
+        StartUsbDiagnosticsLoop();
 
         ApplyStartWithWindows(_config);
 
@@ -154,7 +165,9 @@ public sealed partial class App : Application
             DisconnectUsbAsync,
             SaveConfigAsync,
             RestartForThemeChangeAsync,
+            RunTransportDiagnosticsTestAsync,
             _isUsbClientAvailable);
+        UpdateUsbDiagnosticsPanel();
 
         _mainWindow.AppWindow.Closing += OnMainWindowClosing;
 
@@ -163,6 +176,8 @@ public sealed partial class App : Application
 
         TryInitializeTray();
         await RefreshUsbDevicesAsync();
+
+        _ = _mainWindow.CheckForUpdatesOnStartupIfEnabledAsync();
 
         if (_config.Ui.StartMinimized && _isTrayFunctional && !_pendingSingleInstanceShow)
         {
@@ -210,6 +225,7 @@ public sealed partial class App : Application
 
         ApplyStartWithWindows(config);
         _minimizeToTray = config.Ui.MinimizeToTray;
+        UpdateUsbTransportBridge();
         UpdateTrayControlCenterView();
 
         await Task.CompletedTask;
@@ -289,6 +305,10 @@ public sealed partial class App : Application
 
             _trayControlCenterWindow?.Close();
             _trayControlCenterWindow = null;
+
+            StopUsbDiagnosticsLoop();
+            _usbHyperVSocketProxy?.Dispose();
+            _usbHyperVSocketProxy = null;
 
             _trayService?.Dispose();
             _trayService = null;
@@ -392,6 +412,7 @@ public sealed partial class App : Application
                 DisconnectUsbAsync,
                 SaveConfigAsync,
                 RestartForThemeChangeAsync,
+                RunTransportDiagnosticsTestAsync,
                 _isUsbClientAvailable);
 
             nextWindow.AppWindow.Closing += OnMainWindowClosing;
@@ -731,11 +752,6 @@ public sealed partial class App : Application
 
         _trayControlCenterWindow.ApplyTheme(_mainWindow.CurrentTheme == "dark");
         _trayControlCenterWindow.UpdateView(_usbDevices, _selectedUsbBusId, _mainWindow.AppWindow.IsVisible, _minimizeToTray);
-
-        if (_trayControlCenterWindow.AppWindow.IsVisible)
-        {
-            PositionTrayControlCenterNearTray();
-        }
     }
 
     private UsbIpDeviceInfo? GetSelectedUsbDevice()
@@ -778,15 +794,45 @@ public sealed partial class App : Application
         var operationId = CreateUsbOperationId("refresh");
         var stopwatch = Stopwatch.StartNew();
         var hostResolution = ResolveUsbHostAddressDiagnostics();
+        if (_usbHyperVSocketProxy?.IsRunning == true
+            && !string.Equals(hostResolution.Source, "hyperv-socket", StringComparison.OrdinalIgnoreCase))
+        {
+            hostResolution = new UsbHostResolution(
+                HyperVSocketUsbTunnelDefaults.LoopbackAddress,
+                "hyperv-socket",
+                "AF_HYPERV",
+                string.Empty);
+        }
+
+        ApplyUsbTransportResolution(hostResolution);
         var previousCount = _usbDevices.Count;
+        var fallbackToIpUsedForLog = false;
 
         try
         {
             IReadOnlyList<UsbIpDeviceInfo> list;
             var useRemoteHostList = !string.IsNullOrWhiteSpace(hostResolution.ResolvedIpv4);
+            var fallbackToIpUsed = false;
+            string? fallbackHostAddress = null;
             if (useRemoteHostList)
             {
-                list = await _usbService.GetRemoteDevicesAsync(hostResolution.ResolvedIpv4, CancellationToken.None);
+                try
+                {
+                    list = await _usbService.GetRemoteDevicesAsync(hostResolution.ResolvedIpv4, CancellationToken.None);
+                }
+                catch when (string.Equals(hostResolution.Source, "hyperv-socket", StringComparison.OrdinalIgnoreCase))
+                {
+                    var ipFallbackResolution = ResolveUsbHostAddressDiagnostics(preferHyperVSocket: false);
+                    if (string.IsNullOrWhiteSpace(ipFallbackResolution.ResolvedIpv4))
+                    {
+                        throw;
+                    }
+
+                    fallbackToIpUsed = true;
+                    fallbackToIpUsedForLog = true;
+                    fallbackHostAddress = ipFallbackResolution.ResolvedIpv4;
+                    list = await _usbService.GetRemoteDevicesAsync(ipFallbackResolution.ResolvedIpv4, CancellationToken.None);
+                }
             }
             else
             {
@@ -804,6 +850,8 @@ public sealed partial class App : Application
             _usbDevices.Clear();
             _usbDevices.AddRange(list);
 
+            ApplyUsbTransportResolution(hostResolution, fallbackToIpUsed);
+
             _mainWindow?.UpdateUsbDevices(_usbDevices);
             UpdateTrayControlCenterView();
 
@@ -820,7 +868,12 @@ public sealed partial class App : Application
                 listSource = useRemoteHostList ? "remote-host" : "local-state",
                 hostAddress = hostResolution.ResolvedIpv4,
                 hostSource = hostResolution.Source,
-                hostInput = hostResolution.RawInput
+                hostInput = hostResolution.RawInput,
+                transportPath = fallbackToIpUsed
+                    ? "ip-fallback"
+                    : (string.Equals(hostResolution.Source, "hyperv-socket", StringComparison.OrdinalIgnoreCase) ? "hyperv" : "ip-fallback"),
+                fallbackToIpUsed,
+                fallbackHostAddress
             });
 
             return _usbDevices;
@@ -836,6 +889,9 @@ public sealed partial class App : Application
                 hostAddress = hostResolution.ResolvedIpv4,
                 hostSource = hostResolution.Source,
                 hostInput = hostResolution.RawInput,
+                transportPath = fallbackToIpUsedForLog
+                    ? "ip-fallback"
+                    : (string.Equals(hostResolution.Source, "hyperv-socket", StringComparison.OrdinalIgnoreCase) ? "hyperv" : "ip-fallback"),
                 hostResolutionFailure = hostResolution.FailureReason
             });
             return _usbDevices;
@@ -863,6 +919,7 @@ public sealed partial class App : Application
         var operationId = CreateUsbOperationId("connect");
         var stopwatch = Stopwatch.StartNew();
         var hostResolution = ResolveUsbHostAddressDiagnostics();
+        ApplyUsbTransportResolution(hostResolution);
         var beforeDevice = FindUsbByBusId(busId);
 
         GuestLogger.Info("usb.connect.begin", "USB Host-Attach gestartet.", new
@@ -888,6 +945,9 @@ public sealed partial class App : Application
                 elapsedMs = stopwatch.ElapsedMilliseconds,
                 hostSource = hostResolution.Source,
                 hostInput = hostResolution.RawInput,
+                transportPath = string.Equals(hostResolution.Source, "hyperv-socket", StringComparison.OrdinalIgnoreCase)
+                    ? "hyperv"
+                    : "ip-fallback",
                 hostResolutionFailure = hostResolution.FailureReason,
                 sharePath = _config?.SharePath
             });
@@ -898,6 +958,7 @@ public sealed partial class App : Application
         {
             await _usbService.AttachToHostAsync(busId, hostResolution.ResolvedIpv4, CancellationToken.None);
             _selectedUsbBusId = busId;
+            ApplyUsbTransportResolution(hostResolution);
 
             GuestLogger.Info("usb.connect.success", "USB Host-Attach erfolgreich.", new
             {
@@ -905,13 +966,56 @@ public sealed partial class App : Application
                 busId,
                 elapsedMs = stopwatch.ElapsedMilliseconds,
                 hostAddress = hostResolution.ResolvedIpv4,
-                hostSource = hostResolution.Source
+                hostSource = hostResolution.Source,
+                transportPath = string.Equals(hostResolution.Source, "hyperv-socket", StringComparison.OrdinalIgnoreCase)
+                    ? "hyperv"
+                    : "ip-fallback"
             });
 
             return 0;
         }
         catch (Exception ex)
         {
+            if (string.Equals(hostResolution.Source, "hyperv-socket", StringComparison.OrdinalIgnoreCase))
+            {
+                var ipFallbackResolution = ResolveUsbHostAddressDiagnostics(preferHyperVSocket: false);
+                if (!string.IsNullOrWhiteSpace(ipFallbackResolution.ResolvedIpv4))
+                {
+                    try
+                    {
+                        await _usbService.AttachToHostAsync(busId, ipFallbackResolution.ResolvedIpv4, CancellationToken.None);
+                        _selectedUsbBusId = busId;
+                        ApplyUsbTransportResolution(ipFallbackResolution, fallbackToIp: true);
+
+                        GuestLogger.Info("usb.connect.success", "USB Host-Attach erfolgreich (IP-Fallback).", new
+                        {
+                            operationId,
+                            busId,
+                            elapsedMs = stopwatch.ElapsedMilliseconds,
+                            hostAddress = ipFallbackResolution.ResolvedIpv4,
+                            hostSource = ipFallbackResolution.Source,
+                            transportPath = "ip-fallback",
+                            fallback = "ip"
+                        });
+
+                        return 0;
+                    }
+                    catch (Exception fallbackEx)
+                    {
+                        GuestLogger.Warn("usb.connect.fallback.failed", fallbackEx.Message, new
+                        {
+                            operationId,
+                            busId,
+                            elapsedMs = stopwatch.ElapsedMilliseconds,
+                            fallbackHostAddress = ipFallbackResolution.ResolvedIpv4,
+                            fallbackHostSource = ipFallbackResolution.Source,
+                            transportPath = "ip-fallback",
+                            exceptionType = fallbackEx.GetType().FullName
+                        });
+                    }
+                }
+            }
+
             GuestLogger.Warn("usb.connect.failed", ex.Message, new
             {
                 operationId,
@@ -919,6 +1023,9 @@ public sealed partial class App : Application
                 elapsedMs = stopwatch.ElapsedMilliseconds,
                 hostAddress = hostResolution.ResolvedIpv4,
                 hostSource = hostResolution.Source,
+                transportPath = string.Equals(hostResolution.Source, "hyperv-socket", StringComparison.OrdinalIgnoreCase)
+                    ? "hyperv"
+                    : "ip-fallback",
                 exceptionType = ex.GetType().FullName
             });
             return 1;
@@ -946,6 +1053,7 @@ public sealed partial class App : Application
         var operationId = CreateUsbOperationId("disconnect");
         var stopwatch = Stopwatch.StartNew();
         var hostResolution = ResolveUsbHostAddressDiagnostics();
+        ApplyUsbTransportResolution(hostResolution);
         var beforeDevice = FindUsbByBusId(busId);
 
         GuestLogger.Info("usb.disconnect.begin", "USB Host-Detach gestartet.", new
@@ -965,6 +1073,7 @@ public sealed partial class App : Application
         {
             await _usbService.DetachFromHostAsync(busId, hostResolution.ResolvedIpv4, CancellationToken.None);
             _selectedUsbBusId = busId;
+            ApplyUsbTransportResolution(hostResolution);
 
             GuestLogger.Info("usb.disconnect.success", "USB Host-Detach erfolgreich.", new
             {
@@ -972,13 +1081,56 @@ public sealed partial class App : Application
                 busId,
                 elapsedMs = stopwatch.ElapsedMilliseconds,
                 hostAddress = hostResolution.ResolvedIpv4,
-                hostSource = hostResolution.Source
+                hostSource = hostResolution.Source,
+                transportPath = string.Equals(hostResolution.Source, "hyperv-socket", StringComparison.OrdinalIgnoreCase)
+                    ? "hyperv"
+                    : "ip-fallback"
             });
 
             return 0;
         }
         catch (Exception ex)
         {
+            if (string.Equals(hostResolution.Source, "hyperv-socket", StringComparison.OrdinalIgnoreCase))
+            {
+                var ipFallbackResolution = ResolveUsbHostAddressDiagnostics(preferHyperVSocket: false);
+                if (!string.IsNullOrWhiteSpace(ipFallbackResolution.ResolvedIpv4))
+                {
+                    try
+                    {
+                        await _usbService.DetachFromHostAsync(busId, ipFallbackResolution.ResolvedIpv4, CancellationToken.None);
+                        _selectedUsbBusId = busId;
+                        ApplyUsbTransportResolution(ipFallbackResolution, fallbackToIp: true);
+
+                        GuestLogger.Info("usb.disconnect.success", "USB Host-Detach erfolgreich (IP-Fallback).", new
+                        {
+                            operationId,
+                            busId,
+                            elapsedMs = stopwatch.ElapsedMilliseconds,
+                            hostAddress = ipFallbackResolution.ResolvedIpv4,
+                            hostSource = ipFallbackResolution.Source,
+                            transportPath = "ip-fallback",
+                            fallback = "ip"
+                        });
+
+                        return 0;
+                    }
+                    catch (Exception fallbackEx)
+                    {
+                        GuestLogger.Warn("usb.disconnect.fallback.failed", fallbackEx.Message, new
+                        {
+                            operationId,
+                            busId,
+                            elapsedMs = stopwatch.ElapsedMilliseconds,
+                            fallbackHostAddress = ipFallbackResolution.ResolvedIpv4,
+                            fallbackHostSource = ipFallbackResolution.Source,
+                            transportPath = "ip-fallback",
+                            exceptionType = fallbackEx.GetType().FullName
+                        });
+                    }
+                }
+            }
+
             GuestLogger.Warn("usb.disconnect.failed", ex.Message, new
             {
                 operationId,
@@ -986,14 +1138,27 @@ public sealed partial class App : Application
                 elapsedMs = stopwatch.ElapsedMilliseconds,
                 hostAddress = hostResolution.ResolvedIpv4,
                 hostSource = hostResolution.Source,
+                transportPath = string.Equals(hostResolution.Source, "hyperv-socket", StringComparison.OrdinalIgnoreCase)
+                    ? "hyperv"
+                    : "ip-fallback",
                 exceptionType = ex.GetType().FullName
             });
             return 1;
         }
     }
 
-    private UsbHostResolution ResolveUsbHostAddressDiagnostics()
+    private UsbHostResolution ResolveUsbHostAddressDiagnostics(bool preferHyperVSocket = true)
     {
+        if (preferHyperVSocket
+            && _usbHyperVSocketProxy?.IsRunning == true)
+        {
+            return new UsbHostResolution(
+                HyperVSocketUsbTunnelDefaults.LoopbackAddress,
+                "hyperv-socket",
+                "AF_HYPERV",
+                string.Empty);
+        }
+
         var configured = (_config?.Usb?.HostAddress ?? string.Empty).Trim();
         if (!string.IsNullOrWhiteSpace(configured))
         {
@@ -1009,6 +1174,12 @@ public sealed partial class App : Application
         var sharePath = (_config?.SharePath ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(sharePath))
         {
+            var defaultGatewayIpv4 = ResolveDefaultGatewayIpv4();
+            if (!string.IsNullOrWhiteSpace(defaultGatewayIpv4))
+            {
+                return new UsbHostResolution(defaultGatewayIpv4, "default-gateway", "network", string.Empty);
+            }
+
             return new UsbHostResolution(string.Empty, "sharePath", string.Empty, "SharePath ist leer.");
         }
 
@@ -1021,7 +1192,19 @@ public sealed partial class App : Application
                 return new UsbHostResolution(resolvedFromShare, "sharePath", host, string.Empty);
             }
 
+            var defaultGatewayIpv4 = ResolveDefaultGatewayIpv4();
+            if (!string.IsNullOrWhiteSpace(defaultGatewayIpv4))
+            {
+                return new UsbHostResolution(defaultGatewayIpv4, "default-gateway", host, string.Empty);
+            }
+
             return new UsbHostResolution(string.Empty, "sharePath", host, "UNC-Host konnte nicht in IPv4 aufgelöst werden.");
+        }
+
+        var fallbackGatewayIpv4 = ResolveDefaultGatewayIpv4();
+        if (!string.IsNullOrWhiteSpace(fallbackGatewayIpv4))
+        {
+            return new UsbHostResolution(fallbackGatewayIpv4, "default-gateway", sharePath, string.Empty);
         }
 
         return new UsbHostResolution(string.Empty, "sharePath", sharePath, "SharePath ist kein gültiger UNC-Pfad.");
@@ -1068,6 +1251,43 @@ public sealed partial class App : Application
         }
     }
 
+    private static string ResolveDefaultGatewayIpv4()
+    {
+        try
+        {
+            foreach (var networkInterface in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (networkInterface.OperationalStatus != OperationalStatus.Up)
+                {
+                    continue;
+                }
+
+                if (networkInterface.NetworkInterfaceType is NetworkInterfaceType.Loopback or NetworkInterfaceType.Tunnel)
+                {
+                    continue;
+                }
+
+                var properties = networkInterface.GetIPProperties();
+                var gateway = properties.GatewayAddresses
+                    .Select(item => item.Address)
+                    .FirstOrDefault(address =>
+                        address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork
+                        && !IPAddress.Any.Equals(address)
+                        && !IPAddress.None.Equals(address));
+
+                if (gateway is not null)
+                {
+                    return gateway.ToString();
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return string.Empty;
+    }
+
     private UsbIpDeviceInfo? FindUsbByBusId(string busId)
     {
         if (string.IsNullOrWhiteSpace(busId))
@@ -1105,8 +1325,307 @@ public sealed partial class App : Application
             return;
         }
 
-        await DisconnectUsbAsync(selected.BusId);
+        var result = await DisconnectUsbAsync(selected.BusId);
+        if (result == 0)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(3));
+        }
+
         await RefreshUsbDevicesAsync();
+    }
+
+    private void StartUsbDiagnosticsLoop()
+    {
+        StopUsbDiagnosticsLoop();
+        var cts = new CancellationTokenSource();
+        _usbDiagnosticsCts = cts;
+        _usbDiagnosticsTask = Task.Run(() => RunUsbDiagnosticsLoopAsync(cts.Token));
+    }
+
+    private void StopUsbDiagnosticsLoop()
+    {
+        try
+        {
+            _usbDiagnosticsCts?.Cancel();
+        }
+        catch
+        {
+        }
+
+        _usbDiagnosticsCts?.Dispose();
+        _usbDiagnosticsCts = null;
+        _usbDiagnosticsTask = null;
+    }
+
+    private async Task RunUsbDiagnosticsLoopAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                var probeSucceeded = await ProbeHyperVSocketServiceAsync(cancellationToken);
+                if (probeSucceeded)
+                {
+                    _usbHyperVSocketProbeFailureCount = 0;
+                    _usbHyperVSocketServiceReachable = true;
+                }
+                else
+                {
+                    _usbHyperVSocketProbeFailureCount++;
+                    if (_usbHyperVSocketProbeFailureCount >= 3)
+                    {
+                        _usbHyperVSocketServiceReachable = false;
+                    }
+                }
+
+                UpdateUsbDiagnosticsPanel();
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+        }
+    }
+
+    private async Task<bool> ProbeHyperVSocketServiceAsync(CancellationToken cancellationToken)
+    {
+        if (_usbHyperVSocketProxy?.IsRunning != true)
+        {
+            return false;
+        }
+
+        var serviceIdText = (_config?.Usb?.HyperVSocketServiceId ?? HyperVSocketUsbTunnelDefaults.ServiceIdString).Trim();
+        if (!Guid.TryParse(serviceIdText, out var serviceId))
+        {
+            return false;
+        }
+
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            linkedCts.CancelAfter(TimeSpan.FromMilliseconds(1500));
+
+            try
+            {
+                using var socket = new System.Net.Sockets.Socket((System.Net.Sockets.AddressFamily)34, System.Net.Sockets.SocketType.Stream, (System.Net.Sockets.ProtocolType)1);
+                linkedCts.Token.ThrowIfCancellationRequested();
+                socket.Connect(new HyperVSocketEndPoint(HyperVSocketUsbTunnelDefaults.VmIdParent, serviceId));
+                return true;
+            }
+            catch
+            {
+                if (attempt == 0)
+                {
+                    await Task.Delay(120, cancellationToken);
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private async Task<(bool hyperVSocketActive, bool registryServiceOk)> RunTransportDiagnosticsTestAsync()
+    {
+        UpdateUsbTransportBridge();
+
+        var hyperVSocketActive = _usbHyperVSocketProxy?.IsRunning == true;
+        var registryServiceOk = false;
+
+        if (hyperVSocketActive)
+        {
+            try
+            {
+                registryServiceOk = await ProbeHyperVSocketServiceAsync(CancellationToken.None);
+            }
+            catch
+            {
+                registryServiceOk = false;
+            }
+        }
+
+        if (registryServiceOk)
+        {
+            _usbHyperVSocketProbeFailureCount = 0;
+            _usbHyperVSocketServiceReachable = true;
+        }
+        else
+        {
+            _usbHyperVSocketProbeFailureCount = Math.Max(_usbHyperVSocketProbeFailureCount + 1, 3);
+            _usbHyperVSocketServiceReachable = false;
+        }
+
+        ApplyUsbTransportResolution(ResolveUsbHostAddressDiagnostics());
+        UpdateUsbDiagnosticsPanel();
+
+        GuestLogger.Info("usb.transport.hyperv.test", "Hyper-V Socket Test ausgeführt.", new
+        {
+            hyperVSocketActive,
+            registryServiceOk
+        });
+
+        try
+        {
+            await SendHyperVDiagnosticsAckAsync(Environment.MachineName, hyperVSocketActive, registryServiceOk, CancellationToken.None);
+            GuestLogger.Info("usb.transport.hyperv.test.host_ack_sent", "Hyper-V Socket Test an Host übermittelt.", new
+            {
+                guestComputerName = Environment.MachineName,
+                hyperVSocketActive,
+                registryServiceOk
+            });
+        }
+        catch (Exception ex)
+        {
+            GuestLogger.Warn("usb.transport.hyperv.test.host_ack_failed", ex.Message, new
+            {
+                guestComputerName = Environment.MachineName,
+                hyperVSocketActive,
+                registryServiceOk,
+                exceptionType = ex.GetType().FullName
+            });
+        }
+
+        return (hyperVSocketActive, registryServiceOk);
+    }
+
+    private static async Task SendHyperVDiagnosticsAckAsync(string guestComputerName, bool hyperVSocketActive, bool registryServiceOk, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(guestComputerName))
+        {
+            return;
+        }
+
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        linkedCts.CancelAfter(TimeSpan.FromMilliseconds(1200));
+
+        using var socket = new System.Net.Sockets.Socket((System.Net.Sockets.AddressFamily)34, System.Net.Sockets.SocketType.Stream, (System.Net.Sockets.ProtocolType)1);
+        linkedCts.Token.ThrowIfCancellationRequested();
+        socket.Connect(new HyperVSocketEndPoint(HyperVSocketUsbTunnelDefaults.VmIdParent, HyperVSocketUsbTunnelDefaults.DiagnosticsServiceId));
+
+        await using var stream = new System.Net.Sockets.NetworkStream(socket, ownsSocket: true);
+        await using var writer = new StreamWriter(stream, Encoding.UTF8, bufferSize: 256, leaveOpen: false)
+        {
+            NewLine = "\n"
+        };
+
+        var payload = JsonSerializer.Serialize(new
+        {
+            guestComputerName,
+            hyperVSocketActive,
+            registryServiceOk,
+            sentAtUtc = DateTime.UtcNow.ToString("O")
+        });
+
+        await writer.WriteLineAsync(payload.AsMemory(), linkedCts.Token);
+        await writer.FlushAsync(linkedCts.Token);
+    }
+
+    private void ApplyUsbTransportResolution(UsbHostResolution resolution, bool fallbackToIp = false)
+    {
+        var usesHyperVSocket = string.Equals(resolution.Source, "hyperv-socket", StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(resolution.ResolvedIpv4);
+
+        var fallbackActive = fallbackToIp
+            || ((_config?.Usb?.UseHyperVSocket ?? false)
+                && !usesHyperVSocket
+                && !string.IsNullOrWhiteSpace(resolution.ResolvedIpv4));
+
+        var changed = _usbHyperVSocketTransportActive != usesHyperVSocket || _usbIpFallbackActive != fallbackActive;
+        _usbHyperVSocketTransportActive = usesHyperVSocket;
+        _usbIpFallbackActive = fallbackActive;
+
+        if (!changed)
+        {
+            return;
+        }
+
+        UpdateUsbDiagnosticsPanel();
+    }
+
+    private void UpdateUsbDiagnosticsPanel()
+    {
+        _mainWindow?.UpdateTransportDiagnostics(
+            hyperVSocketActive: _usbHyperVSocketTransportActive,
+            registryServicePresent: _usbHyperVSocketServiceReachable,
+            fallbackActive: _usbIpFallbackActive);
+    }
+
+    private void UpdateUsbTransportBridge()
+    {
+        var usbSettings = _config?.Usb;
+        if (usbSettings is null || !usbSettings.UseHyperVSocket)
+        {
+            _usbHyperVSocketProxy?.Dispose();
+            _usbHyperVSocketProxy = null;
+            _usbHyperVSocketTransportActive = false;
+            _usbHyperVSocketServiceReachable = false;
+            _usbHyperVSocketProbeFailureCount = 0;
+            UpdateUsbDiagnosticsPanel();
+            return;
+        }
+
+        var serviceIdText = string.IsNullOrWhiteSpace(usbSettings.HyperVSocketServiceId)
+            ? HyperVSocketUsbTunnelDefaults.ServiceIdString
+            : usbSettings.HyperVSocketServiceId.Trim();
+
+        if (!Guid.TryParse(serviceIdText, out var serviceId))
+        {
+            _usbHyperVSocketProxy?.Dispose();
+            _usbHyperVSocketProxy = null;
+            _usbHyperVSocketTransportActive = false;
+            _usbHyperVSocketServiceReachable = false;
+            _usbHyperVSocketProbeFailureCount = 0;
+            UpdateUsbDiagnosticsPanel();
+
+            GuestLogger.Warn("usb.transport.hyperv.invalid_guid", "Hyper-V Socket ServiceId ist ungültig. USB fällt auf IP-Fallback zurück.", new
+            {
+                serviceId = serviceIdText
+            });
+            return;
+        }
+
+        if (_usbHyperVSocketProxy?.IsRunning == true)
+        {
+            return;
+        }
+
+        try
+        {
+            _usbHyperVSocketProxy?.Dispose();
+            _usbHyperVSocketProxy = new HyperVSocketUsbGuestProxy(serviceId);
+            _usbHyperVSocketProxy.Start();
+            _usbHyperVSocketTransportActive = false;
+            UpdateUsbDiagnosticsPanel();
+
+            GuestLogger.Info("usb.transport.hyperv.started", "Hyper-V Socket USB Proxy aktiv (primärer Transport).", new
+            {
+                serviceId = serviceId.ToString("D"),
+                loopback = HyperVSocketUsbTunnelDefaults.LoopbackAddress,
+                port = HyperVSocketUsbTunnelDefaults.UsbIpTcpPort
+            });
+        }
+        catch (Exception ex)
+        {
+            _usbHyperVSocketProxy?.Dispose();
+            _usbHyperVSocketProxy = null;
+            _usbHyperVSocketTransportActive = false;
+            _usbHyperVSocketServiceReachable = false;
+            _usbHyperVSocketProbeFailureCount = 0;
+            UpdateUsbDiagnosticsPanel();
+
+            GuestLogger.Warn("usb.transport.hyperv.failed", ex.Message, new
+            {
+                serviceId = serviceId.ToString("D"),
+                fallback = "ip"
+            });
+        }
     }
 
     private bool TryInitializeSingleInstance()

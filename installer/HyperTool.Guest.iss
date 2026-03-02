@@ -55,6 +55,9 @@ Name: "installusbip"; Description: "{cm:UsbipInstallTask}"; GroupDescription: "{
 [Files]
 Source: "{#MySourceDir}\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion createallsubdirs
 
+[Registry]
+Root: HKLM64; Subkey: "SOFTWARE\Microsoft\Windows NT\CurrentVersion\Virtualization\GuestCommunicationServices\6c4eb1be-40e8-4c8b-a4d6-5b0f67d7e40f"; ValueType: string; ValueName: "ElementName"; ValueData: "HyperTool Hyper-V Socket USB Tunnel"; Flags: uninsdeletekeyifempty
+
 [Icons]
 Name: "{group}\HyperTool Guest"; Filename: "{app}\HyperTool.Guest.exe"
 Name: "{group}\{cm:UninstallShortcut}"; Filename: "{uninstallexe}"

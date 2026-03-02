@@ -2113,15 +2113,21 @@ public sealed class MainWindow : Window
     {
         var panel = new StackPanel { Spacing = 10 };
 
-        var heading = new TextBlock { Text = "Info", FontSize = 20, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
-        panel.Children.Add(heading);
+        var titleWrap = new Grid();
+        titleWrap.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        titleWrap.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var versionWrap = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
-        versionWrap.Children.Add(new TextBlock { Text = "Version:", Opacity = 0.9 });
+        var heading = new TextBlock { Text = "Info", FontSize = 20, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
+        titleWrap.Children.Add(heading);
+
+        var versionWrap = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Bottom };
+        versionWrap.Children.Add(new TextBlock { Text = "Version:", Opacity = 0.9, VerticalAlignment = VerticalAlignment.Bottom });
         var versionText = new TextBlock { Opacity = 0.9 };
         versionText.SetBinding(TextBlock.TextProperty, new Binding { Source = _viewModel, Path = new PropertyPath(nameof(MainViewModel.AppVersion)) });
         versionWrap.Children.Add(versionText);
-        panel.Children.Add(versionWrap);
+        Grid.SetColumn(versionWrap, 1);
+        titleWrap.Children.Add(versionWrap);
+        panel.Children.Add(titleWrap);
 
         var updateWrap = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
         updateWrap.Children.Add(new TextBlock { Text = "Update-Status:", Opacity = 0.9 });
@@ -2181,6 +2187,35 @@ public sealed class MainWindow : Window
         usbipdInfoStack.Children.Add(new TextBlock { Text = "Lizenz/Eigentümer: siehe Original-Repository von dorssel.", TextWrapping = TextWrapping.Wrap, Opacity = 0.85 });
         usbipdCard.Child = usbipdInfoStack;
         panel.Children.Add(usbipdCard);
+
+        var diagnosticsCard = new Border
+        {
+            BorderThickness = new Thickness(1),
+            BorderBrush = Application.Current.Resources["PanelBorderBrush"] as Brush,
+            Background = Application.Current.Resources["PageBackgroundBrush"] as Brush,
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(10)
+        };
+
+        var diagnosticsStack = new StackPanel { Spacing = 6 };
+        diagnosticsStack.Children.Add(new TextBlock { Text = "USB Transport Diagnose (live)", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
+
+        var hyperVSocketRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        hyperVSocketRow.Children.Add(new TextBlock { Text = "Hyper-V Socket aktiv:", Opacity = 0.9 });
+        var hyperVSocketText = new TextBlock { Opacity = 0.9 };
+        hyperVSocketText.SetBinding(TextBlock.TextProperty, new Binding { Source = _viewModel, Path = new PropertyPath(nameof(MainViewModel.UsbDiagnosticsHyperVSocketText)) });
+        hyperVSocketRow.Children.Add(hyperVSocketText);
+        diagnosticsStack.Children.Add(hyperVSocketRow);
+
+        var registryRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        registryRow.Children.Add(new TextBlock { Text = "Registry-Service vorhanden:", Opacity = 0.9 });
+        var registryText = new TextBlock { Opacity = 0.9 };
+        registryText.SetBinding(TextBlock.TextProperty, new Binding { Source = _viewModel, Path = new PropertyPath(nameof(MainViewModel.UsbDiagnosticsRegistryServiceText)) });
+        registryRow.Children.Add(registryText);
+        diagnosticsStack.Children.Add(registryRow);
+
+        diagnosticsCard.Child = diagnosticsStack;
+        panel.Children.Add(diagnosticsCard);
 
         var buttonRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         buttonRow.Children.Add(CreateIconButton("🛰", "Update prüfen", _viewModel.CheckForUpdatesCommand));

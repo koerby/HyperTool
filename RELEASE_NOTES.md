@@ -1,5 +1,45 @@
 # HyperTool Release Notes
 
+## v2.1.4
+
+### Highlights
+
+- Hyper-V Socket Diagnosepfad zwischen Guest und Host erweitert und robuster gemacht.
+- Info-Bereiche in Host/Guest kompakter ausgerichtet; relevante Diagnoseanzeigen gezielt vereinfacht.
+- Guest-Option „Beim Start auf Updates prüfen“ vollständig an Config und Startup-Verhalten angebunden.
+
+### Neu
+
+- Guest Info:
+	- Neuer Diagnose-Button „Hyper-V Socket testen“ inkl. Ergebnisrückmeldung.
+	- Diagnose-Button im Info-Bereich rechts ausgerichtet.
+- Host Diagnose:
+	- Host-seitiger Listener für Guest-Diagnose-Ack aus Hyper-V Socket Testpfad.
+	- Zusätzliche Telemetrie-/Logfelder für Transportpfad (`hyperv` / `ip-fallback`).
+
+### Verbessert
+
+- Transport/Logging:
+	- Transportpfad wird in Erfolg- und Fehlerfällen explizit protokolliert.
+	- Hyper-V-first Verhalten mit klarerem IP-Fallback-Verhalten stabilisiert.
+- UI/UX:
+	- Info-Kopfzeilen in Host und Guest kompakter (Info + Version in einer Zeile).
+	- Host-Info zeigt keinen überflüssigen Text „Fallback auf IP aktiv“ mehr.
+	- Disconnect-Refresh im Guest bewusst verzögert (3 Sekunden) für stabilere Gerätezustände.
+- Installer/Abhängigkeiten:
+	- Host-App versucht fehlende usbipd-Runtime nicht mehr in-app nachzuinstallieren.
+	- Optionaler Installer-Flow für USB-Runtimes klarer abgegrenzt.
+
+### Behoben
+
+- Guest Settings:
+	- Checkbox „Beim Start auf Updates prüfen“ war deaktiviert und nicht gespeichert; jetzt persistiert und wirksam.
+	- Startup-Updatecheck läuft nur noch, wenn die Option aktiv ist.
+- Control Center:
+	- Visuelles „Zappeln“ beim Öffnen/Positionieren reduziert.
+- Diagnosepfad:
+	- Mehrere Stabilitätsprobleme im Hyper-V Socket Testablauf und bei Fallback-Übergängen adressiert.
+
 ## v2.1.1
 
 ### Highlights

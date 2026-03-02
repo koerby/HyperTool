@@ -18,7 +18,6 @@ public sealed class UsbIpdCliService : IUsbIpService
     private static readonly Regex UsbipPortUriBusIdRegex = new(@"usbip://[^\s/]+:\d+/([0-9]+-[0-9]+(?:\.[0-9]+)*)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private const string WslUsbipFallbackPath = "/mnt/c/Program Files/usbipd-win/WSL/usbip";
     private const string NativeUsbipFallbackPath = @"C:\Program Files\USBip\usbip.exe";
-    private static bool _autoInstallAttempted;
     private static readonly SemaphoreSlim EnsureReadyGate = new(1, 1);
 
     public async Task<bool> IsUsbClientAvailableAsync(CancellationToken cancellationToken)
@@ -437,13 +436,8 @@ public sealed class UsbIpdCliService : IUsbIpService
         {
             if (!await IsUsbipdAvailableAsync(cancellationToken))
             {
-                await TryAutoInstallUsbipdAsync(cancellationToken);
-            }
-
-            if (!await IsUsbipdAvailableAsync(cancellationToken))
-            {
                 throw new InvalidOperationException(
-                    "usbipd-win ist nicht installiert. Bitte usbipd-win installieren oder Winget aktivieren.");
+                    "usbipd-win ist nicht installiert. Bitte im HyperTool-Installer die optionale usbipd-win-Installation auswählen oder usbipd-win manuell installieren.");
             }
 
             await EnsureUsbipdServiceRunningAsync(cancellationToken);
@@ -464,50 +458,6 @@ public sealed class UsbIpdCliService : IUsbIpService
 
         var whereResult = await RunUtilityAsync("where", "usbipd", cancellationToken);
         return whereResult.ExitCode == 0 && !string.IsNullOrWhiteSpace(whereResult.StandardOutput);
-    }
-
-    private static async Task TryAutoInstallUsbipdAsync(CancellationToken cancellationToken)
-    {
-        if (_autoInstallAttempted)
-        {
-            return;
-        }
-
-        _autoInstallAttempted = true;
-
-        var wingetCheck = await RunUtilityAsync("where", "winget", cancellationToken);
-        if (wingetCheck.ExitCode != 0)
-        {
-            return;
-        }
-
-        var installArgs = "install --id dorssel.usbipd-win --exact --silent --accept-source-agreements --accept-package-agreements";
-
-        if (IsProcessElevated())
-        {
-            var installResult = await RunUtilityAsync("winget", installArgs, cancellationToken);
-            if (installResult.ExitCode != 0)
-            {
-                throw new InvalidOperationException(
-                    "usbipd-win konnte nicht automatisch installiert werden. Bitte Installation manuell ausführen.");
-            }
-
-            return;
-        }
-
-        try
-        {
-            var exitCode = await RunUtilityElevatedAsync("winget", installArgs, cancellationToken);
-            if (exitCode != 0)
-            {
-                throw new InvalidOperationException(
-                    "usbipd-win konnte nicht automatisch installiert werden. Bitte Installation manuell ausführen.");
-            }
-        }
-        catch (InvalidOperationException)
-        {
-            throw;
-        }
     }
 
     private static async Task EnsureUsbipdServiceRunningAsync(CancellationToken cancellationToken)

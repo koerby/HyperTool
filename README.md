@@ -2,6 +2,12 @@
 
 HyperTool ist ein WinUI-3 Toolset für Hyper-V-Host und Windows-Guest mit Fokus auf schnelle VM-/Netzwerkaktionen und USB/IP-Workflows.
 
+## Aktueller Release-Stand
+
+- Version: **v2.1.4**
+- Host und Guest enthalten Hyper-V-Socket-Diagnostik, robusteren USB-Transport-Fallback und aktualisierte Info-/Settings-Ansichten.
+- Guest-Update-Option „Beim Start auf Updates prüfen“ ist konfigurierbar und wird persistent gespeichert.
+
 ## Projekte
 
 - HyperTool (Host): Hyper-V Steuerung, Netzwerk, Snapshots, USB-Share per usbipd.
@@ -68,12 +74,12 @@ Hinweise:
 ### Host
 
 - build-winui.bat
-- build-installer-winui.bat version=2.1.1
+- build-installer-winui.bat version=2.1.4
 
 ### Guest
 
 - build-guest.bat
-- build-installer-guest.bat version=2.1.1
+- build-installer-guest.bat version=2.1.4
 
 ### Komplett
 

@@ -183,6 +183,15 @@ public partial class MainViewModel : ViewModelBase
     private string _usbRuntimeHintText = string.Empty;
 
     [ObservableProperty]
+    private string _usbDiagnosticsHyperVSocketText = "Unbekannt";
+
+    [ObservableProperty]
+    private string _usbDiagnosticsRegistryServiceText = "Unbekannt";
+
+    [ObservableProperty]
+    private string _usbDiagnosticsFallbackText = "Nein";
+
+    [ObservableProperty]
     private bool _selectedUsbDeviceAutoShareEnabled;
 
     public ObservableCollection<VmDefinition> AvailableVms { get; } = [];

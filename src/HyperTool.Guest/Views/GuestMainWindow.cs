@@ -30,6 +30,7 @@ internal sealed class GuestMainWindow : Window
     private readonly Func<string, Task<int>> _disconnectUsbAsync;
     private readonly Func<GuestConfig, Task> _saveConfigAsync;
     private readonly Func<string, Task> _restartForThemeChangeAsync;
+    private readonly Func<Task<(bool hyperVSocketActive, bool registryServiceOk)>> _runTransportDiagnosticsTestAsync;
     private readonly bool _isUsbClientAvailable;
     private readonly IUpdateService _updateService = new GitHubUpdateService();
     private static readonly HttpClient UpdateDownloadClient = new();
@@ -51,6 +52,9 @@ internal sealed class GuestMainWindow : Window
     private readonly ListView _notificationsListView = new();
     private readonly TextBlock _statusText = new() { Text = "Bereit.", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _updateStatusValueText = new() { Text = "Noch nicht geprüft", TextWrapping = TextWrapping.Wrap, Opacity = 0.9 };
+    private readonly TextBlock _diagHyperVSocketText = new() { Text = "Unbekannt", Opacity = 0.9 };
+    private readonly TextBlock _diagRegistryServiceText = new() { Text = "Unbekannt", Opacity = 0.9 };
+    private readonly TextBlock _diagFallbackText = new() { Text = "Nein", Opacity = 0.9 };
     private readonly Button _toggleLogButton = new();
     private bool _isLogExpanded;
     private string _releaseUrl = "https://github.com/koerby/HyperTool/releases";
@@ -68,6 +72,7 @@ internal sealed class GuestMainWindow : Window
     private readonly CheckBox _startWithWindowsCheckBox = new() { Content = "Mit Windows starten" };
     private readonly CheckBox _startMinimizedCheckBox = new() { Content = "Beim Start minimiert" };
     private readonly CheckBox _minimizeToTrayCheckBox = new() { Content = "Tasktray-Menü aktiv" };
+    private readonly CheckBox _checkForUpdatesOnStartupCheckBox = new() { Content = "Beim Start auf Updates prüfen" };
 
     private HelpWindow? _helpWindow;
     private int _selectedMenuIndex;
@@ -88,6 +93,7 @@ internal sealed class GuestMainWindow : Window
         Func<string, Task<int>> disconnectUsbAsync,
         Func<GuestConfig, Task> saveConfigAsync,
         Func<string, Task> restartForThemeChangeAsync,
+        Func<Task<(bool hyperVSocketActive, bool registryServiceOk)>> runTransportDiagnosticsTestAsync,
         bool isUsbClientAvailable)
     {
         _config = config;
@@ -96,6 +102,7 @@ internal sealed class GuestMainWindow : Window
         _disconnectUsbAsync = disconnectUsbAsync;
         _saveConfigAsync = saveConfigAsync;
         _restartForThemeChangeAsync = restartForThemeChangeAsync;
+        _runTransportDiagnosticsTestAsync = runTransportDiagnosticsTestAsync;
         _isUsbClientAvailable = isUsbClientAvailable;
 
         Title = "HyperTool Guest";
@@ -375,6 +382,30 @@ internal sealed class GuestMainWindow : Window
         }
 
         return _usbDevices[_usbListView.SelectedIndex];
+    }
+
+    public void UpdateTransportDiagnostics(bool hyperVSocketActive, bool registryServicePresent, bool fallbackActive)
+    {
+        _diagHyperVSocketText.Text = hyperVSocketActive ? "Ja" : "Nein";
+        _diagRegistryServiceText.Text = registryServicePresent ? "Ja" : "Nein";
+        _diagFallbackText.Text = fallbackActive ? "Ja" : "Nein";
+    }
+
+    private async Task RunTransportDiagnosticsTestAsync()
+    {
+        try
+        {
+            var (hyperVSocketActive, registryServiceOk) = await _runTransportDiagnosticsTestAsync();
+            var ok = hyperVSocketActive && registryServiceOk;
+
+            AppendNotification(ok
+                ? "[Info] Hyper-V Socket Test erfolgreich: Verbindung steht und Registry-Service ist erreichbar."
+                : $"[Warn] Hyper-V Socket Test: Verbindung={(hyperVSocketActive ? "OK" : "FAIL")}, Registry-Service={(registryServiceOk ? "OK" : "FAIL")}. ");
+        }
+        catch (Exception ex)
+        {
+            AppendNotification($"[Error] Hyper-V Socket Test fehlgeschlagen: {ex.Message}");
+        }
     }
 
     private UIElement BuildLayout()
@@ -1266,17 +1297,10 @@ internal sealed class GuestMainWindow : Window
         Grid.SetRow(_startWithWindowsCheckBox, 1);
         quickTogglesGrid.Children.Add(_startWithWindowsCheckBox);
 
-        var updateCheck = new CheckBox
-        {
-            Content = "Beim Start auf Updates prüfen",
-            IsChecked = true,
-            IsEnabled = false,
-            Opacity = 0.7,
-            Margin = new Thickness(0)
-        };
-        Grid.SetColumn(updateCheck, 1);
-        Grid.SetRow(updateCheck, 1);
-        quickTogglesGrid.Children.Add(updateCheck);
+        _checkForUpdatesOnStartupCheckBox.Margin = new Thickness(0);
+        Grid.SetColumn(_checkForUpdatesOnStartupCheckBox, 1);
+        Grid.SetRow(_checkForUpdatesOnStartupCheckBox, 1);
+        quickTogglesGrid.Children.Add(_checkForUpdatesOnStartupCheckBox);
 
         systemStack.Children.Add(quickTogglesGrid);
 
@@ -1364,12 +1388,18 @@ internal sealed class GuestMainWindow : Window
         var version = ResolveGuestVersionText();
 
         var panel = new StackPanel { Spacing = 10 };
-        panel.Children.Add(new TextBlock { Text = "Info", FontSize = 20, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
+        var titleWrap = new Grid();
+        titleWrap.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        titleWrap.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var versionWrap = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
-        versionWrap.Children.Add(new TextBlock { Text = "Version:", Opacity = 0.9 });
+        titleWrap.Children.Add(new TextBlock { Text = "Info", FontSize = 20, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
+
+        var versionWrap = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Bottom };
+        versionWrap.Children.Add(new TextBlock { Text = "Version:", Opacity = 0.9, VerticalAlignment = VerticalAlignment.Bottom });
         versionWrap.Children.Add(new TextBlock { Opacity = 0.9, Text = version });
-        panel.Children.Add(versionWrap);
+        Grid.SetColumn(versionWrap, 1);
+        titleWrap.Children.Add(versionWrap);
+        panel.Children.Add(titleWrap);
 
         var updateWrap = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
         updateWrap.Children.Add(new TextBlock { Text = "Update-Status:", Opacity = 0.9 });
@@ -1409,6 +1439,46 @@ internal sealed class GuestMainWindow : Window
         usbipStack.Children.Add(new TextBlock { Text = "Lizenz/Eigentümer: siehe Original-Repository von vadimgrn.", TextWrapping = TextWrapping.Wrap, Opacity = 0.85 });
         usbipCard.Child = usbipStack;
         panel.Children.Add(usbipCard);
+
+        var diagnosticsCard = new Border
+        {
+            BorderThickness = new Thickness(1),
+            BorderBrush = Application.Current.Resources["PanelBorderBrush"] as Brush,
+            Background = Application.Current.Resources["PageBackgroundBrush"] as Brush,
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(10)
+        };
+
+        var diagnosticsStack = new StackPanel { Spacing = 6 };
+        diagnosticsStack.Children.Add(new TextBlock { Text = "USB Transport Diagnose (live)", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
+
+        var hyperVSocketRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        hyperVSocketRow.Children.Add(new TextBlock { Text = "Hyper-V Socket aktiv:", Opacity = 0.9 });
+        hyperVSocketRow.Children.Add(_diagHyperVSocketText);
+        diagnosticsStack.Children.Add(hyperVSocketRow);
+
+        var registryRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        registryRow.Children.Add(new TextBlock { Text = "Registry-Service erreichbar:", Opacity = 0.9 });
+        registryRow.Children.Add(_diagRegistryServiceText);
+        diagnosticsStack.Children.Add(registryRow);
+
+        var fallbackRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        fallbackRow.Children.Add(new TextBlock { Text = "Fallback auf IP aktiv:", Opacity = 0.9 });
+        fallbackRow.Children.Add(_diagFallbackText);
+        diagnosticsStack.Children.Add(fallbackRow);
+
+        var diagnosticsActionRow = new Grid { Margin = new Thickness(0, 2, 0, 0) };
+        diagnosticsActionRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        diagnosticsActionRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var diagnosticsTestButton = CreateIconButton("🧪", "Hyper-V Socket testen", onClick: async (_, _) => await RunTransportDiagnosticsTestAsync());
+        diagnosticsTestButton.HorizontalAlignment = HorizontalAlignment.Right;
+        Grid.SetColumn(diagnosticsTestButton, 1);
+        diagnosticsActionRow.Children.Add(diagnosticsTestButton);
+        diagnosticsStack.Children.Add(diagnosticsActionRow);
+
+        diagnosticsCard.Child = diagnosticsStack;
+        panel.Children.Add(diagnosticsCard);
 
         var buttonRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         buttonRow.Children.Add(CreateIconButton("🛰", "Update prüfen", onClick: async (_, _) => await CheckForUpdatesAsync()));
@@ -1493,6 +1563,7 @@ internal sealed class GuestMainWindow : Window
         _startWithWindowsCheckBox.IsChecked = _config.Ui.StartWithWindows;
         _startMinimizedCheckBox.IsChecked = _config.Ui.StartMinimized;
         _minimizeToTrayCheckBox.IsChecked = _config.Ui.MinimizeToTray;
+        _checkForUpdatesOnStartupCheckBox.IsChecked = _config.Ui.CheckForUpdatesOnStartup;
     }
 
     private async Task SaveSettingsAsync()
@@ -1501,6 +1572,7 @@ internal sealed class GuestMainWindow : Window
         _config.Ui.StartWithWindows = _startWithWindowsCheckBox.IsChecked == true;
         _config.Ui.StartMinimized = _startMinimizedCheckBox.IsChecked == true;
         _config.Ui.MinimizeToTray = _minimizeToTrayCheckBox.IsChecked == true;
+        _config.Ui.CheckForUpdatesOnStartup = _checkForUpdatesOnStartupCheckBox.IsChecked != false;
         _config.Usb ??= new GuestUsbSettings();
         _config.Usb.HostAddress = (_usbHostAddressTextBox.Text ?? string.Empty).Trim();
 
@@ -1508,6 +1580,16 @@ internal sealed class GuestMainWindow : Window
         ApplyTheme(_config.Ui.Theme);
 
         AppendNotification("[Info] Einstellungen gespeichert.");
+    }
+
+    public async Task CheckForUpdatesOnStartupIfEnabledAsync()
+    {
+        if (_config.Ui.CheckForUpdatesOnStartup != true)
+        {
+            return;
+        }
+
+        await CheckForUpdatesAsync();
     }
 
     private async Task ApplyThemeAndRestartImmediatelyAsync()
@@ -1584,6 +1666,12 @@ internal sealed class GuestMainWindow : Window
         AppendNotification(code == 0
             ? "[Info] USB Host-Detach erfolgreich."
             : $"[Error] USB Host-Detach fehlgeschlagen (Code {code}).");
+
+        if (code == 0)
+        {
+            AppendNotification("[Info] Aktualisiere USB-Liste in 3 Sekunden …");
+            await Task.Delay(TimeSpan.FromSeconds(3));
+        }
 
         await RefreshUsbAsync();
     }

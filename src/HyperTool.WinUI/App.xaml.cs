@@ -36,6 +36,10 @@ public sealed partial class App : Application
     private bool _pendingSingleInstanceShow;
     private bool _isThemeWindowReopenInProgress;
     private bool _usbShutdownCleanupDone;
+    private HyperVSocketUsbHostTunnel? _usbHostTunnel;
+    private HyperVSocketDiagnosticsHostListener? _usbDiagnosticsHostListener;
+    private CancellationTokenSource? _usbDiagnosticsCts;
+    private Task? _usbDiagnosticsTask;
 
     private MainWindow? _mainWindow;
     private MainViewModel? _mainViewModel;
@@ -106,6 +110,36 @@ public sealed partial class App : Application
             var logPath = InitializeLogging();
             Log.Information("Logging initialized at {LogPath}", logPath);
 
+            try
+            {
+                _usbHostTunnel = new HyperVSocketUsbHostTunnel();
+                _usbHostTunnel.Start();
+                Log.Information("Hyper-V socket USB host tunnel started.");
+
+                _usbDiagnosticsHostListener = new HyperVSocketDiagnosticsHostListener(ack =>
+                {
+                    Log.Information(
+                    "Hyper-V socket diagnostics test acknowledged. GuestComputerName={GuestComputerName}; HostComputerName={HostComputerName}; GuestHyperVSocketActive={GuestHyperVSocketActive}; GuestRegistryServiceOk={GuestRegistryServiceOk}; GuestSentAtUtc={GuestSentAtUtc}; UsbTunnelActive={UsbTunnelActive}; RegistryServiceOk={RegistryServiceOk}",
+                    ack.GuestComputerName,
+                        Environment.MachineName,
+                    ack.HyperVSocketActive,
+                    ack.RegistryServiceOk,
+                    ack.SentAtUtc,
+                        _usbHostTunnel?.IsRunning == true,
+                        HyperVSocketUsbHostTunnel.IsServiceRegistered());
+                });
+                _usbDiagnosticsHostListener.Start();
+                Log.Information("Hyper-V socket diagnostics listener started.");
+            }
+            catch (Exception ex)
+            {
+                _usbDiagnosticsHostListener?.Dispose();
+                _usbDiagnosticsHostListener = null;
+                _usbHostTunnel?.Dispose();
+                _usbHostTunnel = null;
+                Log.Warning(ex, "Hyper-V socket USB host tunnel could not be started. Falling back to network-only USB transport.");
+            }
+
             IConfigService configService = new ConfigService();
             IHyperVService hyperVService = new HyperVPowerShellService();
             IHnsService hnsService = new HnsService();
@@ -141,6 +175,7 @@ public sealed partial class App : Application
 
             _mainWindow = new MainWindow(_themeService, _mainViewModel, showStartupSplash: true);
             AttachMainWindowHandlers(_mainWindow);
+            StartUsbDiagnosticsLoop();
 
             var shouldForceShowFromSecondLaunch = _pendingSingleInstanceShow;
 
@@ -215,6 +250,11 @@ public sealed partial class App : Application
             _trayControlCenterService = null;
             _trayService?.Dispose();
             _trayService = null;
+            StopUsbDiagnosticsLoop();
+            _usbDiagnosticsHostListener?.Dispose();
+            _usbDiagnosticsHostListener = null;
+            _usbHostTunnel?.Dispose();
+            _usbHostTunnel = null;
             ShutdownSingleInstanceInfrastructure();
             Log.Information("HyperTool exited.");
             Log.CloseAndFlush();
@@ -259,6 +299,11 @@ public sealed partial class App : Application
             _trayControlCenterService = null;
             _trayService?.Dispose();
             _trayService = null;
+            StopUsbDiagnosticsLoop();
+            _usbDiagnosticsHostListener?.Dispose();
+            _usbDiagnosticsHostListener = null;
+            _usbHostTunnel?.Dispose();
+            _usbHostTunnel = null;
 
             _themeService.ApplyTheme(_mainViewModel.UiTheme);
 
@@ -267,6 +312,36 @@ public sealed partial class App : Application
             _mainWindow = nextWindow;
 
             TryInitializeTray(nextWindow, _mainViewModel);
+
+            try
+            {
+                _usbHostTunnel = new HyperVSocketUsbHostTunnel();
+                _usbHostTunnel.Start();
+                Log.Information("Hyper-V socket USB host tunnel restarted after theme change.");
+
+                _usbDiagnosticsHostListener = new HyperVSocketDiagnosticsHostListener(ack =>
+                {
+                    Log.Information(
+                    "Hyper-V socket diagnostics test acknowledged. GuestComputerName={GuestComputerName}; HostComputerName={HostComputerName}; GuestHyperVSocketActive={GuestHyperVSocketActive}; GuestRegistryServiceOk={GuestRegistryServiceOk}; GuestSentAtUtc={GuestSentAtUtc}; UsbTunnelActive={UsbTunnelActive}; RegistryServiceOk={RegistryServiceOk}",
+                    ack.GuestComputerName,
+                        Environment.MachineName,
+                    ack.HyperVSocketActive,
+                    ack.RegistryServiceOk,
+                    ack.SentAtUtc,
+                        _usbHostTunnel?.IsRunning == true,
+                        HyperVSocketUsbHostTunnel.IsServiceRegistered());
+                });
+                _usbDiagnosticsHostListener.Start();
+                Log.Information("Hyper-V socket diagnostics listener restarted after theme change.");
+            }
+            catch (Exception ex)
+            {
+                _usbDiagnosticsHostListener?.Dispose();
+                _usbDiagnosticsHostListener = null;
+                _usbHostTunnel?.Dispose();
+                _usbHostTunnel = null;
+                Log.Warning(ex, "Hyper-V socket services could not be restarted after theme change.");
+            }
 
             try
             {
@@ -668,6 +743,85 @@ public sealed partial class App : Application
         {
             Log.Warning(ex, "USB cleanup on shutdown failed.");
         }
+    }
+
+    private void StartUsbDiagnosticsLoop()
+    {
+        StopUsbDiagnosticsLoop();
+
+        var cts = new CancellationTokenSource();
+        _usbDiagnosticsCts = cts;
+        _usbDiagnosticsTask = Task.Run(() => RunUsbDiagnosticsLoopAsync(cts.Token));
+    }
+
+    private void StopUsbDiagnosticsLoop()
+    {
+        try
+        {
+            _usbDiagnosticsCts?.Cancel();
+        }
+        catch
+        {
+        }
+
+        _usbDiagnosticsCts?.Dispose();
+        _usbDiagnosticsCts = null;
+        _usbDiagnosticsTask = null;
+    }
+
+    private async Task RunUsbDiagnosticsLoopAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                UpdateHostUsbDiagnostics();
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+        }
+    }
+
+    private void UpdateHostUsbDiagnostics()
+    {
+        if (_mainViewModel is null)
+        {
+            return;
+        }
+
+        var hyperVActiveText = _usbHostTunnel?.IsRunning == true ? "Ja" : "Nein";
+        var registryText = HyperVSocketUsbHostTunnel.IsServiceRegistered() ? "Ja" : "Nein";
+        const string fallbackText = "Nein (Host ist Quelle)";
+
+        void apply()
+        {
+            if (_mainViewModel is null)
+            {
+                return;
+            }
+
+            _mainViewModel.UsbDiagnosticsHyperVSocketText = hyperVActiveText;
+            _mainViewModel.UsbDiagnosticsRegistryServiceText = registryText;
+            _mainViewModel.UsbDiagnosticsFallbackText = fallbackText;
+        }
+
+        if (_mainWindow?.DispatcherQueue is { } queue && !queue.HasThreadAccess)
+        {
+            queue.TryEnqueue(apply);
+            return;
+        }
+
+        apply();
     }
 
     private static string InitializeLogging()

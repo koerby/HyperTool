@@ -30,6 +30,10 @@ internal sealed class GuestConfig
 internal sealed class GuestUsbSettings
 {
     public string HostAddress { get; set; } = string.Empty;
+
+    public bool UseHyperVSocket { get; set; } = true;
+
+    public string HyperVSocketServiceId { get; set; } = HyperTool.Services.HyperVSocketUsbTunnelDefaults.ServiceIdString;
 }
 
 internal sealed class GuestUiSettings
@@ -41,6 +45,8 @@ internal sealed class GuestUiSettings
     public bool StartMinimized { get; set; } = false;
 
     public bool MinimizeToTray { get; set; } = true;
+
+    public bool CheckForUpdatesOnStartup { get; set; } = true;
 }
 
 internal sealed class GuestCredential
@@ -166,6 +172,9 @@ internal static class GuestConfigService
 
         config.Usb ??= new GuestUsbSettings();
         config.Usb.HostAddress = (config.Usb.HostAddress ?? string.Empty).Trim();
+        config.Usb.HyperVSocketServiceId = string.IsNullOrWhiteSpace(config.Usb.HyperVSocketServiceId)
+            ? HyperTool.Services.HyperVSocketUsbTunnelDefaults.ServiceIdString
+            : config.Usb.HyperVSocketServiceId.Trim();
 
         config.Ui ??= new GuestUiSettings();
         config.Ui.Theme = NormalizeTheme(config.Ui.Theme);
