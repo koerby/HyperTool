@@ -1,5 +1,51 @@
 # HyperTool Release Notes
 
+## v2.1.1
+
+### Highlights
+
+- Host und Guest nutzen jetzt ein konsistentes externes USB-Runtime-Modell mit optionaler Online-Installation im Setup.
+- USB-Bereiche in UI und Control Center reagieren robuster auf fehlende Abhängigkeiten und zeigen klare Hinweise.
+- Guest Control Center wurde für den USB-Bereich und das kompakte Tray-Verhalten sichtbar überarbeitet.
+
+### Neu
+
+- Host Installer (`HyperTool.iss`):
+	- Optionale Aufgabe zur Installation von usbipd-win aus dem offiziellen Release-Feed.
+	- Kein erzwungener Installationsabbruch, wenn die optionale Runtime nicht installiert wird.
+- Guest Installer (`HyperTool.Guest.iss`):
+	- Optionale Aufgabe zur Installation von usbip-win2 aus dem offiziellen Release-Feed.
+	- Silent-Install mit expliziter Komponentenwahl ohne GUI-Komponente.
+- In-App Update:
+	- Verbesserte Asset-Auswahl für kombinierte Host/Guest-Releases über Installer-Hints.
+
+### Verbessert
+
+- Host USB:
+	- Laufzeitprüfung und Deaktivierung der USB-Aktionen bei fehlendem usbipd.
+	- Klarer Laufzeit-Hinweis im USB-Bereich.
+	- Info-Bereich mit separatem Hinweis auf externe Quelle/Lizenzkontext.
+- Guest USB:
+	- Stabilere Statusdarstellung für verbundene Geräte.
+	- Refresh/Connect/Disconnect im Guest Control Center sauber nebeneinander.
+	- Dynamische Control-Center-Höhe abhängig vom Tray-Menü-Modus.
+	- Bei deaktiviertem Tasktray-Menü nur Ein-/Ausblenden und Beenden.
+- Guest Notifications:
+	- Copy/Clear-Handling analog zum Host ergänzt.
+
+### Behoben
+
+- Guest Attach-Flow nutzt keine nicht unterstützte usbip-Option mehr.
+- Mehrere Probleme bei USB-Status-Refresh direkt nach Disconnect reduziert.
+- Control-Center-Button-Layout in Host/Guest konsistenter umgesetzt.
+
+### Externe Abhängigkeiten
+
+- Host USB Runtime: dorssel/usbipd-win
+- Guest USB Runtime: vadimgrn/usbip-win2
+
+Hinweis: HyperTool verweist auf diese externen Projekte und deren Lizenzen; Installationen erfolgen optional über die jeweiligen offiziellen Releases.
+
 ## v2.0.0
 
 ### Highlights
