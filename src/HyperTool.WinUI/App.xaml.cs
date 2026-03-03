@@ -22,6 +22,7 @@ namespace HyperTool.WinUI;
 
 public sealed partial class App : Application
 {
+    private const int HostUsbAutoRefreshSeconds = 5;
     private const string SingleInstanceMutexName = @"Local\HyperTool.WinUI.SingleInstance";
     private const string SingleInstancePipeName = "HyperTool.WinUI.SingleInstance.Activate";
 
@@ -40,6 +41,11 @@ public sealed partial class App : Application
     private HyperVSocketDiagnosticsHostListener? _usbDiagnosticsHostListener;
     private CancellationTokenSource? _usbDiagnosticsCts;
     private Task? _usbDiagnosticsTask;
+    private CancellationTokenSource? _usbHostDiscoveryCts;
+    private Task? _usbHostDiscoveryTask;
+    private CancellationTokenSource? _usbAutoRefreshCts;
+    private Task? _usbAutoRefreshTask;
+    private CancellationTokenSource? _usbEventRefreshCts;
 
     private MainWindow? _mainWindow;
     private MainViewModel? _mainViewModel;
@@ -120,6 +126,14 @@ public sealed partial class App : Application
                 {
                     UsbGuestConnectionRegistry.UpdateFromDiagnosticsAck(ack);
 
+                    if (_mainViewModel is not null
+                        && !string.IsNullOrWhiteSpace(ack.BusId)
+                        && (string.Equals(ack.EventType, "usb-connected", StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(ack.EventType, "usb-disconnected", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        TriggerHostUsbRefreshForDiagnosticsEvent();
+                    }
+
                     Log.Information(
                     "Hyper-V socket diagnostics acknowledged. EventType={EventType}; BusId={BusId}; GuestComputerName={GuestComputerName}; HostComputerName={HostComputerName}; GuestHyperVSocketActive={GuestHyperVSocketActive}; GuestRegistryServiceOk={GuestRegistryServiceOk}; GuestSentAtUtc={GuestSentAtUtc}; UsbTunnelActive={UsbTunnelActive}; RegistryServiceOk={RegistryServiceOk}",
                     ack.EventType,
@@ -180,6 +194,8 @@ public sealed partial class App : Application
             _mainWindow = new MainWindow(_themeService, _mainViewModel, showStartupSplash: true);
             AttachMainWindowHandlers(_mainWindow);
             StartUsbDiagnosticsLoop();
+            StartUsbHostDiscoveryResponder();
+            StartUsbAutoRefreshLoop();
 
             var shouldForceShowFromSecondLaunch = _pendingSingleInstanceShow;
 
@@ -255,6 +271,9 @@ public sealed partial class App : Application
             _trayService?.Dispose();
             _trayService = null;
             StopUsbDiagnosticsLoop();
+            StopUsbHostDiscoveryResponder();
+            StopUsbAutoRefreshLoop();
+            StopUsbEventRefreshScheduling();
             _usbDiagnosticsHostListener?.Dispose();
             _usbDiagnosticsHostListener = null;
             _usbHostTunnel?.Dispose();
@@ -304,6 +323,9 @@ public sealed partial class App : Application
             _trayService?.Dispose();
             _trayService = null;
             StopUsbDiagnosticsLoop();
+            StopUsbHostDiscoveryResponder();
+            StopUsbAutoRefreshLoop();
+            StopUsbEventRefreshScheduling();
             _usbDiagnosticsHostListener?.Dispose();
             _usbDiagnosticsHostListener = null;
             _usbHostTunnel?.Dispose();
@@ -771,6 +793,191 @@ public sealed partial class App : Application
         _usbDiagnosticsCts?.Dispose();
         _usbDiagnosticsCts = null;
         _usbDiagnosticsTask = null;
+    }
+
+    private void StartUsbAutoRefreshLoop()
+    {
+        StopUsbAutoRefreshLoop();
+
+        var cts = new CancellationTokenSource();
+        _usbAutoRefreshCts = cts;
+        _usbAutoRefreshTask = Task.Run(() => RunUsbAutoRefreshLoopAsync(cts.Token));
+    }
+
+    private void StartUsbHostDiscoveryResponder()
+    {
+        StopUsbHostDiscoveryResponder();
+
+        var cts = new CancellationTokenSource();
+        _usbHostDiscoveryCts = cts;
+        _usbHostDiscoveryTask = Task.Run(() => RunUsbHostDiscoveryResponderAsync(cts.Token));
+    }
+
+    private void StopUsbHostDiscoveryResponder()
+    {
+        try
+        {
+            _usbHostDiscoveryCts?.Cancel();
+        }
+        catch
+        {
+        }
+
+        _usbHostDiscoveryCts?.Dispose();
+        _usbHostDiscoveryCts = null;
+        _usbHostDiscoveryTask = null;
+    }
+
+    private async Task RunUsbHostDiscoveryResponderAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await UsbHostDiscoveryService.RunHostResponderAsync(
+                hostComputerName: Environment.MachineName,
+                getHostAddresses: () => UsbHostDiscoveryService.GetLocalIpv4Addresses(),
+                cancellationToken: cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "USB host discovery responder failed.");
+        }
+    }
+
+    private void StopUsbAutoRefreshLoop()
+    {
+        try
+        {
+            _usbAutoRefreshCts?.Cancel();
+        }
+        catch
+        {
+        }
+
+        _usbAutoRefreshCts?.Dispose();
+        _usbAutoRefreshCts = null;
+        _usbAutoRefreshTask = null;
+    }
+
+    private void StopUsbEventRefreshScheduling()
+    {
+        try
+        {
+            _usbEventRefreshCts?.Cancel();
+        }
+        catch
+        {
+        }
+
+        _usbEventRefreshCts?.Dispose();
+        _usbEventRefreshCts = null;
+    }
+
+    private void TriggerHostUsbRefreshForDiagnosticsEvent()
+    {
+        _ = RefreshHostUsbDevicesSafeAsync();
+
+        try
+        {
+            _usbEventRefreshCts?.Cancel();
+        }
+        catch
+        {
+        }
+
+        _usbEventRefreshCts?.Dispose();
+        _usbEventRefreshCts = new CancellationTokenSource();
+        var refreshToken = _usbEventRefreshCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(2), refreshToken);
+                await RefreshHostUsbDevicesSafeAsync();
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                Log.Debug(ex, "Deferred host USB refresh after diagnostics event failed.");
+            }
+        }, refreshToken);
+    }
+
+    private async Task RefreshHostUsbDevicesSafeAsync()
+    {
+        if (_mainViewModel is null
+            || _isExitRequested
+            || _isThemeWindowReopenInProgress)
+        {
+            return;
+        }
+
+        if (_mainWindow?.DispatcherQueue is { } queue && !queue.HasThreadAccess)
+        {
+            var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            if (!queue.TryEnqueue(async () =>
+                {
+                    try
+                    {
+                        if (_mainViewModel is null)
+                        {
+                            completion.TrySetResult(true);
+                            return;
+                        }
+
+                        await _mainViewModel.RefreshUsbDevicesFromTrayAsync();
+                        completion.TrySetResult(true);
+                    }
+                    catch (Exception ex)
+                    {
+                        completion.TrySetException(ex);
+                    }
+                }))
+            {
+                return;
+            }
+
+            await completion.Task;
+            return;
+        }
+
+        await _mainViewModel.RefreshUsbDevicesFromTrayAsync();
+    }
+
+    private async Task RunUsbAutoRefreshLoopAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                if (_mainViewModel is not null
+                    && !_isExitRequested
+                    && !_isThemeWindowReopenInProgress
+                    && !_mainViewModel.IsBusy
+                    && _mainViewModel.HasUsbAutoShareConfigured)
+                {
+                    await _mainViewModel.RefreshUsbDevicesFromTrayAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Debug(ex, "USB auto refresh loop iteration failed.");
+            }
+
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(HostUsbAutoRefreshSeconds), cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+        }
     }
 
     private async Task RunUsbDiagnosticsLoopAsync(CancellationToken cancellationToken)

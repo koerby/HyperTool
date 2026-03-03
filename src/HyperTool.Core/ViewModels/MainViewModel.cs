@@ -373,12 +373,15 @@ public partial class MainViewModel : ViewModelBase
     private int _lastSelectedMenuIndex;
     private bool _isHandlingMenuSelectionChange;
     private bool _suppressUsbAutoShareToggleHandling;
+    private readonly SemaphoreSlim _usbTrayRefreshGate = new(1, 1);
     private readonly HashSet<string> _usbAutoShareDeviceKeys = new(StringComparer.OrdinalIgnoreCase);
     private static readonly HttpClient UpdateDownloadClient = new();
 
     public event EventHandler? TrayStateChanged;
 
     public bool CanPromptSaveOnClose => HasPendingConfigChanges && !IsBusy;
+
+    public bool HasUsbAutoShareConfigured => _usbAutoShareDeviceKeys.Count > 0;
 
     public MainViewModel(
         ConfigLoadResult configResult,
@@ -1316,24 +1319,29 @@ public partial class MainViewModel : ViewModelBase
         await LoadUsbDevicesAsync(showNotification: true);
     }
 
-    private async Task LoadUsbDevicesAsync(bool showNotification)
+    private async Task LoadUsbDevicesAsync(bool showNotification, bool applyAutoShare = true, bool useBusyIndicator = true)
     {
         var previouslySelectedBusId = SelectedUsbDevice?.BusId;
         UsbStatusText = "USB-Geräte werden geladen...";
 
-        await ExecuteBusyActionAsync("USB-Geräte werden geladen...", async token =>
+        async Task loadAction(CancellationToken token)
         {
             IReadOnlyList<UsbIpDeviceInfo> devices;
             try
             {
                 devices = await _usbIpService.GetDevicesAsync(token);
 
-                var autoShareCandidates = devices
-                    .Where(device =>
-                        !string.IsNullOrWhiteSpace(device.BusId)
-                        && !device.IsShared
-                        && _usbAutoShareDeviceKeys.Contains(BuildUsbAutoShareKey(device)))
-                    .ToList();
+                var canApplyAutoShareNow = applyAutoShare && (useBusyIndicator || IsProcessElevated());
+
+                var autoShareCandidates = canApplyAutoShareNow
+                    ? devices
+                        .Where(device =>
+                            !string.IsNullOrWhiteSpace(device.BusId)
+                            && !device.IsShared
+                            && !device.IsAttached
+                            && _usbAutoShareDeviceKeys.Contains(BuildUsbAutoShareKey(device)))
+                        .ToList()
+                    : [];
 
                 if (autoShareCandidates.Count > 0)
                 {
@@ -1420,7 +1428,16 @@ public partial class MainViewModel : ViewModelBase
             {
                 AddNotification(UsbStatusText, UsbDevices.Count == 0 ? "Warning" : "Info");
             }
-        }, showNotificationOnErrorOnly: true);
+        }
+
+        if (useBusyIndicator)
+        {
+            await ExecuteBusyActionAsync("USB-Geräte werden geladen...", loadAction, showNotificationOnErrorOnly: true);
+        }
+        else
+        {
+            await loadAction(_lifetimeCancellation.Token);
+        }
     }
 
     private static string BuildUsbUnavailableStatus(string? details)
@@ -1521,6 +1538,17 @@ public partial class MainViewModel : ViewModelBase
         });
 
         await LoadUsbDevicesAsync(showNotification: false);
+
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(2), _lifetimeCancellation.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        await LoadUsbDevicesAsync(showNotification: false, useBusyIndicator: false);
     }
 
     private async Task UnbindSelectedUsbDeviceAsync()
@@ -1542,7 +1570,18 @@ public partial class MainViewModel : ViewModelBase
             AddNotification($"USB-Freigabe für '{busId}' wurde entfernt.", "Success");
         });
 
-        await LoadUsbDevicesAsync(showNotification: false);
+        await LoadUsbDevicesAsync(showNotification: false, applyAutoShare: false);
+
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(2), _lifetimeCancellation.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        await LoadUsbDevicesAsync(showNotification: false, applyAutoShare: false, useBusyIndicator: false);
     }
 
     private async Task DetachSelectedUsbDeviceAsync()
@@ -2605,7 +2644,23 @@ public partial class MainViewModel : ViewModelBase
 
     public async Task RefreshUsbDevicesFromTrayAsync()
     {
-        await LoadUsbDevicesAsync(showNotification: false);
+        var gateEntered = false;
+        try
+        {
+            await _usbTrayRefreshGate.WaitAsync(_lifetimeCancellation.Token);
+            gateEntered = true;
+            await LoadUsbDevicesAsync(showNotification: false, applyAutoShare: true, useBusyIndicator: false);
+        }
+        catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            if (gateEntered)
+            {
+                _usbTrayRefreshGate.Release();
+            }
+        }
     }
 
     public async Task ShareSelectedUsbFromTrayAsync()

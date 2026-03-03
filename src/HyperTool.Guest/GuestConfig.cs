@@ -42,7 +42,7 @@ internal sealed class GuestUiSettings
 {
     public string Theme { get; set; } = "dark";
 
-    public bool StartWithWindows { get; set; } = false;
+    public bool StartWithWindows { get; set; } = true;
 
     public bool StartMinimized { get; set; } = false;
 

@@ -38,6 +38,8 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
 UninstallDisplayIcon={app}\HyperTool.exe
+CloseApplications=yes
+RestartApplications=no
 
 [Languages]
 Name: "german"; MessagesFile: "compiler:Languages\German.isl"
@@ -59,8 +61,8 @@ german.UsbipdInstallTask=usbipd-win herunterladen und installieren (optional, In
 german.UsbipdInstallFailed=usbipd-win konnte nicht automatisch installiert werden. Bitte manuell von https://github.com/dorssel/usbipd-win/releases installieren und HyperTool danach neu starten.
 
 [Tasks]
-Name: "desktopicon"; Description: "{cm:DesktopIconTask}"; GroupDescription: "{cm:AdditionalTasks}"; Flags: unchecked
-Name: "installusbipd"; Description: "{cm:UsbipdInstallTask}"; GroupDescription: "{cm:AdditionalTasks}"; Flags: unchecked; Check: not IsUsbipdInstalled
+Name: "desktopicon"; Description: "{cm:DesktopIconTask}"; GroupDescription: "{cm:AdditionalTasks}"
+Name: "installusbipd"; Description: "{cm:UsbipdInstallTask}"; GroupDescription: "{cm:AdditionalTasks}"; Check: not IsUsbipdInstalled
 
 [Files]
 Source: "{#MySourceDir}\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion createallsubdirs
@@ -75,9 +77,22 @@ Name: "{group}\{cm:UninstallShortcut}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\HyperTool"; Filename: "{app}\HyperTool.exe"; IconFilename: "{app}\Assets\HyperTool.ico"; Tasks: desktopicon
 
 [Run]
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""HyperTool USB Discovery (UDP-In)"" dir=in action=allow protocol=UDP localport=32491 profile=private,domain program=""{app}\HyperTool.exe"""; Flags: runhidden waituntilterminated
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""HyperTool USB Discovery (UDP-Out)"" dir=out action=allow protocol=UDP remoteport=32491 profile=private,domain program=""{app}\HyperTool.exe"""; Flags: runhidden waituntilterminated
 Filename: "{app}\HyperTool.exe"; Description: "{cm:RunAfterInstall}"; Flags: nowait postinstall skipifsilent
 
+[UninstallRun]
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""HyperTool USB Discovery (UDP-In)"""; Flags: runhidden waituntilterminated; RunOnceId: "HyperTool-Uninstall-DeleteFirewall-UDP-In"
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""HyperTool USB Discovery (UDP-Out)"""; Flags: runhidden waituntilterminated; RunOnceId: "HyperTool-Uninstall-DeleteFirewall-UDP-Out"
+
 [Code]
+procedure CloseRunningHostApp;
+var
+  ResultCode: Integer;
+begin
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM HyperTool.exe /F /T', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+end;
+
 function IsUsbipdInstalled(): Boolean;
 var
   InstallPath: string;
@@ -191,6 +206,11 @@ end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
+  if CurStep = ssInstall then
+  begin
+    CloseRunningHostApp;
+  end;
+
   if CurStep = ssPostInstall then
   begin
     TryInstallUsbipdFromInternet;

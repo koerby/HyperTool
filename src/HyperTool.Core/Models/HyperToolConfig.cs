@@ -46,7 +46,7 @@ public sealed class UiSettings
 
     public bool EnableTrayMenu { get; set; } = true;
 
-    public bool StartWithWindows { get; set; }
+    public bool StartWithWindows { get; set; } = true;
 
     public bool OpenConsoleAfterVmStart { get; set; } = true;
 

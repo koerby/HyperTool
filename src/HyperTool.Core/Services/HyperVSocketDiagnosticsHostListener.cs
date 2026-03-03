@@ -7,6 +7,11 @@ namespace HyperTool.Services;
 
 public sealed class HyperVSocketDiagnosticsHostListener : IDisposable
 {
+    private static readonly JsonSerializerOptions AckJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
     private readonly Guid _serviceId;
     private readonly Action<HyperVSocketDiagnosticsAck> _onDiagnosticsAck;
     private Socket? _listener;
@@ -104,7 +109,7 @@ public sealed class HyperVSocketDiagnosticsHostListener : IDisposable
     {
         try
         {
-            var parsed = JsonSerializer.Deserialize<HyperVSocketDiagnosticsAck>(payload);
+            var parsed = JsonSerializer.Deserialize<HyperVSocketDiagnosticsAck>(payload, AckJsonOptions);
             if (parsed is not null && !string.IsNullOrWhiteSpace(parsed.GuestComputerName))
             {
                 return parsed;

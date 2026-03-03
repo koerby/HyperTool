@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Markup;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Shapes;
@@ -2408,7 +2409,7 @@ public sealed class MainWindow : Window
         };
 
         _usbDevicesListView.ItemsSource = _viewModel.UsbDevices;
-        _usbDevicesListView.DisplayMemberPath = nameof(UsbIpDeviceInfo.DisplayName);
+        _usbDevicesListView.ItemTemplate = CreateUsbDeviceListItemTemplate();
         _usbDevicesListView.SelectionMode = ListViewSelectionMode.Single;
         _usbDevicesListView.IsItemClickEnabled = true;
         _usbDevicesListView.ItemClick += (_, args) =>
@@ -2423,7 +2424,37 @@ public sealed class MainWindow : Window
             _viewModel.SelectedUsbDevice = _usbDevicesListView.SelectedItem as UsbIpDeviceInfo;
         };
 
-        listCard.Child = _usbDevicesListView;
+        var listLayout = new Grid { RowSpacing = 6 };
+        listLayout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        listLayout.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+
+        var headerGrid = new Grid { ColumnSpacing = 10, Margin = new Thickness(6, 2, 8, 2) };
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(220) });
+
+        headerGrid.Children.Add(new TextBlock
+        {
+            Text = "Device",
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Opacity = 0.9
+        });
+
+        var connectedByHeader = new TextBlock
+        {
+            Text = "Connected by",
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Opacity = 0.9,
+            TextAlignment = TextAlignment.Left
+        };
+        Grid.SetColumn(connectedByHeader, 1);
+        headerGrid.Children.Add(connectedByHeader);
+
+        listLayout.Children.Add(headerGrid);
+
+        Grid.SetRow(_usbDevicesListView, 1);
+        listLayout.Children.Add(_usbDevicesListView);
+
+        listCard.Child = listLayout;
         Grid.SetRow(listCard, 2);
         root.Children.Add(listCard);
 
@@ -2449,6 +2480,24 @@ public sealed class MainWindow : Window
         checkBox.Checked += (_, _) => setter(true);
         checkBox.Unchecked += (_, _) => setter(false);
         return checkBox;
+    }
+
+    private static DataTemplate CreateUsbDeviceListItemTemplate()
+    {
+                const string templateXaml = """
+<DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>
+    <Grid ColumnSpacing='10' Margin='4,2,4,2'>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width='*'/>
+            <ColumnDefinition Width='220'/>
+        </Grid.ColumnDefinitions>
+        <TextBlock Text='{Binding DeviceDisplayName}' TextTrimming='CharacterEllipsis' TextWrapping='NoWrap' VerticalAlignment='Center'/>
+        <TextBlock Grid.Column='1' Text='{Binding ConnectedByDisplay}' Opacity='0.9' TextTrimming='CharacterEllipsis' TextWrapping='NoWrap' VerticalAlignment='Center'/>
+    </Grid>
+</DataTemplate>
+""";
+
+                return (DataTemplate)XamlReader.Load(templateXaml);
     }
 
     private static ComboBox CreateStyledComboBox()

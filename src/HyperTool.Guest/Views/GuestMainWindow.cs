@@ -21,6 +21,14 @@ namespace HyperTool.Guest.Views;
 
 internal sealed class GuestMainWindow : Window
 {
+    private enum UsbHostSearchStatusKind
+    {
+        Neutral,
+        Running,
+        Success,
+        Error
+    }
+
     public const int DefaultWindowWidth = 1400;
     public const int DefaultWindowHeight = 940;
     private const int GuestSplashMinVisibleMs = 900;
@@ -38,6 +46,7 @@ internal sealed class GuestMainWindow : Window
     private readonly Func<GuestConfig, Task> _saveConfigAsync;
     private readonly Func<string, Task> _restartForThemeChangeAsync;
     private readonly Func<Task<(bool hyperVSocketActive, bool registryServiceOk)>> _runTransportDiagnosticsTestAsync;
+    private readonly Func<Task<string?>> _discoverUsbHostAddressAsync;
     private readonly bool _isUsbClientAvailable;
     private readonly IUpdateService _updateService = new GitHubUpdateService();
     private static readonly HttpClient UpdateDownloadClient = new();
@@ -70,6 +79,8 @@ internal sealed class GuestMainWindow : Window
     private string _releaseUrl = "https://github.com/koerby/HyperTool/releases";
     private string _installerDownloadUrl = string.Empty;
     private string _installerFileName = string.Empty;
+    private bool _updateCheckSucceeded;
+    private bool _updateAvailable;
 
     private readonly ListView _usbListView = new();
     private Button? _usbRefreshButton;
@@ -80,6 +91,15 @@ internal sealed class GuestMainWindow : Window
     private readonly ToggleSwitch _themeToggle = new();
     private readonly TextBlock _themeText = new();
     private readonly TextBox _usbHostAddressTextBox = new();
+    private Button? _usbHostSearchButton;
+    private UsbHostSearchStatusKind _usbHostSearchStatusKind = UsbHostSearchStatusKind.Neutral;
+    private readonly TextBlock _usbHostSearchStatusText = new()
+    {
+        Opacity = 0.88,
+        VerticalAlignment = VerticalAlignment.Center,
+        TextWrapping = TextWrapping.NoWrap,
+        Text = "Bereit"
+    };
     private readonly CheckBox _startWithWindowsCheckBox = new() { Content = "Mit Windows starten" };
     private readonly CheckBox _startMinimizedCheckBox = new() { Content = "Beim Start minimiert" };
     private readonly CheckBox _minimizeToTrayCheckBox = new() { Content = "Tasktray-Menü aktiv" };
@@ -191,6 +211,7 @@ internal sealed class GuestMainWindow : Window
         Func<GuestConfig, Task> saveConfigAsync,
         Func<string, Task> restartForThemeChangeAsync,
         Func<Task<(bool hyperVSocketActive, bool registryServiceOk)>> runTransportDiagnosticsTestAsync,
+        Func<Task<string?>> discoverUsbHostAddressAsync,
         bool isUsbClientAvailable)
     {
         _config = config;
@@ -200,6 +221,7 @@ internal sealed class GuestMainWindow : Window
         _saveConfigAsync = saveConfigAsync;
         _restartForThemeChangeAsync = restartForThemeChangeAsync;
         _runTransportDiagnosticsTestAsync = runTransportDiagnosticsTestAsync;
+        _discoverUsbHostAddressAsync = discoverUsbHostAddressAsync;
         _isUsbClientAvailable = isUsbClientAvailable;
 
         Title = "HyperTool Guest";
@@ -262,6 +284,8 @@ internal sealed class GuestMainWindow : Window
         _overlayCard.BorderBrush = new SolidColorBrush(HyperTool.WinUI.Views.LifecycleVisuals.CardBorder);
         _overlayTitle.Foreground = new SolidColorBrush(HyperTool.WinUI.Views.LifecycleVisuals.TextPrimary);
         _overlayText.Foreground = new SolidColorBrush(HyperTool.WinUI.Views.LifecycleVisuals.TextSecondary);
+
+        ApplyUsbHostSearchStatusColor();
 
         UpdateTitleBarAppearance(isDark);
     }
@@ -1639,13 +1663,30 @@ internal sealed class GuestMainWindow : Window
         _usbHostAddressEditorCard.Background = new SolidColorBrush(Color.FromArgb(0x00, 0x00, 0x00, 0x00));
         _usbHostAddressEditorCard.Padding = new Thickness(0);
 
-        _usbHostAddressTextBox.PlaceholderText = "192.168.178.10 oder host.local";
+        _usbHostAddressTextBox.PlaceholderText = "Beispiel: 172.25.80.1";
         _usbHostAddressTextBox.MinWidth = 420;
         _usbHostAddressTextBox.MaxWidth = 620;
         _usbHostAddressTextBox.HorizontalAlignment = HorizontalAlignment.Left;
         _usbHostAddressTextBox.CornerRadius = new CornerRadius(8);
         _usbHostAddressTextBox.TextChanged += (_, _) => UpdateUsbTransportModePresentation();
-        _usbHostAddressEditorCard.Child = _usbHostAddressTextBox;
+
+        var usbHostAddressRow = new Grid { ColumnSpacing = 8 };
+        usbHostAddressRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        usbHostAddressRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        usbHostAddressRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        usbHostAddressRow.Children.Add(_usbHostAddressTextBox);
+
+        _usbHostSearchButton = CreateIconButton("🔎", "Search", onClick: async (_, _) => await SearchUsbHostAddressAsync());
+        _usbHostSearchButton.HorizontalAlignment = HorizontalAlignment.Left;
+        _usbHostSearchButton.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetColumn(_usbHostSearchButton, 1);
+        usbHostAddressRow.Children.Add(_usbHostSearchButton);
+
+        SetUsbHostSearchStatus("Bereit", UsbHostSearchStatusKind.Neutral);
+        Grid.SetColumn(_usbHostSearchStatusText, 2);
+        usbHostAddressRow.Children.Add(_usbHostSearchStatusText);
+
+        _usbHostAddressEditorCard.Child = usbHostAddressRow;
         usbStack.Children.Add(_usbHostAddressEditorCard);
 
         UpdateUsbTransportModePresentation();
@@ -1780,7 +1821,7 @@ internal sealed class GuestMainWindow : Window
         var buttonRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         buttonRow.Children.Add(CreateIconButton("🛰", "Update prüfen", onClick: async (_, _) => await CheckForUpdatesAsync()));
         _installUpdateButton = CreateIconButton("⬇", "Update installieren", onClick: async (_, _) => await InstallUpdateAsync());
-        _installUpdateButton.IsEnabled = !string.IsNullOrWhiteSpace(_installerDownloadUrl);
+        _installUpdateButton.IsEnabled = CanInstallUpdate();
         buttonRow.Children.Add(_installUpdateButton);
         buttonRow.Children.Add(CreateIconButton("🌐", "Changelog / Release", onClick: (_, _) => OpenReleasePage()));
         buttonRow.Children.Add(CreateIconButton("🔗", "usbip-win2 Quelle", onClick: (_, _) => OpenUsbipClientRepository()));
@@ -1997,6 +2038,11 @@ internal sealed class GuestMainWindow : Window
 
         _usbHostAddressEditorCard.Visibility = ipModeActive ? Visibility.Visible : Visibility.Collapsed;
         _usbHostAddressTextBox.IsEnabled = ipModeActive;
+        if (_usbHostSearchButton is not null)
+        {
+            _usbHostSearchButton.IsEnabled = ipModeActive;
+        }
+        _usbHostSearchStatusText.Visibility = ipModeActive ? Visibility.Visible : Visibility.Collapsed;
 
         if (useHyperVSocket)
         {
@@ -2270,6 +2316,76 @@ internal sealed class GuestMainWindow : Window
         }
     }
 
+    private async Task SearchUsbHostAddressAsync()
+    {
+        if (_discoverUsbHostAddressAsync is null)
+        {
+            return;
+        }
+
+        SetUsbHostSearchStatus("Suche läuft …", UsbHostSearchStatusKind.Running);
+
+        if (_usbHostSearchButton is not null)
+        {
+            _usbHostSearchButton.IsEnabled = false;
+        }
+
+        try
+        {
+            AppendNotification("[Info] Suche Host-Adresse per Broadcast …");
+
+            var discoveredAddress = (await _discoverUsbHostAddressAsync() ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(discoveredAddress))
+            {
+                SetUsbHostSearchStatus("Kein Host gefunden", UsbHostSearchStatusKind.Error);
+                AppendNotification("[Warn] Keine Host-Adresse gefunden. Stelle sicher, dass die Host-App läuft.");
+                return;
+            }
+
+            _usbHostAddressTextBox.Text = discoveredAddress;
+            _config.Usb ??= new GuestUsbSettings();
+            _config.Usb.HostAddress = discoveredAddress;
+            await _saveConfigAsync(_config);
+
+            UpdateUsbTransportModePresentation();
+            SetUsbHostSearchStatus($"Host gefunden: {discoveredAddress}", UsbHostSearchStatusKind.Success);
+            AppendNotification($"[Info] Host-Adresse gefunden: {discoveredAddress}");
+        }
+        catch (Exception ex)
+        {
+            SetUsbHostSearchStatus("Suche fehlgeschlagen", UsbHostSearchStatusKind.Error);
+            AppendNotification($"[Warn] Host-Suche fehlgeschlagen: {ex.Message}");
+        }
+        finally
+        {
+            if (_usbHostSearchButton is not null)
+            {
+                _usbHostSearchButton.IsEnabled = _usbHostAddressEditorCard.Visibility == Visibility.Visible;
+            }
+        }
+    }
+
+    private void SetUsbHostSearchStatus(string text, UsbHostSearchStatusKind statusKind)
+    {
+        _usbHostSearchStatusKind = statusKind;
+        _usbHostSearchStatusText.Text = text;
+        ApplyUsbHostSearchStatusColor();
+    }
+
+    private void ApplyUsbHostSearchStatusColor()
+    {
+        Brush? statusBrush = _usbHostSearchStatusKind switch
+        {
+            UsbHostSearchStatusKind.Success => Application.Current.Resources["SystemFillColorSuccessBrush"] as Brush,
+            UsbHostSearchStatusKind.Error => Application.Current.Resources["SystemFillColorCriticalBrush"] as Brush,
+            UsbHostSearchStatusKind.Running => Application.Current.Resources["AccentStrongBrush"] as Brush,
+            _ => Application.Current.Resources["TextMutedBrush"] as Brush
+        };
+
+        _usbHostSearchStatusText.Foreground = statusBrush
+            ?? Application.Current.Resources["TextMutedBrush"] as Brush;
+    }
+
     private async Task ConnectUsbAsync()
     {
         var selected = GetSelectedUsbDevice();
@@ -2534,13 +2650,23 @@ internal sealed class GuestMainWindow : Window
 
         _updateStatusValueText.Text = result.Message;
         _releaseUrl = string.IsNullOrWhiteSpace(result.ReleaseUrl) ? _releaseUrl : result.ReleaseUrl;
-        _installerDownloadUrl = result.InstallerDownloadUrl ?? string.Empty;
-        _installerFileName = result.InstallerFileName ?? string.Empty;
+        _updateCheckSucceeded = result.Success;
+        _updateAvailable = result.Success && result.HasUpdate;
+
+        if (_updateAvailable)
+        {
+            _installerDownloadUrl = result.InstallerDownloadUrl ?? string.Empty;
+            _installerFileName = result.InstallerFileName ?? string.Empty;
+        }
+        else
+        {
+            _installerDownloadUrl = string.Empty;
+            _installerFileName = string.Empty;
+        }
+
         if (_installUpdateButton is not null)
         {
-            _installUpdateButton.IsEnabled = result.Success
-                && result.HasUpdate
-                && !string.IsNullOrWhiteSpace(_installerDownloadUrl);
+            _installUpdateButton.IsEnabled = CanInstallUpdate();
         }
 
         if (!result.Success)
@@ -2564,6 +2690,13 @@ internal sealed class GuestMainWindow : Window
         {
             AppendNotification("[Info] Bereits aktuell.");
         }
+    }
+
+    private bool CanInstallUpdate()
+    {
+        return _updateCheckSucceeded
+            && _updateAvailable
+            && !string.IsNullOrWhiteSpace(_installerDownloadUrl);
     }
 
     private async Task InstallUpdateAsync()

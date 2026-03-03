@@ -830,7 +830,38 @@ public sealed class UsbIpdCliService : IUsbIpService
     private static string NormalizeWslText(string value)
         => string.IsNullOrEmpty(value)
             ? string.Empty
-            : value.Replace("\0", string.Empty);
+            : FixCommonMojibake(value.Replace("\0", string.Empty));
+
+    private static string FixCommonMojibake(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        if (value.IndexOf('Ã') < 0 && value.IndexOf('â') < 0)
+        {
+            return value;
+        }
+
+        return value
+            .Replace("Ã„", "Ä", StringComparison.Ordinal)
+            .Replace("Ã–", "Ö", StringComparison.Ordinal)
+            .Replace("Ãœ", "Ü", StringComparison.Ordinal)
+            .Replace("Ã¤", "ä", StringComparison.Ordinal)
+            .Replace("Ã¶", "ö", StringComparison.Ordinal)
+            .Replace("Ã¼", "ü", StringComparison.Ordinal)
+            .Replace("ÃŸ", "ß", StringComparison.Ordinal)
+            .Replace("â€“", "–", StringComparison.Ordinal)
+            .Replace("â€”", "—", StringComparison.Ordinal)
+            .Replace("â€¦", "…", StringComparison.Ordinal)
+            .Replace("â€ž", "„", StringComparison.Ordinal)
+            .Replace("â€œ", "“", StringComparison.Ordinal)
+            .Replace("â€", "”", StringComparison.Ordinal)
+            .Replace("â€˜", "‘", StringComparison.Ordinal)
+            .Replace("â€™", "’", StringComparison.Ordinal)
+            .Replace("â‚¬", "€", StringComparison.Ordinal);
+    }
 
     private static bool ShouldRetryWithFallbackUsbip(CommandResult result)
     {

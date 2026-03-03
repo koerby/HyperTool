@@ -73,4 +73,28 @@ public sealed class UsbIpDeviceInfo
             return $"{bus}  {hardware}  {description}  [{StateText}]{guestInfo}";
         }
     }
+
+    public string DeviceDisplayName
+    {
+        get
+        {
+            var bus = string.IsNullOrWhiteSpace(BusId) ? "-" : BusId;
+            var hardware = string.IsNullOrWhiteSpace(HardwareId) ? "----:----" : HardwareId;
+            var description = string.IsNullOrWhiteSpace(Description) ? "USB Device" : Description;
+            return $"{bus}  {hardware}  {description}  [{StateText}]";
+        }
+    }
+
+    public string ConnectedByDisplay
+    {
+        get
+        {
+            if (IsAttached && !string.IsNullOrWhiteSpace(AttachedGuestComputerName))
+            {
+                return AttachedGuestComputerName;
+            }
+
+            return "-";
+        }
+    }
 }
