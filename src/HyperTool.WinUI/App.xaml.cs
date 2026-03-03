@@ -1732,9 +1732,9 @@ public sealed partial class App : Application
 
         Log.Warning("Missing Hyper-V socket registry entries detected at startup: {ServiceIds}", string.Join(", ", missingServiceIds));
 
-        if (!TryRegisterSharedFolderSocketServiceElevated())
+        if (!TryRegisterSharedFolderSocketServiceElevated(allowPrompt: false))
         {
-            Log.Warning("Could not auto-register missing Hyper-V socket registry entries (elevated helper was not completed).");
+            Log.Warning("Could not auto-register missing Hyper-V socket registry entries at startup without prompt.");
             return;
         }
 
@@ -1760,31 +1760,20 @@ public sealed partial class App : Application
             return;
         }
 
-        Log.Warning("Shared-folder guest credential is missing at startup. Attempting provisioning helper.");
-
-        if (!TryProvisionSharedFolderCredentialElevated())
-        {
-            Log.Warning("Could not provision shared-folder guest credential at startup (elevated helper was not completed).");
-            return;
-        }
-
-        if (service.TryGetCredential(out var repaired)
-            && !string.IsNullOrWhiteSpace(repaired.Username)
-            && !string.IsNullOrWhiteSpace(repaired.Password)
-            && !string.IsNullOrWhiteSpace(repaired.GroupName))
-        {
-            Log.Information("Shared-folder guest credential provisioning succeeded. User={User}; Group={Group}", repaired.Username, repaired.GroupName);
-            return;
-        }
-
-        Log.Warning("Shared-folder guest credential is still unavailable after provisioning helper.");
+        Log.Warning("Shared-folder guest credential is missing at startup. Provisioning is deferred to manual action (Shared Folder > Provisionierung erneut ausführen).");
     }
 
-    private bool TryProvisionSharedFolderCredentialElevated()
+    private bool TryProvisionSharedFolderCredentialElevated(bool allowPrompt = true)
     {
         if (TryProvisionSharedFolderCredentialWithoutPrompt())
         {
             return true;
+        }
+
+        if (!allowPrompt)
+        {
+            Log.Information("Skipping elevated shared-folder credential provisioning prompt (prompt disabled for current flow).");
+            return false;
         }
 
         if (_sharedFolderCredentialProvisioningPromptIssued)
@@ -1934,9 +1923,9 @@ public sealed partial class App : Application
             }
         }
 
-        if (!TryRegisterSharedFolderSocketServiceElevated())
+        if (!TryRegisterSharedFolderSocketServiceElevated(allowPrompt: false))
         {
-            Log.Information("Hyper-V socket shared-folder catalog listener remains disabled until registry entries exist (elevated registration was not completed).");
+            Log.Information("Hyper-V socket shared-folder catalog listener remains disabled until registry entries exist (startup prompt disabled).");
             return;
         }
 
@@ -1980,9 +1969,9 @@ public sealed partial class App : Application
             }
         }
 
-        if (!TryRegisterSharedFolderSocketServiceElevated())
+        if (!TryRegisterSharedFolderSocketServiceElevated(allowPrompt: false))
         {
-            Log.Information("Hyper-V socket host-identity listener remains disabled until registry entries exist (elevated registration was not completed).");
+            Log.Information("Hyper-V socket host-identity listener remains disabled until registry entries exist (startup prompt disabled).");
             return;
         }
 
@@ -2030,11 +2019,11 @@ public sealed partial class App : Application
             }
         }
 
-        if (!TryRegisterSharedFolderSocketServiceElevated())
+        if (!TryRegisterSharedFolderSocketServiceElevated(allowPrompt: false))
         {
             _sharedFolderCredentialSocketActive = false;
             UpdateSharedFolderCredentialSocketStatusPanel();
-            Log.Information("Hyper-V socket shared-folder credential listener remains disabled until registry entries exist (elevated registration was not completed).");
+            Log.Information("Hyper-V socket shared-folder credential listener remains disabled until registry entries exist (startup prompt disabled).");
             return;
         }
 
@@ -2089,11 +2078,17 @@ public sealed partial class App : Application
                && invalidOperation.Message.Contains("nicht registriert", StringComparison.OrdinalIgnoreCase);
     }
 
-    private bool TryRegisterSharedFolderSocketServiceElevated()
+    private bool TryRegisterSharedFolderSocketServiceElevated(bool allowPrompt = true)
     {
         if (TryRegisterSharedFolderSocketServiceWithoutPrompt())
         {
             return true;
+        }
+
+        if (!allowPrompt)
+        {
+            Log.Information("Skipping elevated Hyper-V socket registration prompt (prompt disabled for current flow).");
+            return false;
         }
 
         if (_hyperVSocketRegistrationPromptIssued)

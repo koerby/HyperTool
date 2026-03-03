@@ -68,7 +68,7 @@ public sealed class HelpWindow : Window
         bodyStack.Children.Add(CreateSection("Transport-Status", "Im USB-Host-Bereich zeigen Status-Chips den aktiven Transportmodus (Hyper-V Socket / IP-Mode) direkt und gut sichtbar an."));
         bodyStack.Children.Add(CreateSection("USB Tray", "Im Tray-Control-Center stehen USB-Schnellaktionen bereit. Wenn der Client fehlt, erscheint ein Installationsbutton mit automatischem Download und Installer-Start aus dem offiziellen GitHub-Release."));
         bodyStack.Children.Add(CreateSection("Sofortige Modusanzeige", "Nach Aktivieren/Deaktivieren von Hyper-V Socket wird der Modus im USB-Bereich sofort aktualisiert (ohne manuelles Refresh)."));
-        bodyStack.Children.Add(CreateSection("Diagnose (live)", "Im Info-Bereich siehst du Hyper-V Socket-, Registry- und Fallback-Status live; der Test-Button startet eine direkte Socket-Prüfung."));
+        bodyStack.Children.Add(CreateSection("Transport Diagnose", "Im Info-Bereich siehst du Hyper-V Socket-, Registry- und Fallback-Status live; der Test-Button startet eine direkte Socket-Prüfung."));
         bodyStack.Children.Add(CreateSection("Auto-Connect", "Für das ausgewählte USB-Gerät kann Auto-Connect aktiviert werden. Das Gerät verbindet sich dann automatisch nach Refresh/Freigabe."));
         bodyStack.Children.Add(CreateSection("Einstellungen", "Tasktray-Verhalten, Start mit Windows, Start minimiert, Updatecheck beim Start und Theme konfigurieren."));
         bodyStack.Children.Add(CreateSection("Single Instance", "Ein zweiter Start blendet die bereits laufende Guest-App ein."));

@@ -2,6 +2,7 @@ using HyperTool.Models;
 using Microsoft.Win32;
 using Serilog;
 using System.Net.Sockets;
+using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
 
@@ -108,17 +109,28 @@ public sealed class HyperVSocketSharedFolderCredentialHostListener : IDisposable
             || string.IsNullOrWhiteSpace(credential.Username)
             || string.IsNullOrWhiteSpace(credential.Password))
         {
-            try
+            if (IsRunningAsAdministrator())
             {
-                credential = await _credentialProvisioningService.EnsureProvisionedAsync(cancellationToken);
+                try
+                {
+                    credential = await _credentialProvisioningService.EnsureProvisionedAsync(cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Shared-folder credential socket request received, but host credential provisioning is unavailable.");
+                    credential = new HostSharedFolderGuestCredential
+                    {
+                        Available = false,
+                        Source = "host-provisioning-unavailable"
+                    };
+                }
             }
-            catch (Exception ex)
+            else
             {
-                Log.Warning(ex, "Shared-folder credential socket request received, but host credential provisioning is unavailable.");
                 credential = new HostSharedFolderGuestCredential
                 {
                     Available = false,
-                    Source = "host-provisioning-unavailable"
+                    Source = "host-provisioning-requires-admin"
                 };
             }
         }
@@ -155,6 +167,20 @@ public sealed class HyperVSocketSharedFolderCredentialHostListener : IDisposable
         if (!hasValidCredential)
         {
             Log.Warning("Shared-folder credential socket served without valid credential payload.");
+        }
+    }
+
+    private static bool IsRunningAsAdministrator()
+    {
+        try
+        {
+            using var identity = WindowsIdentity.GetCurrent();
+            var principal = new WindowsPrincipal(identity);
+            return principal.IsInRole(WindowsBuiltInRole.Administrator);
+        }
+        catch
+        {
+            return false;
         }
     }
 

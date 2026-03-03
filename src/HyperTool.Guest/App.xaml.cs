@@ -78,6 +78,7 @@ public sealed partial class App : Application
     private string _sharedFolderReconnectLastSummary = "Noch kein Lauf";
     private bool _sharedFolderCredentialSocketActive;
     private DateTimeOffset? _sharedFolderCredentialLastSyncUtc;
+    private bool _sharedFolderCredentialFallbackLogged;
 
     private sealed class RateLimitedWarnState
     {
@@ -182,6 +183,7 @@ public sealed partial class App : Application
 
         _configPath = ResolveConfigPath(parsedArgs);
         _config = GuestConfigService.LoadOrCreate(_configPath, out _);
+        EnsureSharedFolderCredentialFallbackForTesting();
         _currentUsbTransportUseHyperVSocket = _config.Usb?.UseHyperVSocket != false;
         GuestLogger.Initialize(_config.Logging);
         await RefreshUsbClientAvailabilityAsync();
@@ -580,6 +582,9 @@ public sealed partial class App : Application
             }
 
             UpdateTrayControlCenterView();
+            UpdateUsbDiagnosticsPanel();
+            UpdateSharedFolderReconnectStatusPanel();
+            UpdateSharedFolderCredentialStatusPanel();
         }
         catch (Exception ex)
         {
@@ -2230,6 +2235,8 @@ public sealed partial class App : Application
         catch
         {
             _sharedFolderCredentialSocketActive = false;
+            _sharedFolderCredentialLastSyncUtc = null;
+            EnsureSharedFolderCredentialFallbackForTesting();
             UpdateSharedFolderCredentialStatusPanel();
             return;
         }
@@ -2239,6 +2246,8 @@ public sealed partial class App : Application
             || string.IsNullOrWhiteSpace(credential.Password))
         {
             _sharedFolderCredentialSocketActive = false;
+            _sharedFolderCredentialLastSyncUtc = null;
+            EnsureSharedFolderCredentialFallbackForTesting();
             UpdateSharedFolderCredentialStatusPanel();
             return;
         }
@@ -2270,6 +2279,42 @@ public sealed partial class App : Application
             source = credential.Source,
             hostName = credential.HostName
         });
+    }
+
+    private void EnsureSharedFolderCredentialFallbackForTesting()
+    {
+        if (_config is null)
+        {
+            return;
+        }
+
+        _config.Credential ??= new GuestCredential();
+
+        var currentUser = (_config.Credential.Username ?? string.Empty).Trim();
+        var currentPassword = _config.Credential.Password ?? string.Empty;
+        var nextUser = string.IsNullOrWhiteSpace(currentUser) ? "HyperToolGuest" : currentUser;
+        var nextPassword = string.IsNullOrWhiteSpace(currentPassword)
+            ? HostSharedFolderCredentialProvisioningService.GetTestingPassword()
+            : currentPassword;
+
+        if (string.Equals(currentUser, nextUser, StringComparison.Ordinal)
+            && string.Equals(currentPassword, nextPassword, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _config.Credential.Username = nextUser;
+        _config.Credential.Password = nextPassword;
+        GuestConfigService.Save(_configPath, _config);
+
+        if (!_sharedFolderCredentialFallbackLogged)
+        {
+            _sharedFolderCredentialFallbackLogged = true;
+            GuestLogger.Info("sharedfolders.credential.fallback.testing", "SharedFolder-Credentials auf Testpasswort gesetzt (Socket inaktiv/leer).", new
+            {
+                username = nextUser
+            });
+        }
     }
 
     private bool HasConfiguredUsbAutoConnect()

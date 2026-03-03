@@ -46,6 +46,9 @@ public sealed class MainWindow : Window
     private const string HostUsbRuntimeOwner = "dorssel";
     private const string HostUsbRuntimeRepo = "usbipd-win";
     private const string HostUsbRuntimeAssetHint = "x64";
+    private const string SharedFolderProvisioningGroupName = "HyperTool";
+    private const string SharedFolderProvisioningUserName = "HyperToolGuest";
+    private const string SharedFolderProvisioningScriptRelativePath = @"Scripts\HyperToolCredentialProvisioning.ps1";
     private static readonly HttpClient RuntimeInstallerDownloadClient = new();
 
     private readonly IThemeService _themeService;
@@ -87,6 +90,14 @@ public sealed class MainWindow : Window
     private readonly CheckBox _sharedFolderEnabledCheckBox = new() { Content = "Eintrag aktiv" };
     private readonly CheckBox _sharedFolderReadOnlyCheckBox = new() { Content = "Freigabe nur Lesen" };
     private readonly TextBlock _sharedFolderStatusText = new() { Opacity = 0.88, TextWrapping = TextWrapping.Wrap, Text = "Bereit." };
+    private Button? _sharedFolderNavButton;
+    private Button? _sharedFolderNewButton;
+    private Button? _sharedFolderSaveButton;
+    private Button? _sharedFolderDeleteButton;
+    private Button? _sharedFolderSelfTestButton;
+    private Button? _sharedFolderReprovisionButton;
+    private bool _isSharedFolderFeatureAvailable = true;
+    private string _sharedFolderFeatureReason = string.Empty;
     private string _sharedFolderEditingId = string.Empty;
     private string _sharedFolderLastError = "-";
     private readonly CheckBox _usbAutoShareCheckBox = new();
@@ -122,6 +133,7 @@ public sealed class MainWindow : Window
     {
         _themeService = themeService;
         _viewModel = viewModel;
+        (_isSharedFolderFeatureAvailable, _sharedFolderFeatureReason) = DetectSharedFolderFeatureAvailability();
 
         Title = "HyperTool";
         ExtendsContentIntoTitleBar = false;
@@ -1477,7 +1489,9 @@ public sealed class MainWindow : Window
         var sidebarStack = new StackPanel { Spacing = 8 };
         sidebarStack.Children.Add(CreateNavButton("▶", "VM", 0));
         sidebarStack.Children.Add(CreateNavButton("🔌", "USB", 1));
-        sidebarStack.Children.Add(CreateNavButton("📁", "Shared Folder", 2));
+        var sharedFolderNavButton = CreateNavButton("📁", "Shared Folder", 2);
+        _sharedFolderNavButton = sharedFolderNavButton;
+        sidebarStack.Children.Add(sharedFolderNavButton);
         sidebarStack.Children.Add(CreateNavButton("📷", "Snapshots", 3));
         sidebarStack.Children.Add(CreateNavButton("⚙", "Einstellungen", 4));
         sidebarStack.Children.Add(CreateNavButton("ℹ", "Info", 5));
@@ -2548,8 +2562,22 @@ public sealed class MainWindow : Window
             _sharedFolderStatusText.Text = "SharedFolder-Credential-Provisionierung wird ausgeführt...";
             Log.Information("Shared-folder credential reprovision requested from Host UI.");
 
-            var ok = await TryRunSharedFolderCredentialProvisioningElevatedAsync();
+            var provisioningPassword = HostSharedFolderCredentialProvisioningService.CreateDeterministicGuestPassword(
+                SharedFolderProvisioningUserName,
+                SharedFolderProvisioningGroupName);
+            var ok = await TryRunSharedFolderCredentialProvisioningElevatedAsync(provisioningPassword);
             var probe = await RefreshSharedFolderCredentialProvisioningStatusAsync();
+
+            if (ok && !probe.StatePresent && probe.UserExists && probe.GroupExists)
+            {
+                var stateService = new HostSharedFolderCredentialProvisioningService();
+                if (!stateService.TryPersistCredentialState(probe.UserName, probe.GroupName, provisioningPassword, out var persistError))
+                {
+                    Log.Warning("Shared-folder credential state fallback persistence failed: {Error}", persistError);
+                }
+
+                probe = await RefreshSharedFolderCredentialProvisioningStatusAsync();
+            }
 
             Log.Information(
                 "Shared-folder credential reprovision finished. HelperOk={HelperOk}; StatePresent={StatePresent}; UserExists={UserExists}; GroupExists={GroupExists}; User={User}; Group={Group}; ProbeSource={ProbeSource}",
@@ -2567,7 +2595,10 @@ public sealed class MainWindow : Window
                 (true, _, _) => "Provisionierung lief, aber User/Gruppe fehlen weiterhin. Details im Host-Log.",
                 _ => "SharedFolder-Credential-Provisionierung nicht abgeschlossen. Details im Host-Log."
             };
+
+            RefreshSharedFolderFeatureAvailability();
         });
+        _sharedFolderReprovisionButton = reprovisionButton;
         Grid.SetColumn(reprovisionButton, 1);
         provisioningRow.Children.Add(reprovisionButton);
 
@@ -2595,10 +2626,14 @@ public sealed class MainWindow : Window
         var actionRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
         actionRow.Children.Add(_sharedFolderEnabledCheckBox);
         actionRow.Children.Add(_sharedFolderReadOnlyCheckBox);
-        actionRow.Children.Add(CreateIconButton("✚", "Neu", onClick: (_, _) => ResetSharedFolderEditor()));
-        actionRow.Children.Add(CreateIconButton("💾", "Speichern", onClick: async (_, _) => await SaveSharedFolderEntryAsync()));
-        actionRow.Children.Add(CreateIconButton("🗑", "Entfernen", onClick: async (_, _) => await DeleteSharedFolderEntryAsync()));
-        actionRow.Children.Add(CreateIconButton("🧪", "Self-Test", onClick: async (_, _) => await RunHostSharedFolderSelfTestAsync()));
+        _sharedFolderNewButton = CreateIconButton("✚", "Neu", onClick: (_, _) => ResetSharedFolderEditor());
+        _sharedFolderSaveButton = CreateIconButton("💾", "Speichern", onClick: async (_, _) => await SaveSharedFolderEntryAsync());
+        _sharedFolderDeleteButton = CreateIconButton("🗑", "Entfernen", onClick: async (_, _) => await DeleteSharedFolderEntryAsync());
+        _sharedFolderSelfTestButton = CreateIconButton("🧪", "Self-Test", onClick: async (_, _) => await RunHostSharedFolderSelfTestAsync());
+        actionRow.Children.Add(_sharedFolderNewButton);
+        actionRow.Children.Add(_sharedFolderSaveButton);
+        actionRow.Children.Add(_sharedFolderDeleteButton);
+        actionRow.Children.Add(_sharedFolderSelfTestButton);
         editorStack.Children.Add(actionRow);
         editorStack.Children.Add(new TextBlock
         {
@@ -2614,6 +2649,7 @@ public sealed class MainWindow : Window
         UpdateSharedFolderCredentialSocketStatus(socketActive: false, lastSyncUtc: null);
         UpdateSharedFolderCredentialProvisioningStatus(provisioned: false, userExists: false, groupExists: false, userName: string.Empty, groupName: string.Empty);
         _ = RefreshSharedFolderCredentialProvisioningStatusAsync();
+        ApplySharedFolderFeatureAvailabilityState();
 
         var helpText = new TextBlock
         {
@@ -2771,22 +2807,38 @@ try {{
 catch {{
     $probeSource = 'ADSI'
     $machine = $env:COMPUTERNAME
+    $groupPath = 'WinNT://' + $machine + '/' + $groupName + ',group'
+    $userPath = 'WinNT://' + $machine + '/' + $userName + ',user'
     try {{
-        $groupAdsi = [ADSI](""WinNT://$machine/$groupName,group"")
+        $groupAdsi = [ADSI]$groupPath
         $null = $groupAdsi.Name
         $groupExists = $true
     }} catch {{ $groupExists = $false }}
 
     try {{
-        $userAdsi = [ADSI](""WinNT://$machine/$userName,user"")
+        $userAdsi = [ADSI]$userPath
         $null = $userAdsi.Name
         $userExists = $true
     }} catch {{ $userExists = $false }}
 }}
 
+if (-not $groupExists -or -not $userExists) {{
+    $probeSource = 'NetCommands'
+
+    & net.exe localgroup $groupName | Out-Null
+    if ($LASTEXITCODE -eq 0) {{
+        $groupExists = $true
+    }}
+
+    & net.exe user $userName | Out-Null
+    if ($LASTEXITCODE -eq 0) {{
+        $userExists = $true
+    }}
+}}
+
 if ($groupExists) {{ 'GROUP=1' }} else {{ 'GROUP=0' }}
 if ($userExists) {{ 'USER=1' }} else {{ 'USER=0' }}
-""PROBE=$probeSource""
+Write-Output ('PROBE=' + $probeSource)
 ";
 
         using var process = new Process
@@ -2813,7 +2865,9 @@ if ($userExists) {{ 'USER=1' }} else {{ 'USER=0' }}
         var groupExists = output.Contains("GROUP=1", StringComparison.OrdinalIgnoreCase);
         var probeSource = output.Contains("PROBE=ADSI", StringComparison.OrdinalIgnoreCase)
             ? "ADSI"
-            : "LocalAccounts";
+            : output.Contains("PROBE=NetCommands", StringComparison.OrdinalIgnoreCase)
+                ? "NetCommands"
+                : "LocalAccounts";
 
         if (process.ExitCode != 0)
         {
@@ -2837,34 +2891,74 @@ if ($userExists) {{ 'USER=1' }} else {{ 'USER=0' }}
         return (script ?? string.Empty).Replace("\"", "`\"");
     }
 
-    private async Task<bool> TryRunSharedFolderCredentialProvisioningElevatedAsync()
+    private async Task<bool> TryRunSharedFolderCredentialProvisioningElevatedAsync(string password)
     {
-        var exePath = Environment.ProcessPath;
-        if (string.IsNullOrWhiteSpace(exePath))
+        var scriptPath = ResolveSharedFolderProvisioningScriptPath();
+        if (string.IsNullOrWhiteSpace(scriptPath) || !File.Exists(scriptPath))
         {
-            _sharedFolderStatusText.Text = "UAC-Helper konnte nicht gestartet werden (Pfad unbekannt).";
+            _sharedFolderStatusText.Text = "Provisioning-Skript nicht gefunden. Bitte HyperTool neu installieren.";
             return false;
+        }
+
+        var normalizedPassword = (password ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalizedPassword))
+        {
+            _sharedFolderStatusText.Text = "Provisioning-Passwort konnte nicht erzeugt werden.";
+            return false;
+        }
+
+        Log.Information("Shared-folder provisioning script path resolved: {ScriptPath}", scriptPath);
+
+        try
+        {
+            var scriptContent = File.ReadAllText(scriptPath);
+            if (!scriptContent.Contains("Script-Version: 2026-03-03.7", StringComparison.Ordinal))
+            {
+                Log.Warning("Shared-folder provisioning script appears outdated (missing expected version marker). Path={ScriptPath}", scriptPath);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to inspect shared-folder provisioning script content. Path={ScriptPath}", scriptPath);
         }
 
         try
         {
+            var escapedScriptPath = scriptPath.Replace("'", "''", StringComparison.Ordinal);
+            var escapedPassword = normalizedPassword.Replace("'", "''", StringComparison.Ordinal);
+            var command =
+                $"& '{escapedScriptPath}' -GroupName '{SharedFolderProvisioningGroupName}' -UserName '{SharedFolderProvisioningUserName}' -Password '{escapedPassword}'; " +
+                "$code = $LASTEXITCODE; Start-Sleep -Seconds 5; exit $code";
+
             using var process = Process.Start(new ProcessStartInfo
             {
-                FileName = exePath,
-                Arguments = "--provision-sharedfolder-credential",
+                FileName = "powershell.exe",
+                Arguments = $"-NoProfile -ExecutionPolicy Bypass -Command \"{EscapeForPowerShellCommandArgument(command)}\"",
                 UseShellExecute = true,
                 Verb = "runas"
             });
 
             if (process is null)
             {
-                _sharedFolderStatusText.Text = "UAC-Helper konnte nicht gestartet werden.";
+                _sharedFolderStatusText.Text = "Provisioning-Skript konnte nicht gestartet werden.";
                 return false;
             }
 
-            await process.WaitForExitAsync();
+            using var waitCts = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+            try
+            {
+                await process.WaitForExitAsync(waitCts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                Log.Warning("Shared-folder provisioning helper timed out after 45 seconds. ProcessId={ProcessId}", process.Id);
+                _sharedFolderStatusText.Text = "Provisioning-Helper läuft zu lange (Timeout nach 45s). Bitte erneut versuchen.";
+                return false;
+            }
+
             if (process.ExitCode == 0)
             {
+                await LogSharedFolderNetworkLogonPolicyStatusAsync();
                 return true;
             }
 
@@ -2880,6 +2974,286 @@ if ($userExists) {{ 'USER=1' }} else {{ 'USER=0' }}
         {
             _sharedFolderStatusText.Text = $"UAC-Helper Fehler: {ex.Message}";
             return false;
+        }
+    }
+
+    private async Task LogSharedFolderNetworkLogonPolicyStatusAsync()
+    {
+        try
+        {
+            var status = await ProbeSharedFolderNetworkLogonPolicyAsync();
+            if (!status.ProbeSucceeded)
+            {
+                Log.Warning(
+                    "Shared-folder network logon rights probe failed after provisioning. Error={Error}",
+                    status.Error);
+                return;
+            }
+
+            Log.Information(
+                "Shared-folder network logon rights after provisioning: AllowUser={AllowUser}; AllowGroup={AllowGroup}; DenyUser={DenyUser}; DenyGroup={DenyGroup}; User={UserPrincipal}; Group={GroupPrincipal}",
+                status.AllowUser,
+                status.AllowGroup,
+                status.DenyUser,
+                status.DenyGroup,
+                status.UserPrincipal,
+                status.GroupPrincipal);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to probe shared-folder network logon rights after provisioning.");
+        }
+    }
+
+    private async Task<(bool ProbeSucceeded, bool AllowUser, bool AllowGroup, bool DenyUser, bool DenyGroup, string UserPrincipal, string GroupPrincipal, string Error)> ProbeSharedFolderNetworkLogonPolicyAsync()
+    {
+        var userPrincipal = $"{Environment.MachineName}\\{SharedFolderProvisioningUserName}";
+        var groupPrincipal = $"{Environment.MachineName}\\{SharedFolderProvisioningGroupName}";
+        var userSid = TryResolvePrincipalSid(userPrincipal);
+        var groupSid = TryResolvePrincipalSid(groupPrincipal);
+
+        var tempRoot = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"hypertool-rights-probe-{Guid.NewGuid():N}");
+        var cfgPath = System.IO.Path.Combine(tempRoot, "security.inf");
+
+        try
+        {
+            Directory.CreateDirectory(tempRoot);
+
+            using var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "secedit.exe",
+                    Arguments = $"/export /cfg \"{cfgPath}\" /areas USER_RIGHTS",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    StandardOutputEncoding = Encoding.UTF8,
+                    StandardErrorEncoding = Encoding.UTF8
+                }
+            };
+
+            process.Start();
+            _ = await process.StandardOutput.ReadToEndAsync();
+            var stderr = await process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync();
+
+            if (process.ExitCode != 0 || !File.Exists(cfgPath))
+            {
+                var error = string.IsNullOrWhiteSpace(stderr)
+                    ? $"secedit /export fehlgeschlagen (ExitCode={process.ExitCode})."
+                    : $"secedit /export fehlgeschlagen (ExitCode={process.ExitCode}): {stderr.Trim()}";
+                return (false, false, false, false, false, userPrincipal, groupPrincipal, error);
+            }
+
+            var lines = await File.ReadAllLinesAsync(cfgPath);
+            var allowEntries = GetPrivilegeEntries(lines, "SeNetworkLogonRight");
+            var denyEntries = GetPrivilegeEntries(lines, "SeDenyNetworkLogonRight");
+
+            var allowSet = new HashSet<string>(allowEntries.Select(entry => entry.Trim().TrimStart('*')), StringComparer.OrdinalIgnoreCase);
+            var denySet = new HashSet<string>(denyEntries.Select(entry => entry.Trim().TrimStart('*')), StringComparer.OrdinalIgnoreCase);
+
+            var allowUser = MatchesPolicyEntry(allowSet, userSid, userPrincipal, SharedFolderProvisioningUserName);
+            var allowGroup = MatchesPolicyEntry(allowSet, groupSid, groupPrincipal, SharedFolderProvisioningGroupName);
+            var denyUser = MatchesPolicyEntry(denySet, userSid, userPrincipal, SharedFolderProvisioningUserName);
+            var denyGroup = MatchesPolicyEntry(denySet, groupSid, groupPrincipal, SharedFolderProvisioningGroupName);
+
+            return (true, allowUser, allowGroup, denyUser, denyGroup, userPrincipal, groupPrincipal, string.Empty);
+        }
+        catch (Exception ex)
+        {
+            return (false, false, false, false, false, userPrincipal, groupPrincipal, ex.Message);
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(tempRoot))
+                {
+                    Directory.Delete(tempRoot, recursive: true);
+                }
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private static string TryResolvePrincipalSid(string principalName)
+    {
+        try
+        {
+            var account = new System.Security.Principal.NTAccount(principalName);
+            var sid = (System.Security.Principal.SecurityIdentifier)account.Translate(typeof(System.Security.Principal.SecurityIdentifier));
+            return sid.Value;
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    private static IReadOnlyList<string> GetPrivilegeEntries(IEnumerable<string> lines, string privilegeName)
+    {
+        foreach (var rawLine in lines)
+        {
+            var line = (rawLine ?? string.Empty).Trim();
+            if (!line.StartsWith(privilegeName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var separator = line.IndexOf('=');
+            if (separator < 0 || separator >= line.Length - 1)
+            {
+                return [];
+            }
+
+            return line[(separator + 1)..]
+                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(part => part.Trim())
+                .Where(part => !string.IsNullOrWhiteSpace(part))
+                .ToArray();
+        }
+
+        return [];
+    }
+
+    private static bool MatchesPolicyEntry(HashSet<string> normalizedEntries, string sid, string machineQualifiedName, string shortName)
+    {
+        if (!string.IsNullOrWhiteSpace(sid) && normalizedEntries.Contains(sid))
+        {
+            return true;
+        }
+
+        if (normalizedEntries.Contains(machineQualifiedName))
+        {
+            return true;
+        }
+
+        if (normalizedEntries.Contains($@".\{shortName}"))
+        {
+            return true;
+        }
+
+        return normalizedEntries.Contains(shortName);
+    }
+
+    private string ResolveSharedFolderProvisioningScriptPath()
+    {
+        try
+        {
+            return System.IO.Path.Combine(AppContext.BaseDirectory, SharedFolderProvisioningScriptRelativePath);
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    private static (bool Available, string Reason) DetectSharedFolderFeatureAvailability()
+    {
+        static bool runNetCheck(string args)
+        {
+            try
+            {
+                using var process = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = "net.exe",
+                        Arguments = args,
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true
+                    }
+                };
+
+                process.Start();
+                if (!process.WaitForExit(5000))
+                {
+                    try
+                    {
+                        process.Kill(entireProcessTree: true);
+                    }
+                    catch
+                    {
+                    }
+
+                    return false;
+                }
+
+                return process.ExitCode == 0;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        var groupExists = runNetCheck($"localgroup \"{SharedFolderProvisioningGroupName}\"");
+        var userExists = runNetCheck($"user \"{SharedFolderProvisioningUserName}\"");
+
+        if (groupExists && userExists)
+        {
+            return (true, string.Empty);
+        }
+
+        var missing = new List<string>();
+        if (!groupExists)
+        {
+            missing.Add("Gruppe");
+        }
+
+        if (!userExists)
+        {
+            missing.Add("Benutzer");
+        }
+
+        return (false, $"SharedFolder nicht vollständig eingerichtet: {string.Join(" + ", missing)} fehlt.");
+    }
+
+    private void RefreshSharedFolderFeatureAvailability()
+    {
+        (_isSharedFolderFeatureAvailable, _sharedFolderFeatureReason) = DetectSharedFolderFeatureAvailability();
+        ApplySharedFolderFeatureAvailabilityState();
+    }
+
+    private void ApplySharedFolderFeatureAvailabilityState()
+    {
+        _sharedFolderPathTextBox.IsEnabled = _isSharedFolderFeatureAvailable;
+        _sharedFolderShareNameTextBox.IsEnabled = _isSharedFolderFeatureAvailable;
+        _sharedFolderEnabledCheckBox.IsEnabled = _isSharedFolderFeatureAvailable;
+        _sharedFolderReadOnlyCheckBox.IsEnabled = _isSharedFolderFeatureAvailable;
+        _sharedFoldersListView.IsEnabled = _isSharedFolderFeatureAvailable;
+
+        if (_sharedFolderNewButton is not null)
+        {
+            _sharedFolderNewButton.IsEnabled = _isSharedFolderFeatureAvailable;
+        }
+
+        if (_sharedFolderSaveButton is not null)
+        {
+            _sharedFolderSaveButton.IsEnabled = _isSharedFolderFeatureAvailable;
+        }
+
+        if (_sharedFolderDeleteButton is not null)
+        {
+            _sharedFolderDeleteButton.IsEnabled = _isSharedFolderFeatureAvailable;
+        }
+
+        if (_sharedFolderSelfTestButton is not null)
+        {
+            _sharedFolderSelfTestButton.IsEnabled = _isSharedFolderFeatureAvailable;
+        }
+
+        if (!_isSharedFolderFeatureAvailable)
+        {
+            _sharedFolderStatusText.Text = string.IsNullOrWhiteSpace(_sharedFolderFeatureReason)
+                ? "SharedFolder nicht vollständig eingerichtet. Gruppe/Benutzer fehlen."
+                : _sharedFolderFeatureReason;
         }
     }
 

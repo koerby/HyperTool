@@ -87,16 +87,38 @@ internal sealed class GuestDriveMappingService
 
         foreach (var candidate in candidateSharePaths)
         {
-            var mapArgs = string.IsNullOrWhiteSpace(credential?.Username)
-                ? $"use {driveLetter}: \"{candidate}\" /persistent:{persistentText}"
-                : $"use {driveLetter}: \"{candidate}\" \"{credential?.Password ?? string.Empty}\" /user:\"{credential?.Username}\" /persistent:{persistentText}";
-            var mapResult = await RunProcessWithOutputAsync("net", mapArgs, cancellationToken);
-            if (mapResult.ExitCode == 0)
+            var credentialUsers = ResolveCredentialUsersForCandidate(credential?.Username, candidate, hostAddress);
+            if (credentialUsers.Count == 0)
+            {
+                var mapArgs = $"use {driveLetter}: \"{candidate}\" /persistent:{persistentText}";
+                var mapResult = await RunProcessWithOutputAsync("net", mapArgs, cancellationToken);
+                if (mapResult.ExitCode == 0)
+                {
+                    return;
+                }
+
+                attemptErrors.Add($"{candidate} => {mapResult.Output}");
+                continue;
+            }
+
+            var mapped = false;
+            foreach (var credentialUser in credentialUsers)
+            {
+                var mapArgs = $"use {driveLetter}: \"{candidate}\" \"{credential?.Password ?? string.Empty}\" /user:\"{credentialUser}\" /persistent:{persistentText}";
+                var mapResult = await RunProcessWithOutputAsync("net", mapArgs, cancellationToken);
+                if (mapResult.ExitCode == 0)
+                {
+                    mapped = true;
+                    break;
+                }
+
+                attemptErrors.Add($"{candidate} [{credentialUser}] => {mapResult.Output}");
+            }
+
+            if (mapped)
             {
                 return;
             }
-
-            attemptErrors.Add($"{candidate} => {mapResult.Output}");
         }
 
         throw new InvalidOperationException(
@@ -209,6 +231,65 @@ internal sealed class GuestDriveMappingService
     public string ResolveEffectiveSharePath(string? sharePath, string? hostAddress)
     {
         return ResolveCandidateSharePaths(sharePath, hostAddress).FirstOrDefault() ?? string.Empty;
+    }
+
+    private static IReadOnlyList<string> ResolveCredentialUsersForCandidate(string? username, string? sharePath, string? hostAddress)
+    {
+        var normalizedUser = (username ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalizedUser))
+        {
+            return [];
+        }
+
+        if (normalizedUser.Contains('\\') || normalizedUser.Contains('@'))
+        {
+            return [normalizedUser];
+        }
+
+        var values = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        void Add(string? candidateUser)
+        {
+            var normalized = (candidateUser ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                return;
+            }
+
+            if (seen.Add(normalized))
+            {
+                values.Add(normalized);
+            }
+        }
+
+        Add(normalizedUser);
+
+        var hosts = new List<string>();
+        if (TryParseUnc(sharePath, out var uncHost, out _))
+        {
+            hosts.Add(uncHost);
+        }
+
+        var normalizedHostAddress = (hostAddress ?? string.Empty).Trim();
+        if (!string.IsNullOrWhiteSpace(normalizedHostAddress))
+        {
+            hosts.Add(normalizedHostAddress);
+        }
+
+        foreach (var host in hosts)
+        {
+            var normalizedHost = (host ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(normalizedHost))
+            {
+                continue;
+            }
+
+            Add($"{normalizedHost}\\{normalizedUser}");
+            Add($"{ExtractShortHostName(normalizedHost)}\\{normalizedUser}");
+        }
+
+        return values;
     }
 
     private static IReadOnlyList<string> ResolveHostNamesFromAddress(string hostAddress)

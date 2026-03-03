@@ -52,6 +52,8 @@ english.UninstallShortcut=Uninstall HyperTool
 english.RunAfterInstall=Launch HyperTool
 english.UsbipdInstallTask=Download and install usbipd-win (optional, requires internet connection)
 english.UsbipdInstallFailed=usbipd-win could not be installed automatically. Please install it manually from https://github.com/dorssel/usbipd-win/releases and then restart HyperTool.
+english.SharedFolderPrincipalTask=Create HyperTool SharedFolder local group/user (optional, recommended)
+english.SharedFolderPrincipalFailed=HyperTool SharedFolder group/user could not be provisioned automatically. You can run the provisioning script later from the installed HyperTool folder.
 
 german.DesktopIconTask=Desktop-Verknüpfung erstellen
 german.AdditionalTasks=Zusätzliche Aufgaben:
@@ -59,10 +61,13 @@ german.UninstallShortcut=HyperTool deinstallieren
 german.RunAfterInstall=HyperTool starten
 german.UsbipdInstallTask=usbipd-win herunterladen und installieren (optional, Internetverbindung erforderlich)
 german.UsbipdInstallFailed=usbipd-win konnte nicht automatisch installiert werden. Bitte manuell von https://github.com/dorssel/usbipd-win/releases installieren und HyperTool danach neu starten.
+german.SharedFolderPrincipalTask=HyperTool SharedFolder lokale Gruppe/Benutzer anlegen (optional, empfohlen)
+german.SharedFolderPrincipalFailed=HyperTool SharedFolder Gruppe/Benutzer konnte nicht automatisch angelegt werden. Das Provisioning-Skript kann später aus dem installierten HyperTool-Ordner gestartet werden.
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:DesktopIconTask}"; GroupDescription: "{cm:AdditionalTasks}"
 Name: "installusbipd"; Description: "{cm:UsbipdInstallTask}"; GroupDescription: "{cm:AdditionalTasks}"; Check: not IsUsbipdInstalled
+Name: "installsharedfolderprincipal"; Description: "{cm:SharedFolderPrincipalTask}"; GroupDescription: "{cm:AdditionalTasks}"; Check: IsSharedFolderPrincipalMissing
 
 [Files]
 Source: "{#MySourceDir}\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion createallsubdirs
@@ -111,6 +116,53 @@ begin
   if not Result then
   begin
     Result := FileExists(ExpandConstant('{pf}\\usbipd-win\\usbipd.exe'));
+  end;
+end;
+
+function IsSharedFolderPrincipalMissing(): Boolean;
+var
+  ResultCode: Integer;
+  GroupExists: Boolean;
+  UserExists: Boolean;
+begin
+  GroupExists := False;
+  UserExists := False;
+
+  if Exec(ExpandConstant('{sys}\net.exe'), 'localgroup "HyperTool"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    GroupExists := (ResultCode = 0);
+
+  if Exec(ExpandConstant('{sys}\net.exe'), 'user "HyperToolGuest"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    UserExists := (ResultCode = 0);
+
+  Result := not (GroupExists and UserExists);
+end;
+
+procedure TryProvisionSharedFolderPrincipal;
+var
+  ResultCode: Integer;
+  PsExe: string;
+  ScriptPath: string;
+  Params: string;
+begin
+  if not WizardIsTaskSelected('installsharedfolderprincipal') then
+    Exit;
+
+  ScriptPath := ExpandConstant('{app}\Scripts\HyperToolCredentialProvisioning.ps1');
+  if not FileExists(ScriptPath) then
+  begin
+    MsgBox(ExpandConstant('{cm:SharedFolderPrincipalFailed}'), mbInformation, MB_OK);
+    Exit;
+  end;
+
+  PsExe := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
+  if not FileExists(PsExe) then
+    PsExe := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
+
+  Params := '-NoProfile -ExecutionPolicy Bypass -File "' + ScriptPath + '"';
+
+  if not Exec(PsExe, Params, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+  begin
+    MsgBox(ExpandConstant('{cm:SharedFolderPrincipalFailed}'), mbInformation, MB_OK);
   end;
 end;
 
@@ -213,6 +265,7 @@ begin
 
   if CurStep = ssPostInstall then
   begin
+    TryProvisionSharedFolderPrincipal;
     TryInstallUsbipdFromInternet;
   end;
 end;

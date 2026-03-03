@@ -2826,7 +2826,7 @@ internal sealed class GuestMainWindow : Window
         };
         diagnosticsStack.Children.Add(new TextBlock
         {
-            Text = "USB Transport Diagnose (live)",
+            Text = "Transport Diagnose",
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
         });
 
