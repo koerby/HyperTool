@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
+using Microsoft.UI.Xaml.Shapes;
 using Windows.Foundation;
 using Windows.Graphics;
 using Windows.UI;
@@ -15,14 +16,13 @@ namespace HyperTool.Guest.Views;
 internal sealed class GuestTrayControlCenterWindow : Window
 {
     private const int PanelCornerRadius = 18;
-    public const int PopupWidth = 404;
-    public const int PopupHeightWithUsb = 356;
+    public const int PopupWidth = 428;
+    public const int PopupHeightWithUsb = 308;
     public const int PopupHeightCompact = 184;
     private readonly Grid _windowRoot = new();
     private readonly Border _panelRoot = new();
     private readonly Border _headerBorder = new();
     private readonly Border _usbCard = new();
-    private readonly TextBlock _usbSelectedText = new();
     private readonly ComboBox _usbDeviceCombo = new();
     private readonly Button _refreshButton = new();
     private readonly Button _usbConnectButton = new();
@@ -75,7 +75,7 @@ internal sealed class GuestTrayControlCenterWindow : Window
         var actionButtonForeground = isDark ? Color.FromArgb(0xFF, 0xE9, 0xF2, 0xFF) : Color.FromArgb(0xFF, 0x1A, 0x2E, 0x4C);
         var actionButtonBorder = isDark ? Color.FromArgb(0xFF, 0x5D, 0x85, 0xBC) : Color.FromArgb(0xFF, 0x9A, 0xB9, 0xE3);
 
-        _windowRoot.Background = new SolidColorBrush(Colors.Transparent);
+        _windowRoot.Background = new SolidColorBrush(panelBackground);
         _panelRoot.Background = new SolidColorBrush(panelBackground);
         _panelRoot.BorderBrush = new SolidColorBrush(panelBorder);
         _headerBorder.Background = new LinearGradientBrush
@@ -89,7 +89,6 @@ internal sealed class GuestTrayControlCenterWindow : Window
             }
         };
 
-        _usbSelectedText.Foreground = new SolidColorBrush(textSecondary);
         _usbCard.Background = new SolidColorBrush(cardBackground);
         _usbCard.BorderBrush = new SolidColorBrush(actionButtonBorder);
         _usbCard.BorderThickness = new Thickness(1);
@@ -106,14 +105,15 @@ internal sealed class GuestTrayControlCenterWindow : Window
         ApplyButtonColors(_closeButton, actionButtonBackground, actionButtonForeground, actionButtonBorder);
     }
 
-    public void UpdateView(IReadOnlyList<UsbIpDeviceInfo> devices, string? selectedBusId, bool isMainWindowVisible, bool isTrayMenuEnabled)
+    public void UpdateView(
+        IReadOnlyList<UsbIpDeviceInfo> devices,
+        string? selectedBusId,
+        bool isMainWindowVisible,
+        bool isTrayMenuEnabled,
+        bool isUsbClientAvailable)
     {
         _isTrayMenuEnabled = isTrayMenuEnabled;
         _usbCard.Visibility = isTrayMenuEnabled ? Visibility.Visible : Visibility.Collapsed;
-
-        var selectedDisplay = devices.FirstOrDefault(item => string.Equals(item.BusId, selectedBusId, StringComparison.OrdinalIgnoreCase))?.DisplayName
-            ?? "Kein USB-Gerät ausgewählt";
-        _usbSelectedText.Text = selectedDisplay;
 
         _isUpdatingUsbSelection = true;
         try
@@ -130,7 +130,7 @@ internal sealed class GuestTrayControlCenterWindow : Window
 
             var selectedIndex = devices.ToList().FindIndex(item => string.Equals(item.BusId, selectedBusId, StringComparison.OrdinalIgnoreCase));
             _usbDeviceCombo.SelectedIndex = selectedIndex;
-            _usbDeviceCombo.IsEnabled = devices.Count > 0;
+            _usbDeviceCombo.IsEnabled = isUsbClientAvailable && devices.Count > 0;
         }
         finally
         {
@@ -138,9 +138,9 @@ internal sealed class GuestTrayControlCenterWindow : Window
         }
 
         var hasSelection = !string.IsNullOrWhiteSpace(selectedBusId);
-        _refreshButton.IsEnabled = isTrayMenuEnabled;
-        _usbConnectButton.IsEnabled = isTrayMenuEnabled && hasSelection;
-        _usbDisconnectButton.IsEnabled = isTrayMenuEnabled && hasSelection;
+        _refreshButton.IsEnabled = isTrayMenuEnabled && isUsbClientAvailable;
+        _usbConnectButton.IsEnabled = isTrayMenuEnabled && isUsbClientAvailable && hasSelection;
+        _usbDisconnectButton.IsEnabled = isTrayMenuEnabled && isUsbClientAvailable && hasSelection;
         _visibilityButton.Content = isMainWindowVisible ? "⌂  Ausblenden" : "⌂  Einblenden";
 
         SetPanelSize(PopupWidth, isTrayMenuEnabled ? PopupHeightWithUsb : PopupHeightCompact);
@@ -201,18 +201,13 @@ internal sealed class GuestTrayControlCenterWindow : Window
         _usbCard.Background = new SolidColorBrush(Color.FromArgb(0xFF, 0x19, 0x25, 0x41));
 
         var usbStack = new StackPanel { Spacing = 8 };
-        usbStack.Children.Add(new TextBlock { Text = "USB", FontSize = 12, Opacity = 0.8 });
 
-        _usbSelectedText.Text = "Selected: -";
-        _usbSelectedText.FontSize = 13;
-        _usbSelectedText.TextWrapping = TextWrapping.WrapWholeWords;
-        usbStack.Children.Add(_usbSelectedText);
-
-        _usbDeviceCombo.MinHeight = 34;
-        _usbDeviceCombo.Width = 340;
+        _usbDeviceCombo.MinHeight = 30;
+        _usbDeviceCombo.MinWidth = 352;
         _usbDeviceCombo.CornerRadius = new CornerRadius(8);
         _usbDeviceCombo.HorizontalAlignment = HorizontalAlignment.Stretch;
         _usbDeviceCombo.PlaceholderText = "USB-Gerät auswählen";
+        _usbDeviceCombo.Margin = new Thickness(0);
         _usbDeviceCombo.SelectionChanged += (_, _) =>
         {
             if (_isUpdatingUsbSelection)
@@ -227,7 +222,7 @@ internal sealed class GuestTrayControlCenterWindow : Window
         };
         usbStack.Children.Add(_usbDeviceCombo);
 
-        var usbActions = new Grid { ColumnSpacing = 8 };
+        var usbActions = new Grid { ColumnSpacing = 6 };
         usbActions.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         usbActions.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         usbActions.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });

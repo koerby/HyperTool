@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
+using Microsoft.UI.Xaml.Shapes;
 using Windows.Foundation;
 using Windows.Graphics;
 using Windows.UI;
@@ -26,7 +27,6 @@ internal sealed class TrayControlCenterWindow : Window
     private readonly TextBlock _vmNameText = new();
     private readonly TextBlock _vmMetaText = new();
     private readonly TextBlock _networkStatusText = new();
-    private readonly TextBlock _usbSelectedText = new();
     private readonly Button _closeButton = new();
     private readonly ComboBox _vmSelectorCombo = new();
     private readonly ComboBox _networkAdapterCombo = new();
@@ -197,7 +197,6 @@ internal sealed class TrayControlCenterWindow : Window
         _vmOffBrush = new SolidColorBrush(vmOff);
         _vmMetaText.Foreground = _textSecondaryBrush;
         _networkStatusText.Foreground = _textSecondaryBrush;
-        _usbSelectedText.Foreground = _textSecondaryBrush;
 
         _vmSelectorCombo.Background = new SolidColorBrush(smallButtonBackground);
         _vmSelectorCombo.Foreground = new SolidColorBrush(smallButtonForeground);
@@ -231,8 +230,6 @@ internal sealed class TrayControlCenterWindow : Window
         _vmMetaText.Text = state.SelectedVmMeta;
         _vmMetaText.Foreground = ResolveVmMetaBrush(state.SelectedVmMeta);
         _networkStatusText.Text = state.ActiveSwitchDisplay;
-        _usbSelectedText.Text = state.UsbSelectedDisplay;
-
         _startButton.IsEnabled = state.CanStart;
         _stopButton.IsEnabled = state.CanStop;
         _restartButton.IsEnabled = state.CanRestart;
@@ -654,7 +651,7 @@ internal sealed class TrayControlCenterWindow : Window
         networkStack.Children.Add(_networkStatusText);
 
         _networkAdapterCombo.MinHeight = 34;
-        _networkAdapterCombo.Width = 340;
+        _networkAdapterCombo.MinWidth = 352;
         _networkAdapterCombo.CornerRadius = new CornerRadius(8);
         _networkAdapterCombo.HorizontalAlignment = HorizontalAlignment.Stretch;
         _networkAdapterCombo.PlaceholderText = "Netzwerkkarte auswählen";
@@ -696,21 +693,17 @@ internal sealed class TrayControlCenterWindow : Window
         var usbStack = new StackPanel { Spacing = 8 };
         usbStack.Children.Add(new TextBlock
         {
-            Text = "USB",
+            Text = "USB Share (usbipd CLI Bridge · externer Dienst)",
             FontSize = 12,
             Opacity = 0.8
         });
 
-        _usbSelectedText.Text = "Selected: -";
-        _usbSelectedText.FontSize = 13;
-        _usbSelectedText.TextWrapping = TextWrapping.WrapWholeWords;
-        usbStack.Children.Add(_usbSelectedText);
-
-        _usbDeviceCombo.MinHeight = 34;
-        _usbDeviceCombo.Width = 340;
+        _usbDeviceCombo.MinHeight = 30;
+        _usbDeviceCombo.MinWidth = 352;
         _usbDeviceCombo.CornerRadius = new CornerRadius(8);
         _usbDeviceCombo.HorizontalAlignment = HorizontalAlignment.Stretch;
         _usbDeviceCombo.PlaceholderText = "USB-Gerät auswählen";
+        _usbDeviceCombo.Margin = new Thickness(0);
         _usbDeviceCombo.SelectionChanged += (_, _) =>
         {
             if (_isUpdatingUsbSelection)
@@ -732,7 +725,7 @@ internal sealed class TrayControlCenterWindow : Window
         var usbActions = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
+            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -807,7 +800,7 @@ internal sealed class TrayControlCenterWindow : Window
         }
 
         AppWindow.IsShownInSwitchers = false;
-        SetPanelSize(404, 740);
+        SetPanelSize(428, 740);
     }
 
     private static Style CreateActionButtonStyle()
@@ -925,8 +918,6 @@ internal sealed class TrayControlCenterViewState
     public string ActiveSwitchDisplay { get; set; } = "Aktiv: -";
 
     public string VisibilityButtonText { get; set; } = "⌂  Ausblenden";
-
-    public string UsbSelectedDisplay { get; set; } = "Selected: -";
 
     public string? SelectedUsbKey { get; set; }
 

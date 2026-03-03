@@ -12,6 +12,8 @@ using System.Net.Http;
 using System.Reflection;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Graphics;
+using Windows.Media.Core;
+using Windows.Media.Playback;
 using Windows.UI;
 using IOPath = System.IO.Path;
 
@@ -21,9 +23,14 @@ internal sealed class GuestMainWindow : Window
 {
     public const int DefaultWindowWidth = 1400;
     public const int DefaultWindowHeight = 940;
+    private const int GuestSplashMinVisibleMs = 900;
+    private const int GuestSplashStatusCycleMs = 420;
     private const string UpdateOwner = "koerby";
     private const string UpdateRepo = "HyperTool";
     private const string GuestInstallerAssetHint = "HyperTool-Guest-Setup";
+    private const string GuestUsbRuntimeOwner = "vadimgrn";
+    private const string GuestUsbRuntimeRepo = "usbip-win2";
+    private const string GuestUsbRuntimeAssetHint = "x64-release";
 
     private readonly Func<Task<IReadOnlyList<UsbIpDeviceInfo>>> _refreshUsbDevicesAsync;
     private readonly Func<string, Task<int>> _connectUsbAsync;
@@ -52,6 +59,9 @@ internal sealed class GuestMainWindow : Window
     private readonly ListView _notificationsListView = new();
     private readonly TextBlock _statusText = new() { Text = "Bereit.", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _updateStatusValueText = new() { Text = "Noch nicht geprüft", TextWrapping = TextWrapping.Wrap, Opacity = 0.9 };
+    private Button? _installUpdateButton;
+    private readonly Ellipse _usbRuntimeStatusDot = new() { Width = 10, Height = 10, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _usbRuntimeStatusText = new() { Opacity = 0.9, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _diagHyperVSocketText = new() { Text = "Unbekannt", Opacity = 0.9 };
     private readonly TextBlock _diagRegistryServiceText = new() { Text = "Unbekannt", Opacity = 0.9 };
     private readonly TextBlock _diagFallbackText = new() { Text = "Nein", Opacity = 0.9 };
@@ -65,6 +75,7 @@ internal sealed class GuestMainWindow : Window
     private Button? _usbRefreshButton;
     private Button? _usbConnectButton;
     private Button? _usbDisconnectButton;
+    private Button? _usbRuntimeInstallButton;
     private readonly ComboBox _themeCombo = new();
     private readonly ToggleSwitch _themeToggle = new();
     private readonly TextBlock _themeText = new();
@@ -73,6 +84,86 @@ internal sealed class GuestMainWindow : Window
     private readonly CheckBox _startMinimizedCheckBox = new() { Content = "Beim Start minimiert" };
     private readonly CheckBox _minimizeToTrayCheckBox = new() { Content = "Tasktray-Menü aktiv" };
     private readonly CheckBox _checkForUpdatesOnStartupCheckBox = new() { Content = "Beim Start auf Updates prüfen" };
+    private readonly CheckBox _useHyperVSocketCheckBox = new() { Content = "Hyper-V Socket verwenden (bevorzugt)" };
+    private readonly CheckBox _usbAutoConnectCheckBox = new() { Content = "Auto-Connect für ausgewähltes Gerät" };
+    private readonly Border _usbHostAddressEditorCard = new()
+    {
+        BorderThickness = new Thickness(1),
+        CornerRadius = new CornerRadius(8),
+        Padding = new Thickness(10, 8, 10, 8)
+    };
+    private readonly TextBlock _usbModeHintText = new() { TextWrapping = TextWrapping.Wrap, Opacity = 0.88 };
+    private readonly Border _usbTransportModeBadge = new()
+    {
+        CornerRadius = new CornerRadius(9),
+        Padding = new Thickness(10, 5, 10, 5),
+        MinHeight = 30,
+        BorderThickness = new Thickness(1),
+        HorizontalAlignment = HorizontalAlignment.Right,
+        VerticalAlignment = VerticalAlignment.Center
+    };
+    private readonly TextBlock _usbTransportModeBadgeText = new()
+    {
+        FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+        FontSize = 12,
+        Text = "Modus: -"
+    };
+    private readonly Border _usbHyperVModeBadge = new()
+    {
+        Width = 152,
+        MinHeight = 30,
+        CornerRadius = new CornerRadius(9),
+        Padding = new Thickness(10, 5, 10, 5),
+        BorderThickness = new Thickness(1)
+    };
+    private readonly Border _usbHyperVModeIconBadge = new()
+    {
+        Width = 18,
+        Height = 18,
+        CornerRadius = new CornerRadius(5),
+        BorderThickness = new Thickness(1),
+        VerticalAlignment = VerticalAlignment.Center
+    };
+    private readonly SymbolIcon _usbHyperVModeIcon = new()
+    {
+        Symbol = Symbol.Switch,
+        Width = 12,
+        Height = 12
+    };
+    private readonly TextBlock _usbHyperVModeBadgeText = new()
+    {
+        FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+        FontSize = 12,
+        Text = "Hyper-V Socket"
+    };
+    private readonly Border _usbIpModeBadge = new()
+    {
+        Width = 152,
+        MinHeight = 30,
+        CornerRadius = new CornerRadius(9),
+        Padding = new Thickness(10, 5, 10, 5),
+        BorderThickness = new Thickness(1)
+    };
+    private readonly Border _usbIpModeIconBadge = new()
+    {
+        Width = 18,
+        Height = 18,
+        CornerRadius = new CornerRadius(5),
+        BorderThickness = new Thickness(1),
+        VerticalAlignment = VerticalAlignment.Center
+    };
+    private readonly SymbolIcon _usbIpModeIcon = new()
+    {
+        Symbol = Symbol.World,
+        Width = 12,
+        Height = 12
+    };
+    private readonly TextBlock _usbIpModeBadgeText = new()
+    {
+        FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+        FontSize = 12,
+        Text = "IP-Mode"
+    };
 
     private HelpWindow? _helpWindow;
     private int _selectedMenuIndex;
@@ -81,6 +172,12 @@ internal sealed class GuestMainWindow : Window
     private bool _suppressThemeEvents;
     private bool _isThemeRestartInProgress;
     private bool _isThemeToggleHandlerAttached;
+    private bool _isUsbTransportToggleHandlerAttached;
+    private bool _isUsbModeBadgeHandlersAttached;
+    private bool _suppressUsbTransportToggleEvents;
+    private bool _suppressUsbAutoConnectToggleEvents;
+    private CancellationTokenSource? _usbTransportAutoRefreshCts;
+    private MediaPlayer? _logoSpinPlayer;
     private List<UIElement>? _startupMainElements;
     private UIElement? _usbPage;
     private UIElement? _settingsPage;
@@ -125,6 +222,21 @@ internal sealed class GuestMainWindow : Window
     }
 
     public string CurrentTheme => GuestConfigService.NormalizeTheme((_themeCombo.SelectedItem as string) ?? _config.Ui.Theme);
+
+    public int SelectedMenuIndex => _selectedMenuIndex;
+
+    public void SelectMenuIndex(int index)
+    {
+        var normalized = Math.Clamp(index, 0, 2);
+        if (_selectedMenuIndex == normalized)
+        {
+            return;
+        }
+
+        _selectedMenuIndex = normalized;
+        UpdateNavSelection();
+        UpdatePageContent();
+    }
 
     public void ApplyTheme(string theme)
     {
@@ -176,7 +288,7 @@ internal sealed class GuestMainWindow : Window
 
         var startupStart = Stopwatch.StartNew();
         var statusIndex = 0;
-        while (startupStart.ElapsedMilliseconds < HyperTool.WinUI.Views.LifecycleVisuals.SplashMinVisibleMs)
+        while (startupStart.ElapsedMilliseconds < GuestSplashMinVisibleMs)
         {
             var status = HyperTool.WinUI.Views.LifecycleVisuals.StartupStatusMessages[
                 statusIndex % HyperTool.WinUI.Views.LifecycleVisuals.StartupStatusMessages.Length];
@@ -185,8 +297,8 @@ internal sealed class GuestMainWindow : Window
             _overlayProgressBar.Value = Math.Min(92, 8 + (statusIndex * 17));
             statusIndex++;
 
-            var remaining = HyperTool.WinUI.Views.LifecycleVisuals.SplashMinVisibleMs - startupStart.ElapsedMilliseconds;
-            var delay = (int)Math.Min(HyperTool.WinUI.Views.LifecycleVisuals.SplashStatusCycleMs, remaining);
+            var remaining = GuestSplashMinVisibleMs - startupStart.ElapsedMilliseconds;
+            var delay = (int)Math.Min(GuestSplashStatusCycleMs, remaining);
             if (delay > 0)
             {
                 await Task.Delay(delay);
@@ -372,6 +484,7 @@ internal sealed class GuestMainWindow : Window
         }
 
         _usbListView.ItemsSource = devices.Select(item => item.DisplayName).ToList();
+        UpdateAutoConnectToggleFromSelection();
     }
 
     public UsbIpDeviceInfo? GetSelectedUsbDevice()
@@ -389,6 +502,7 @@ internal sealed class GuestMainWindow : Window
         _diagHyperVSocketText.Text = hyperVSocketActive ? "Ja" : "Nein";
         _diagRegistryServiceText.Text = registryServicePresent ? "Ja" : "Nein";
         _diagFallbackText.Text = fallbackActive ? "Ja" : "Nein";
+        UpdateUsbTransportHeaderStatus();
     }
 
     private async Task RunTransportDiagnosticsTestAsync()
@@ -528,6 +642,7 @@ internal sealed class GuestMainWindow : Window
             RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5)
         };
         logoBorder.Child = logo;
+        logoBorder.Tapped += (_, _) => RunLogoEasterEgg();
         titleActions.Children.Add(logoBorder);
 
         Grid.SetColumn(titleActions, 1);
@@ -565,6 +680,22 @@ internal sealed class GuestMainWindow : Window
         contentGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(10) });
         contentGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
+        _usbTransportModeBadge.Child = _usbTransportModeBadgeText;
+
+        var topRowContent = new Grid { ColumnSpacing = 10 };
+        topRowContent.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        topRowContent.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        topRowContent.Children.Add(new TextBlock
+        {
+            Text = "Guest USB Connect & Management",
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+
+        Grid.SetColumn(_usbTransportModeBadge, 1);
+        topRowContent.Children.Add(_usbTransportModeBadge);
+
         var topRow = new Border
         {
             CornerRadius = new CornerRadius(10),
@@ -572,11 +703,7 @@ internal sealed class GuestMainWindow : Window
             BorderBrush = Application.Current.Resources["PanelBorderBrush"] as Brush,
             Background = Application.Current.Resources["PanelBackgroundBrush"] as Brush,
             Padding = new Thickness(12),
-            Child = new TextBlock
-            {
-                Text = "Guest USB Connect & Management",
-                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
-            }
+            Child = topRowContent
         };
 
         contentGrid.Children.Add(topRow);
@@ -602,7 +729,7 @@ internal sealed class GuestMainWindow : Window
         topRow.Children.Add(new TextBlock { Text = "Notifications", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
 
         var summaryButtons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        summaryButtons.Children.Add(CreateIconButton("📄", "Logdatei öffnen", onClick: (_, _) => OpenLogFile()));
+        summaryButtons.Children.Add(CreateIconButton("📄", "Log-Ordner öffnen", onClick: (_, _) => OpenLogFile()));
         _toggleLogButton.CornerRadius = new CornerRadius(10);
         _toggleLogButton.Padding = new Thickness(10, 7, 10, 7);
         _toggleLogButton.BorderThickness = new Thickness(1);
@@ -713,6 +840,18 @@ internal sealed class GuestMainWindow : Window
             Foreground = new SolidColorBrush(Color.FromArgb(0xC8, 0x9B, 0xB7, 0xD7))
         };
         overlayRoot.Children.Add(splashVersionText);
+
+        var splashCopyrightText = new TextBlock
+        {
+            Text = "Copyright: koerby",
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(20, 0, 0, 14),
+            FontSize = 12,
+            Opacity = 0.72,
+            Foreground = new SolidColorBrush(Color.FromArgb(0xC8, 0x9B, 0xB7, 0xD7))
+        };
+        overlayRoot.Children.Add(splashCopyrightText);
 
         _overlayCard.Width = 520;
         _overlayCard.Height = double.NaN;
@@ -841,6 +980,28 @@ internal sealed class GuestMainWindow : Window
         {
             Background = HyperTool.WinUI.Views.LifecycleVisuals.CreateRootBackgroundBrush()
         };
+
+        overlayRoot.Children.Add(new TextBlock
+        {
+            Text = "Copyright: koerby",
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(20, 0, 0, 14),
+            FontSize = 12,
+            Opacity = 0.72,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(0xC8, 0x9B, 0xB7, 0xD7))
+        });
+
+        overlayRoot.Children.Add(new TextBlock
+        {
+            Text = ResolveGuestVersionText(),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(0, 0, 20, 14),
+            FontSize = 12,
+            Opacity = 0.72,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(0xC8, 0x9B, 0xB7, 0xD7))
+        });
 
         overlayRoot.Children.Add(new Rectangle
         {
@@ -1123,12 +1284,21 @@ internal sealed class GuestMainWindow : Window
             Padding = new Thickness(10)
         };
 
-        var actionsStack = new StackPanel { Spacing = 8 };
+        var actionsStack = new StackPanel { Spacing = 5 };
         actionsStack.Children.Add(new TextBlock
         {
             Text = "USB Host-Connect (Host-Freigaben)",
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
         });
+
+        var runtimeRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        runtimeRow.Children.Add(_usbRuntimeStatusDot);
+        runtimeRow.Children.Add(_usbRuntimeStatusText);
+        actionsStack.Children.Add(runtimeRow);
+
+        _usbRuntimeInstallButton = CreateIconButton("⬇", "Installation usbip-win2", onClick: async (_, _) => await InstallGuestUsbRuntimeAsync());
+        _usbRuntimeInstallButton.Visibility = Visibility.Collapsed;
+        actionsStack.Children.Add(_usbRuntimeInstallButton);
 
         var actionRow = new Grid { ColumnSpacing = 8 };
         actionRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -1156,6 +1326,12 @@ internal sealed class GuestMainWindow : Window
         actionRow.Children.Add(_usbDisconnectButton);
         actionsStack.Children.Add(actionRow);
 
+        _usbAutoConnectCheckBox.IsEnabled = _isUsbClientAvailable;
+        _usbAutoConnectCheckBox.Margin = new Thickness(0);
+        _usbAutoConnectCheckBox.Checked += async (_, _) => await SetSelectedUsbDeviceAutoConnectAsync(true);
+        _usbAutoConnectCheckBox.Unchecked += async (_, _) => await SetSelectedUsbDeviceAutoConnectAsync(false);
+        actionsStack.Children.Add(_usbAutoConnectCheckBox);
+
         if (!_isUsbClientAvailable)
         {
             actionsStack.Children.Add(new TextBlock
@@ -1166,6 +1342,8 @@ internal sealed class GuestMainWindow : Window
                 Foreground = Application.Current.Resources["TextMutedBrush"] as Brush
             });
         }
+
+        UpdateUsbRuntimeStatusUi();
 
         actionsCard.Child = actionsStack;
         root.Children.Add(actionsCard);
@@ -1179,6 +1357,8 @@ internal sealed class GuestMainWindow : Window
             Padding = new Thickness(8),
             Child = _usbListView
         };
+
+        _usbListView.SelectionChanged += (_, _) => UpdateAutoConnectToggleFromSelection();
 
         Grid.SetRow(listBorder, 1);
         root.Children.Add(listBorder);
@@ -1276,10 +1456,10 @@ internal sealed class GuestMainWindow : Window
             Padding = new Thickness(14)
         };
 
-        var systemStack = new StackPanel { Spacing = 10 };
+        var systemStack = new StackPanel { Spacing = 8 };
         systemStack.Children.Add(new TextBlock { Text = "System & Updates", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, FontSize = 16 });
 
-        var quickTogglesGrid = new Grid { ColumnSpacing = 10, RowSpacing = 6 };
+        var quickTogglesGrid = new Grid { ColumnSpacing = 10, RowSpacing = 4 };
         quickTogglesGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         quickTogglesGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         quickTogglesGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -1298,16 +1478,20 @@ internal sealed class GuestMainWindow : Window
         quickTogglesGrid.Children.Add(_startWithWindowsCheckBox);
 
         _checkForUpdatesOnStartupCheckBox.Margin = new Thickness(0);
+        _checkForUpdatesOnStartupCheckBox.HorizontalAlignment = HorizontalAlignment.Left;
         Grid.SetColumn(_checkForUpdatesOnStartupCheckBox, 1);
         Grid.SetRow(_checkForUpdatesOnStartupCheckBox, 1);
         quickTogglesGrid.Children.Add(_checkForUpdatesOnStartupCheckBox);
 
         systemStack.Children.Add(quickTogglesGrid);
 
-        var themeRow = new Grid { ColumnSpacing = 8, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 2, 0, 0) };
+        _minimizeToTrayCheckBox.Margin = new Thickness(0);
+        _startMinimizedCheckBox.Margin = new Thickness(0);
+        _startWithWindowsCheckBox.Margin = new Thickness(0);
+
+        var themeRow = new Grid { ColumnSpacing = 8, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0) };
         themeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(140) });
         themeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        themeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         themeRow.Children.Add(new TextBlock
         {
             Text = "Dark Mode",
@@ -1329,19 +1513,12 @@ internal sealed class GuestMainWindow : Window
                 }
 
                 _themeCombo.SelectedItem = _themeToggle.IsOn ? "dark" : "light";
-                _themeText.Text = _themeToggle.IsOn ? "Dunkles Theme" : "Helles Theme";
                 await ApplyThemeAndRestartImmediatelyAsync();
             };
             _isThemeToggleHandlerAttached = true;
         }
         Grid.SetColumn(_themeToggle, 1);
         themeRow.Children.Add(_themeToggle);
-
-        _themeText.VerticalAlignment = VerticalAlignment.Center;
-        _themeText.Foreground = Application.Current.Resources["TextMutedBrush"] as Brush;
-        _themeText.Opacity = 0.95;
-        Grid.SetColumn(_themeText, 2);
-        themeRow.Children.Add(_themeText);
 
         systemStack.Children.Add(themeRow);
         systemSection.Child = systemStack;
@@ -1357,25 +1534,121 @@ internal sealed class GuestMainWindow : Window
         };
 
         var usbStack = new StackPanel { Spacing = 8 };
-        usbStack.Children.Add(new TextBlock
+
+        _usbHyperVModeIconBadge.Child = _usbHyperVModeIcon;
+        _usbIpModeIconBadge.Child = _usbIpModeIcon;
+
+        var hyperVModeBadgeContent = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 6,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        hyperVModeBadgeContent.Children.Add(_usbHyperVModeIconBadge);
+        hyperVModeBadgeContent.Children.Add(_usbHyperVModeBadgeText);
+        _usbHyperVModeBadge.Child = hyperVModeBadgeContent;
+
+        var ipModeBadgeContent = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 6,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        ipModeBadgeContent.Children.Add(_usbIpModeIconBadge);
+        ipModeBadgeContent.Children.Add(_usbIpModeBadgeText);
+        _usbIpModeBadge.Child = ipModeBadgeContent;
+
+        if (!_isUsbModeBadgeHandlersAttached)
+        {
+            _usbHyperVModeBadge.Tapped += (_, _) =>
+            {
+                if (_useHyperVSocketCheckBox.IsChecked != true)
+                {
+                    _useHyperVSocketCheckBox.IsChecked = true;
+                }
+            };
+
+            _usbIpModeBadge.Tapped += (_, _) =>
+            {
+                if (_useHyperVSocketCheckBox.IsChecked != false)
+                {
+                    _useHyperVSocketCheckBox.IsChecked = false;
+                }
+            };
+
+            _isUsbModeBadgeHandlersAttached = true;
+        }
+
+        var modeBadgeRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Top
+        };
+        modeBadgeRow.Children.Add(_usbHyperVModeBadge);
+        modeBadgeRow.Children.Add(_usbIpModeBadge);
+
+        var usbHeaderGrid = new Grid { ColumnSpacing = 10 };
+        usbHeaderGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        usbHeaderGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var usbHeaderTextStack = new StackPanel { Spacing = 4 };
+        var usbHeaderTitleRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 6,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        usbHeaderTitleRow.Children.Add(new TextBlock
         {
             Text = "USB Host-Verbindung",
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            FontSize = 16
+            FontSize = 16,
+            VerticalAlignment = VerticalAlignment.Center,
+            Opacity = 0.9
         });
-        usbStack.Children.Add(new TextBlock
+        usbHeaderTitleRow.Children.Add(new TextBlock
         {
-            Text = "Host-IP oder Hostname für USB Attach eintragen (z.B. 192.168.178.10). Wenn leer, wird der Host aus SharePath verwendet.",
-            TextWrapping = TextWrapping.Wrap,
-            Opacity = 0.85
+            Text = "(Hyper-V Socket kann bevorzugt genutzt werden, IP Modus als Fallback)",
+            FontSize = 16,
+            VerticalAlignment = VerticalAlignment.Center,
+            Opacity = 0.86
         });
+        usbHeaderTextStack.Children.Add(usbHeaderTitleRow);
+        usbHeaderGrid.Children.Add(usbHeaderTextStack);
+
+        Grid.SetColumn(modeBadgeRow, 1);
+        usbHeaderGrid.Children.Add(modeBadgeRow);
+        usbStack.Children.Add(usbHeaderGrid);
+
+        _useHyperVSocketCheckBox.Margin = new Thickness(0, 2, 0, 0);
+        if (!_isUsbTransportToggleHandlerAttached)
+        {
+            _useHyperVSocketCheckBox.Checked += async (_, _) => await OnUsbTransportModeToggledAsync();
+            _useHyperVSocketCheckBox.Unchecked += async (_, _) => await OnUsbTransportModeToggledAsync();
+            _isUsbTransportToggleHandlerAttached = true;
+        }
+        usbStack.Children.Add(_useHyperVSocketCheckBox);
+
+        _usbModeHintText.Foreground = Application.Current.Resources["TextMutedBrush"] as Brush;
+        usbStack.Children.Add(_usbModeHintText);
+
+        _usbHostAddressEditorCard.BorderThickness = new Thickness(0);
+        _usbHostAddressEditorCard.BorderBrush = new SolidColorBrush(Color.FromArgb(0x00, 0x00, 0x00, 0x00));
+        _usbHostAddressEditorCard.Background = new SolidColorBrush(Color.FromArgb(0x00, 0x00, 0x00, 0x00));
+        _usbHostAddressEditorCard.Padding = new Thickness(0);
 
         _usbHostAddressTextBox.PlaceholderText = "192.168.178.10 oder host.local";
         _usbHostAddressTextBox.MinWidth = 420;
         _usbHostAddressTextBox.MaxWidth = 620;
         _usbHostAddressTextBox.HorizontalAlignment = HorizontalAlignment.Left;
         _usbHostAddressTextBox.CornerRadius = new CornerRadius(8);
-        usbStack.Children.Add(_usbHostAddressTextBox);
+        _usbHostAddressTextBox.TextChanged += (_, _) => UpdateUsbTransportModePresentation();
+        _usbHostAddressEditorCard.Child = _usbHostAddressTextBox;
+        usbStack.Children.Add(_usbHostAddressEditorCard);
+
+        UpdateUsbTransportModePresentation();
 
         usbSection.Child = usbStack;
         root.Children.Add(usbSection);
@@ -1399,12 +1672,30 @@ internal sealed class GuestMainWindow : Window
         versionWrap.Children.Add(new TextBlock { Opacity = 0.9, Text = version });
         Grid.SetColumn(versionWrap, 1);
         titleWrap.Children.Add(versionWrap);
+
         panel.Children.Add(titleWrap);
 
-        var updateWrap = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        var infoStatusRow = new Grid { ColumnSpacing = 8 };
+        infoStatusRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        infoStatusRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var updateWrap = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
         updateWrap.Children.Add(new TextBlock { Text = "Update-Status:", Opacity = 0.9 });
         updateWrap.Children.Add(_updateStatusValueText);
-        panel.Children.Add(updateWrap);
+
+        var copyrightText = new TextBlock
+        {
+            Text = "Copyright: koerby",
+            Opacity = 0.9,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        Grid.SetColumn(updateWrap, 0);
+        infoStatusRow.Children.Add(updateWrap);
+        Grid.SetColumn(copyrightText, 1);
+        infoStatusRow.Children.Add(copyrightText);
+        panel.Children.Add(infoStatusRow);
 
         var projectCard = new Border
         {
@@ -1415,7 +1706,7 @@ internal sealed class GuestMainWindow : Window
             Padding = new Thickness(10)
         };
 
-        var projectStack = new StackPanel { Spacing = 6 };
+        var projectStack = new StackPanel { Spacing = 4 };
         projectStack.Children.Add(new TextBlock { Text = "HyperTool Projekt", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
         projectStack.Children.Add(new TextBlock { Text = "HyperTool Guest wird über GitHub Releases verteilt. Hier findest du Version, Update-Status und Release-Links.", TextWrapping = TextWrapping.Wrap, Opacity = 0.85 });
         projectStack.Children.Add(new TextBlock { Text = "GitHub Owner: koerby", Opacity = 0.9 });
@@ -1432,7 +1723,7 @@ internal sealed class GuestMainWindow : Window
             Padding = new Thickness(10)
         };
 
-        var usbipStack = new StackPanel { Spacing = 6 };
+        var usbipStack = new StackPanel { Spacing = 4 };
         usbipStack.Children.Add(new TextBlock { Text = "Externe USB/IP Quelle", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
         usbipStack.Children.Add(new TextBlock { Text = "Quelle: vadimgrn/usbip-win2", Opacity = 0.9 });
         usbipStack.Children.Add(new TextBlock { Text = "Nutzung in HyperTool: externer CLI-Client ohne eigene GUI-Integration.", TextWrapping = TextWrapping.Wrap, Opacity = 0.85 });
@@ -1449,40 +1740,48 @@ internal sealed class GuestMainWindow : Window
             Padding = new Thickness(10)
         };
 
-        var diagnosticsStack = new StackPanel { Spacing = 6 };
-        diagnosticsStack.Children.Add(new TextBlock { Text = "USB Transport Diagnose (live)", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
+        var diagnosticsStack = new StackPanel
+        {
+            Spacing = 4,
+            Margin = new Thickness(0, 0, 240, 0)
+        };
+        diagnosticsStack.Children.Add(new TextBlock
+        {
+            Text = "USB Transport Diagnose (live)",
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+        });
 
-        var hyperVSocketRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
-        hyperVSocketRow.Children.Add(new TextBlock { Text = "Hyper-V Socket aktiv:", Opacity = 0.9 });
+        var hyperVSocketRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+        hyperVSocketRow.Children.Add(new TextBlock { Text = "Hyper-V Socket aktiv:", Opacity = 0.9, VerticalAlignment = VerticalAlignment.Center });
         hyperVSocketRow.Children.Add(_diagHyperVSocketText);
         diagnosticsStack.Children.Add(hyperVSocketRow);
 
-        var registryRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
-        registryRow.Children.Add(new TextBlock { Text = "Registry-Service erreichbar:", Opacity = 0.9 });
+        var registryRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+        registryRow.Children.Add(new TextBlock { Text = "Registry-Service erreichbar:", Opacity = 0.9, VerticalAlignment = VerticalAlignment.Center });
         registryRow.Children.Add(_diagRegistryServiceText);
         diagnosticsStack.Children.Add(registryRow);
 
-        var fallbackRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
-        fallbackRow.Children.Add(new TextBlock { Text = "Fallback auf IP aktiv:", Opacity = 0.9 });
+        var fallbackRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+        fallbackRow.Children.Add(new TextBlock { Text = "Fallback auf IP aktiv:", Opacity = 0.9, VerticalAlignment = VerticalAlignment.Center });
         fallbackRow.Children.Add(_diagFallbackText);
         diagnosticsStack.Children.Add(fallbackRow);
 
-        var diagnosticsActionRow = new Grid { Margin = new Thickness(0, 2, 0, 0) };
-        diagnosticsActionRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        diagnosticsActionRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var diagnosticsLayout = new Grid();
+        diagnosticsLayout.Children.Add(diagnosticsStack);
 
         var diagnosticsTestButton = CreateIconButton("🧪", "Hyper-V Socket testen", onClick: async (_, _) => await RunTransportDiagnosticsTestAsync());
         diagnosticsTestButton.HorizontalAlignment = HorizontalAlignment.Right;
-        Grid.SetColumn(diagnosticsTestButton, 1);
-        diagnosticsActionRow.Children.Add(diagnosticsTestButton);
-        diagnosticsStack.Children.Add(diagnosticsActionRow);
+        diagnosticsTestButton.VerticalAlignment = VerticalAlignment.Top;
+        diagnosticsLayout.Children.Add(diagnosticsTestButton);
 
-        diagnosticsCard.Child = diagnosticsStack;
+        diagnosticsCard.Child = diagnosticsLayout;
         panel.Children.Add(diagnosticsCard);
 
         var buttonRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         buttonRow.Children.Add(CreateIconButton("🛰", "Update prüfen", onClick: async (_, _) => await CheckForUpdatesAsync()));
-        buttonRow.Children.Add(CreateIconButton("⬇", "Update installieren", onClick: async (_, _) => await InstallUpdateAsync()));
+        _installUpdateButton = CreateIconButton("⬇", "Update installieren", onClick: async (_, _) => await InstallUpdateAsync());
+        _installUpdateButton.IsEnabled = !string.IsNullOrWhiteSpace(_installerDownloadUrl);
+        buttonRow.Children.Add(_installUpdateButton);
         buttonRow.Children.Add(CreateIconButton("🌐", "Changelog / Release", onClick: (_, _) => OpenReleasePage()));
         buttonRow.Children.Add(CreateIconButton("🔗", "usbip-win2 Quelle", onClick: (_, _) => OpenUsbipClientRepository()));
         panel.Children.Add(buttonRow);
@@ -1564,6 +1863,19 @@ internal sealed class GuestMainWindow : Window
         _startMinimizedCheckBox.IsChecked = _config.Ui.StartMinimized;
         _minimizeToTrayCheckBox.IsChecked = _config.Ui.MinimizeToTray;
         _checkForUpdatesOnStartupCheckBox.IsChecked = _config.Ui.CheckForUpdatesOnStartup;
+
+        _suppressUsbTransportToggleEvents = true;
+        try
+        {
+            _useHyperVSocketCheckBox.IsChecked = _config.Usb?.UseHyperVSocket != false;
+        }
+        finally
+        {
+            _suppressUsbTransportToggleEvents = false;
+        }
+
+        UpdateUsbTransportModePresentation();
+        UpdateAutoConnectToggleFromSelection();
     }
 
     private async Task SaveSettingsAsync()
@@ -1574,12 +1886,334 @@ internal sealed class GuestMainWindow : Window
         _config.Ui.MinimizeToTray = _minimizeToTrayCheckBox.IsChecked == true;
         _config.Ui.CheckForUpdatesOnStartup = _checkForUpdatesOnStartupCheckBox.IsChecked != false;
         _config.Usb ??= new GuestUsbSettings();
+        _config.Usb.UseHyperVSocket = _useHyperVSocketCheckBox.IsChecked != false;
         _config.Usb.HostAddress = (_usbHostAddressTextBox.Text ?? string.Empty).Trim();
 
         await _saveConfigAsync(_config);
         ApplyTheme(_config.Ui.Theme);
+        UpdateUsbTransportModePresentation();
 
         AppendNotification("[Info] Einstellungen gespeichert.");
+    }
+
+    private async Task OnUsbTransportModeToggledAsync()
+    {
+        if (_suppressUsbTransportToggleEvents)
+        {
+            return;
+        }
+
+        _config.Usb ??= new GuestUsbSettings();
+        _config.Usb.UseHyperVSocket = _useHyperVSocketCheckBox.IsChecked != false;
+
+        UpdateUsbTransportModePresentation();
+
+        await _saveConfigAsync(_config);
+        AppendNotification(_config.Usb.UseHyperVSocket
+            ? "[Info] USB Transportmodus: Hyper-V Socket bevorzugt."
+            : "[Info] USB Transportmodus: IP-Mode aktiv.");
+
+        if (_config.Usb.UseHyperVSocket)
+        {
+            ScheduleUsbTransportAutoRefresh();
+        }
+        else
+        {
+            CancelPendingUsbTransportAutoRefresh();
+        }
+    }
+
+    private void CancelPendingUsbTransportAutoRefresh()
+    {
+        if (_usbTransportAutoRefreshCts is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _usbTransportAutoRefreshCts.Cancel();
+        }
+        catch
+        {
+        }
+
+        _usbTransportAutoRefreshCts.Dispose();
+        _usbTransportAutoRefreshCts = null;
+    }
+
+    private void ScheduleUsbTransportAutoRefresh()
+    {
+        CancelPendingUsbTransportAutoRefresh();
+
+        var cts = new CancellationTokenSource();
+        _usbTransportAutoRefreshCts = cts;
+        _ = RunUsbTransportAutoRefreshAsync(cts.Token);
+    }
+
+    private async Task RunUsbTransportAutoRefreshAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(1000, cancellationToken);
+
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            if (_useHyperVSocketCheckBox.IsChecked != true || _config.Usb?.UseHyperVSocket != true)
+            {
+                return;
+            }
+
+            AppendNotification("[Info] Auto-Refresh nach Hyper-V Socket Aktivierung …");
+            await RefreshUsbAsync();
+        }
+        catch (TaskCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            AppendNotification($"[Warn] Auto-Refresh nach Hyper-V Socket Aktivierung fehlgeschlagen: {ex.Message}");
+        }
+        finally
+        {
+            if (_usbTransportAutoRefreshCts is not null && _usbTransportAutoRefreshCts.Token == cancellationToken)
+            {
+                _usbTransportAutoRefreshCts.Dispose();
+                _usbTransportAutoRefreshCts = null;
+            }
+        }
+    }
+
+    private void UpdateUsbTransportModePresentation()
+    {
+        var useHyperVSocket = _useHyperVSocketCheckBox.IsChecked != false;
+        var hyperVSocketLive = string.Equals(_diagHyperVSocketText.Text, "Ja", StringComparison.OrdinalIgnoreCase)
+                              && string.Equals(_diagRegistryServiceText.Text, "Ja", StringComparison.OrdinalIgnoreCase)
+                              && !string.Equals(_diagFallbackText.Text, "Ja", StringComparison.OrdinalIgnoreCase);
+        var ipModeActive = !useHyperVSocket || !hyperVSocketLive;
+
+        _usbHostAddressEditorCard.Visibility = ipModeActive ? Visibility.Visible : Visibility.Collapsed;
+        _usbHostAddressTextBox.IsEnabled = ipModeActive;
+
+        if (useHyperVSocket)
+        {
+            _usbModeHintText.Text = ipModeActive
+                ? "Hyper-V Socket ist aktiviert, aktuell aber nicht aktiv. IP-Mode/Fallback nutzt die Host-Adresse unten."
+                : "Hyper-V Socket ist aktiviert. Bei Verfügbarkeitsproblemen wird auf IP zurückgefallen.";
+        }
+        else
+        {
+            _usbModeHintText.Text = "IP-Mode ist aktiviert. Die Host-Adresse unten wird für USB Connect verwendet.";
+        }
+
+        UpdateUsbTransportHeaderStatus();
+    }
+
+    private void UpdateUsbTransportHeaderStatus()
+    {
+        var useHyperVSocket = _config.Usb?.UseHyperVSocket != false;
+        var hyperVSocketLive = string.Equals(_diagHyperVSocketText.Text, "Ja", StringComparison.OrdinalIgnoreCase)
+                              && string.Equals(_diagRegistryServiceText.Text, "Ja", StringComparison.OrdinalIgnoreCase)
+                              && !string.Equals(_diagFallbackText.Text, "Ja", StringComparison.OrdinalIgnoreCase);
+
+        if (useHyperVSocket)
+        {
+            _usbTransportModeBadgeText.Text = hyperVSocketLive
+                ? "Hyper-Socket aktiv"
+                : "Hyper-Socket bevorzugt";
+            var palette = ResolveUsbModePalette(forHyperV: true, isActive: true);
+            _usbTransportModeBadge.Background = palette.chipBackground;
+            _usbTransportModeBadge.BorderBrush = palette.chipBorder;
+            _usbTransportModeBadgeText.Foreground = palette.textForeground;
+            UpdateUsbTransportModeBadges(useHyperVSocket: true);
+            return;
+        }
+
+        var configuredHost = (_usbHostAddressTextBox.Text ?? _config.Usb?.HostAddress ?? string.Empty).Trim();
+        var ipDisplay = string.IsNullOrWhiteSpace(configuredHost) ? "auto" : configuredHost;
+
+        _usbTransportModeBadgeText.Text = $"IP-Mode: {ipDisplay}";
+        var ipPalette = ResolveUsbModePalette(forHyperV: false, isActive: true);
+        _usbTransportModeBadge.Background = ipPalette.chipBackground;
+        _usbTransportModeBadge.BorderBrush = ipPalette.chipBorder;
+        _usbTransportModeBadgeText.Foreground = ipPalette.textForeground;
+        UpdateUsbTransportModeBadges(useHyperVSocket: false);
+    }
+
+    private void UpdateUsbTransportModeBadges(bool useHyperVSocket)
+    {
+        var hyperVPalette = ResolveUsbModePalette(forHyperV: true, isActive: useHyperVSocket);
+        _usbHyperVModeBadge.Background = hyperVPalette.chipBackground;
+        _usbHyperVModeBadge.BorderBrush = hyperVPalette.chipBorder;
+        _usbHyperVModeIconBadge.Background = hyperVPalette.iconBackground;
+        _usbHyperVModeIconBadge.BorderBrush = hyperVPalette.iconBorder;
+        _usbHyperVModeIcon.Foreground = hyperVPalette.iconForeground;
+        _usbHyperVModeBadgeText.Foreground = hyperVPalette.textForeground;
+
+        var ipPalette = ResolveUsbModePalette(forHyperV: false, isActive: !useHyperVSocket);
+        _usbIpModeBadge.Background = ipPalette.chipBackground;
+        _usbIpModeBadge.BorderBrush = ipPalette.chipBorder;
+        _usbIpModeIconBadge.Background = ipPalette.iconBackground;
+        _usbIpModeIconBadge.BorderBrush = ipPalette.iconBorder;
+        _usbIpModeIcon.Foreground = ipPalette.iconForeground;
+        _usbIpModeBadgeText.Foreground = ipPalette.textForeground;
+    }
+
+    private (Brush chipBackground, Brush chipBorder, Brush iconBackground, Brush iconBorder, Brush iconForeground, Brush textForeground) ResolveUsbModePalette(bool forHyperV, bool isActive)
+    {
+        static SolidColorBrush Brush(byte a, byte r, byte g, byte b) => new(Color.FromArgb(a, r, g, b));
+
+        var isDarkMode = string.Equals(CurrentTheme, "dark", StringComparison.OrdinalIgnoreCase);
+
+        if (!isActive)
+        {
+            return (
+                Application.Current.Resources["SurfaceSoftBrush"] as Brush ?? Brush(0xFF, 0x20, 0x2A, 0x48),
+                Application.Current.Resources["PanelBorderBrush"] as Brush ?? Brush(0xFF, 0x44, 0x57, 0x7F),
+                Application.Current.Resources["PanelBackgroundBrush"] as Brush ?? Brush(0xFF, 0x18, 0x23, 0x3E),
+                Application.Current.Resources["PanelBorderBrush"] as Brush ?? Brush(0xFF, 0x44, 0x57, 0x7F),
+                Application.Current.Resources["TextMutedBrush"] as Brush ?? Brush(0xFF, 0xA6, 0xB9, 0xD8),
+                Application.Current.Resources["TextMutedBrush"] as Brush ?? Brush(0xFF, 0xA6, 0xB9, 0xD8));
+        }
+
+        if (forHyperV)
+        {
+            if (isDarkMode)
+            {
+                return (
+                    Brush(0xFF, 0x14, 0x3C, 0x2C),
+                    Brush(0xFF, 0x43, 0xB5, 0x81),
+                    Brush(0xFF, 0x43, 0xB5, 0x81),
+                    Brush(0xFF, 0x43, 0xB5, 0x81),
+                    Brush(0xFF, 0x09, 0x2D, 0x1E),
+                    Brush(0xFF, 0xD9, 0xF6, 0xE8));
+            }
+
+            return (
+                Brush(0xFF, 0xE8, 0xF8, 0xEF),
+                Brush(0xFF, 0x2F, 0x9E, 0x68),
+                Brush(0xFF, 0x2F, 0x9E, 0x68),
+                Brush(0xFF, 0x2F, 0x9E, 0x68),
+                Brush(0xFF, 0xF7, 0xFF, 0xFB),
+                Brush(0xFF, 0x0E, 0x4F, 0x31));
+        }
+
+        if (isDarkMode)
+        {
+            return (
+                Brush(0xFF, 0x47, 0x31, 0x1B),
+                Brush(0xFF, 0xF2, 0x9A, 0x3A),
+                Brush(0xFF, 0xF2, 0x9A, 0x3A),
+                Brush(0xFF, 0xF2, 0x9A, 0x3A),
+                Brush(0xFF, 0x2A, 0x1A, 0x08),
+                Brush(0xFF, 0xFF, 0xE9, 0xCC));
+        }
+
+        return (
+            Brush(0xFF, 0xFF, 0xF1, 0xDF),
+            Brush(0xFF, 0xD7, 0x82, 0x2C),
+            Brush(0xFF, 0xD7, 0x82, 0x2C),
+            Brush(0xFF, 0xD7, 0x82, 0x2C),
+            Brush(0xFF, 0xFF, 0xFA, 0xF3),
+            Brush(0xFF, 0x6B, 0x3A, 0x0A));
+    }
+
+    private static string BuildAutoConnectKey(UsbIpDeviceInfo device)
+    {
+        if (!string.IsNullOrWhiteSpace(device.HardwareId))
+        {
+            return "hardware:" + device.HardwareId.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(device.Description))
+        {
+            return "description:" + device.Description.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(device.BusId))
+        {
+            return "busid:" + device.BusId.Trim();
+        }
+
+        return string.Empty;
+    }
+
+    private void UpdateAutoConnectToggleFromSelection()
+    {
+        var selected = GetSelectedUsbDevice();
+        var keys = _config.Usb?.AutoConnectDeviceKeys ?? [];
+        var key = selected is null ? string.Empty : BuildAutoConnectKey(selected);
+
+        _suppressUsbAutoConnectToggleEvents = true;
+        try
+        {
+            _usbAutoConnectCheckBox.IsEnabled = _isUsbClientAvailable && selected is not null;
+            _usbAutoConnectCheckBox.IsChecked = selected is not null
+                && !string.IsNullOrWhiteSpace(key)
+                && keys.Contains(key, StringComparer.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            _suppressUsbAutoConnectToggleEvents = false;
+        }
+    }
+
+    private async Task SetSelectedUsbDeviceAutoConnectAsync(bool enabled)
+    {
+        if (_suppressUsbAutoConnectToggleEvents)
+        {
+            return;
+        }
+
+        var selected = GetSelectedUsbDevice();
+        if (selected is null)
+        {
+            return;
+        }
+
+        var key = BuildAutoConnectKey(selected);
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            AppendNotification("[Warn] Auto-Connect konnte für dieses Gerät nicht gespeichert werden.");
+            UpdateAutoConnectToggleFromSelection();
+            return;
+        }
+
+        _config.Usb ??= new GuestUsbSettings();
+        var keys = _config.Usb.AutoConnectDeviceKeys ?? [];
+        var changed = false;
+
+        if (enabled)
+        {
+            if (!keys.Contains(key, StringComparer.OrdinalIgnoreCase))
+            {
+                keys.Add(key);
+                changed = true;
+            }
+        }
+        else
+        {
+            changed = keys.RemoveAll(existing => string.Equals(existing, key, StringComparison.OrdinalIgnoreCase)) > 0;
+        }
+
+        if (!changed)
+        {
+            return;
+        }
+
+        _config.Usb.AutoConnectDeviceKeys = keys
+            .Where(static entry => !string.IsNullOrWhiteSpace(entry))
+            .Select(static entry => entry.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        await _saveConfigAsync(_config);
+        AppendNotification(enabled
+            ? $"[Info] Auto-Connect aktiviert für: {selected.Description}"
+            : $"[Info] Auto-Connect deaktiviert für: {selected.Description}");
     }
 
     public async Task CheckForUpdatesOnStartupIfEnabledAsync()
@@ -1699,7 +2333,32 @@ internal sealed class GuestMainWindow : Window
             var soundPath = IOPath.Combine(AppContext.BaseDirectory, "Assets", "logo-spin.wav");
             if (File.Exists(soundPath))
             {
-                using var player = new SoundPlayer(soundPath);
+                _logoSpinPlayer?.Dispose();
+
+                var player = new MediaPlayer
+                {
+                    AudioCategory = MediaPlayerAudioCategory.SoundEffects,
+                    Volume = 0.30,
+                    Source = MediaSource.CreateFromUri(new Uri(soundPath))
+                };
+
+                player.MediaEnded += (_, _) =>
+                {
+                    try
+                    {
+                        player.Dispose();
+                    }
+                    catch
+                    {
+                    }
+
+                    if (ReferenceEquals(_logoSpinPlayer, player))
+                    {
+                        _logoSpinPlayer = null;
+                    }
+                };
+
+                _logoSpinPlayer = player;
                 player.Play();
             }
             else
@@ -1766,6 +2425,75 @@ internal sealed class GuestMainWindow : Window
         });
     }
 
+    private async Task InstallGuestUsbRuntimeAsync()
+    {
+        if (_usbRuntimeInstallButton is not null)
+        {
+            _usbRuntimeInstallButton.IsEnabled = false;
+        }
+
+        try
+        {
+            AppendNotification("[Info] usbip-win2 Installer wird vorbereitet...");
+
+            var installerResult = await _updateService.CheckForUpdateAsync(
+                GuestUsbRuntimeOwner,
+                GuestUsbRuntimeRepo,
+                "0.0.0",
+                CancellationToken.None,
+                GuestUsbRuntimeAssetHint);
+
+            if (!installerResult.Success || string.IsNullOrWhiteSpace(installerResult.InstallerDownloadUrl))
+            {
+                AppendNotification("[Warn] Installer-Asset konnte nicht automatisch ermittelt werden. Release-Seite wird geöffnet.");
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "https://github.com/vadimgrn/usbip-win2/releases/latest",
+                    UseShellExecute = true
+                });
+                return;
+            }
+
+            var targetDirectory = IOPath.Combine(IOPath.GetTempPath(), "HyperTool", "runtime-installers");
+            Directory.CreateDirectory(targetDirectory);
+
+            var fileName = ResolveInstallerFileName(
+                installerResult.InstallerDownloadUrl,
+                installerResult.InstallerFileName,
+                "usbip-win2-x64.exe");
+
+            var installerPath = IOPath.Combine(targetDirectory, fileName);
+
+            AppendNotification($"[Info] Lade usbip-win2 herunter: {fileName}");
+            using (var response = await UpdateDownloadClient.GetAsync(installerResult.InstallerDownloadUrl, CancellationToken.None))
+            {
+                response.EnsureSuccessStatusCode();
+                await using var stream = new FileStream(installerPath, FileMode.Create, FileAccess.Write, FileShare.None);
+                await response.Content.CopyToAsync(stream);
+            }
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = installerPath,
+                UseShellExecute = true,
+                Verb = "runas"
+            });
+
+            AppendNotification("[Success] usbip-win2 Installer gestartet. Nach Abschluss App neu starten.");
+        }
+        catch (Exception ex)
+        {
+            AppendNotification($"[Error] Automatische usbip-win2 Installation fehlgeschlagen: {ex.Message}");
+        }
+        finally
+        {
+            if (_usbRuntimeInstallButton is not null)
+            {
+                _usbRuntimeInstallButton.IsEnabled = true;
+            }
+        }
+    }
+
     private void OpenLogFile()
     {
         var logDirectory = string.IsNullOrWhiteSpace(_config.Logging.DirectoryPath)
@@ -1808,6 +2536,12 @@ internal sealed class GuestMainWindow : Window
         _releaseUrl = string.IsNullOrWhiteSpace(result.ReleaseUrl) ? _releaseUrl : result.ReleaseUrl;
         _installerDownloadUrl = result.InstallerDownloadUrl ?? string.Empty;
         _installerFileName = result.InstallerFileName ?? string.Empty;
+        if (_installUpdateButton is not null)
+        {
+            _installUpdateButton.IsEnabled = result.Success
+                && result.HasUpdate
+                && !string.IsNullOrWhiteSpace(_installerDownloadUrl);
+        }
 
         if (!result.Success)
         {
@@ -1874,7 +2608,23 @@ internal sealed class GuestMainWindow : Window
         }
     }
 
-    private static string ResolveInstallerFileName(string downloadUrl, string? fileName)
+    private void UpdateUsbRuntimeStatusUi()
+    {
+        var isAvailable = _isUsbClientAvailable;
+        _usbRuntimeStatusDot.Fill = new SolidColorBrush(isAvailable
+            ? Windows.UI.Color.FromArgb(0xFF, 0x32, 0xD7, 0x4B)
+            : Windows.UI.Color.FromArgb(0xFF, 0xE8, 0x4A, 0x5F));
+        _usbRuntimeStatusText.Text = isAvailable
+            ? "USB/IP-Client: Verfügbar"
+            : "USB/IP-Client: Nicht installiert";
+
+        if (_usbRuntimeInstallButton is not null)
+        {
+            _usbRuntimeInstallButton.Visibility = isAvailable ? Visibility.Collapsed : Visibility.Visible;
+        }
+    }
+
+    private static string ResolveInstallerFileName(string downloadUrl, string? fileName, string defaultFileName = "HyperTool-Guest-Setup.exe")
     {
         if (!string.IsNullOrWhiteSpace(fileName))
         {
@@ -1890,7 +2640,7 @@ internal sealed class GuestMainWindow : Window
             }
         }
 
-        return "HyperTool-Guest-Setup.exe";
+        return defaultFileName;
     }
 
     private void OnLoggerEntryWritten(string message)

@@ -14,6 +14,12 @@ namespace HyperTool.WinUI.Views;
 
 public sealed class HostNetworkWindow : Window
 {
+  private enum AdapterChipKind
+  {
+    DefaultSwitch,
+    Gateway
+  }
+
     private readonly IReadOnlyList<HostNetworkAdapterInfo> _adapters;
   private readonly bool _isDarkMode;
 
@@ -103,7 +109,7 @@ public sealed class HostNetworkWindow : Window
         };
     }
 
-    private static Border CreateAdapterCard(HostNetworkAdapterInfo adapter)
+    private Border CreateAdapterCard(HostNetworkAdapterInfo adapter)
     {
         var card = new Border
         {
@@ -135,21 +141,21 @@ public sealed class HostNetworkWindow : Window
             HorizontalAlignment = HorizontalAlignment.Right
         };
 
-      if (adapter.IsDefaultSwitch)
-      {
-        badgeRow.Children.Add(CreateBadge("Default Switch"));
-      }
+        if (adapter.IsDefaultSwitch)
+        {
+          badgeRow.Children.Add(CreateHighlightBadge("Default Switch", Symbol.Switch, AdapterChipKind.DefaultSwitch));
+        }
 
-      if (adapter.HasGateway)
-      {
-        badgeRow.Children.Add(CreateBadge("Gateway"));
-      }
+        if (adapter.HasGateway)
+        {
+          badgeRow.Children.Add(CreateHighlightBadge("Gateway", Symbol.World, AdapterChipKind.Gateway));
+        }
 
-      if (badgeRow.Children.Count > 0)
-      {
-        Grid.SetColumn(badgeRow, 1);
-        topRow.Children.Add(badgeRow);
-      }
+        if (badgeRow.Children.Count > 0)
+        {
+          Grid.SetColumn(badgeRow, 1);
+          topRow.Children.Add(badgeRow);
+        }
 
         cardStack.Children.Add(topRow);
 
@@ -192,24 +198,103 @@ public sealed class HostNetworkWindow : Window
         return card;
     }
 
-    private static Border CreateBadge(string text)
+    private Border CreateHighlightBadge(string label, Symbol icon, AdapterChipKind kind)
     {
-        return new Border
+        const double chipWidth = 152;
+      var (chipBackground, chipBorder, iconBackground, iconBorder, iconForeground, textForeground) = ResolveChipPalette(kind);
+
+        var iconContainer = new Border
         {
-            Padding = new Thickness(10, 2, 10, 2),
-            CornerRadius = new CornerRadius(999),
+            Width = 18,
+            Height = 18,
+            CornerRadius = new CornerRadius(5),
+            Background = iconBackground,
             BorderThickness = new Thickness(1),
-            BorderBrush = Application.Current.Resources["AccentBrush"] as Brush,
-            Background = Application.Current.Resources["AccentSoftBrush"] as Brush,
-            Child = new TextBlock
+            BorderBrush = iconBorder,
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = new SymbolIcon
             {
-                Text = text,
-                FontSize = 11,
-                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                Foreground = Application.Current.Resources["AccentTextBrush"] as Brush
+                Symbol = icon,
+                Foreground = iconForeground,
+                Width = 12,
+                Height = 12
             }
         };
+
+        var content = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 6,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        content.Children.Add(iconContainer);
+        content.Children.Add(new TextBlock
+        {
+            Text = label,
+            FontSize = 12,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Foreground = textForeground,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+
+        return new Border
+        {
+            Width = chipWidth,
+            MinHeight = 30,
+            Padding = new Thickness(10, 5, 10, 5),
+            CornerRadius = new CornerRadius(9),
+            BorderThickness = new Thickness(1),
+            BorderBrush = chipBorder,
+            Background = chipBackground,
+            Child = content
+        };
     }
+
+        private (Brush chipBackground, Brush chipBorder, Brush iconBackground, Brush iconBorder, Brush iconForeground, Brush textForeground) ResolveChipPalette(AdapterChipKind kind)
+        {
+          static SolidColorBrush Brush(byte a, byte r, byte g, byte b) => new(Color.FromArgb(a, r, g, b));
+
+          if (kind == AdapterChipKind.DefaultSwitch)
+          {
+            if (_isDarkMode)
+            {
+              return (
+                Brush(0xFF, 0x47, 0x31, 0x1B),
+                Brush(0xFF, 0xF2, 0x9A, 0x3A),
+                Brush(0xFF, 0xF2, 0x9A, 0x3A),
+                Brush(0xFF, 0xF2, 0x9A, 0x3A),
+                Brush(0xFF, 0x2A, 0x1A, 0x08),
+                Brush(0xFF, 0xFF, 0xE9, 0xCC));
+            }
+
+            return (
+              Brush(0xFF, 0xFF, 0xF1, 0xDF),
+              Brush(0xFF, 0xD7, 0x82, 0x2C),
+              Brush(0xFF, 0xD7, 0x82, 0x2C),
+              Brush(0xFF, 0xD7, 0x82, 0x2C),
+              Brush(0xFF, 0xFF, 0xFA, 0xF3),
+              Brush(0xFF, 0x6B, 0x3A, 0x0A));
+          }
+
+          if (_isDarkMode)
+          {
+            return (
+              Brush(0xFF, 0x14, 0x3C, 0x2C),
+              Brush(0xFF, 0x43, 0xB5, 0x81),
+              Brush(0xFF, 0x43, 0xB5, 0x81),
+              Brush(0xFF, 0x43, 0xB5, 0x81),
+              Brush(0xFF, 0x09, 0x2D, 0x1E),
+              Brush(0xFF, 0xD9, 0xF6, 0xE8));
+          }
+
+          return (
+            Brush(0xFF, 0xE8, 0xF8, 0xEF),
+            Brush(0xFF, 0x2F, 0x9E, 0x68),
+            Brush(0xFF, 0x2F, 0x9E, 0x68),
+            Brush(0xFF, 0x2F, 0x9E, 0x68),
+            Brush(0xFF, 0xF7, 0xFF, 0xFB),
+            Brush(0xFF, 0x0E, 0x4F, 0x31));
+        }
 
     private static FrameworkElement CreateKeyValue(string key, string? value)
     {

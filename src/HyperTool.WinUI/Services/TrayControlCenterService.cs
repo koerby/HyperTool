@@ -3,6 +3,8 @@ using HyperTool.WinUI.Views;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Serilog;
+using System.Diagnostics;
+using System.Linq;
 using System.Runtime.InteropServices;
 using Windows.Graphics;
 
@@ -141,12 +143,6 @@ internal sealed class TrayControlCenterService : ITrayControlCenterService
             EnsureWindow();
             if (_window is null)
             {
-                return Task.CompletedTask;
-            }
-
-            if (_window.AppWindow.IsVisible && _mode == mode)
-            {
-                _window.AppWindow.Hide();
                 return Task.CompletedTask;
             }
 
@@ -665,6 +661,8 @@ internal sealed class TrayControlCenterService : ITrayControlCenterService
         var selectedAdapter = _vmAdapters.FirstOrDefault(adapter =>
             string.Equals(adapter.Name, _selectedVmAdapterName, StringComparison.OrdinalIgnoreCase));
         var runtimeSwitch = NormalizeSwitchDisplayName(selectedAdapter?.SwitchName ?? vm?.RuntimeSwitchName);
+        var usbRuntime = GetUsbipdRuntimeStatus();
+        var usbRuntimeHealthy = usbRuntime.IsInstalled && usbRuntime.IsRunning;
 
         var state = new TrayControlCenterViewState
         {
@@ -682,11 +680,10 @@ internal sealed class TrayControlCenterService : ITrayControlCenterService
             SelectedNetworkAdapterName = _vmAdapters.Count > 1 ? _selectedVmAdapterName : null,
             ActiveSwitchDisplay = $"Aktiv: {runtimeSwitch}",
             VisibilityButtonText = (_isMainWindowVisible?.Invoke() ?? true) ? "⌂  Ausblenden" : "⌂  Einblenden",
-            UsbSelectedDisplay = BuildUsbSelectedDisplay(_selectedUsbDevice),
             SelectedUsbKey = _selectedUsbDevice is null ? null : BuildUsbSelectionKey(_selectedUsbDevice),
-            CanUsbRefresh = trayEnabled,
-            CanUsbShare = trayEnabled && CanUsbShare(_selectedUsbDevice),
-            CanUsbUnshare = trayEnabled && CanUsbUnshare(_selectedUsbDevice)
+            CanUsbRefresh = trayEnabled && usbRuntimeHealthy,
+            CanUsbShare = trayEnabled && usbRuntimeHealthy && CanUsbShare(_selectedUsbDevice),
+            CanUsbUnshare = trayEnabled && usbRuntimeHealthy && CanUsbUnshare(_selectedUsbDevice)
         };
 
         foreach (var vmItem in _vms)
@@ -790,8 +787,27 @@ internal sealed class TrayControlCenterService : ITrayControlCenterService
             x = work.X + work.Width - popupWidth - 8;
         }
 
-        x = Math.Clamp(x, work.X + 8, work.X + work.Width - popupWidth - 8);
-        y = Math.Clamp(y, work.Y + 8, work.Y + work.Height - popupHeight - 8);
+        var minX = work.X + 8;
+        var maxX = work.X + work.Width - popupWidth - 8;
+        if (maxX < minX)
+        {
+            x = work.X;
+        }
+        else
+        {
+            x = Math.Clamp(x, minX, maxX);
+        }
+
+        var minY = work.Y + 8;
+        var maxY = work.Y + work.Height - popupHeight - 8;
+        if (maxY < minY)
+        {
+            y = work.Y;
+        }
+        else
+        {
+            y = Math.Clamp(y, minY, maxY);
+        }
 
         _window.SetPosition(x, y);
     }
@@ -818,6 +834,52 @@ internal sealed class TrayControlCenterService : ITrayControlCenterService
                || state.Contains("Ausgeführt", StringComparison.OrdinalIgnoreCase);
     }
 
+    private UsbIpDeviceInfo? GetSelectedUsb()
+    {
+        if (_usbDevices.Count == 0)
+        {
+            return null;
+        }
+
+        if (_selectedUsbDevice is not null)
+        {
+            var selectedKey = BuildUsbSelectionKey(_selectedUsbDevice);
+            var byKey = _usbDevices.FirstOrDefault(device =>
+                string.Equals(BuildUsbSelectionKey(device), selectedKey, StringComparison.OrdinalIgnoreCase));
+            if (byKey is not null)
+            {
+                return byKey;
+            }
+        }
+
+        if (_selectedUsbIndex >= 0 && _selectedUsbIndex < _usbDevices.Count)
+        {
+            return _usbDevices[_selectedUsbIndex];
+        }
+
+        return _usbDevices[0];
+    }
+
+    private static string BuildUsbSelectionKey(UsbIpDeviceInfo usbDevice)
+    {
+        if (!string.IsNullOrWhiteSpace(usbDevice.BusId))
+        {
+            return usbDevice.BusId.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(usbDevice.Description))
+        {
+            return usbDevice.Description.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(usbDevice.DisplayName))
+        {
+            return usbDevice.DisplayName.Trim();
+        }
+
+        return string.Empty;
+    }
+
     private static string NormalizeSwitchDisplayName(string? switchName)
     {
         return string.IsNullOrWhiteSpace(switchName)
@@ -839,45 +901,6 @@ internal sealed class TrayControlCenterService : ITrayControlCenterService
                && usbDevice.IsShared;
     }
 
-    private static string BuildUsbSelectedDisplay(UsbIpDeviceInfo? usbDevice)
-    {
-        if (usbDevice is null)
-        {
-            return "Selected: -";
-        }
-
-        var name = string.IsNullOrWhiteSpace(usbDevice.Description)
-            ? "-"
-            : usbDevice.Description.Trim();
-        var status = usbDevice.IsShared ? "Shared" : "Not shared";
-        return $"Selected: {name} ({status})";
-    }
-
-    private static string BuildUsbSelectionKey(UsbIpDeviceInfo usbDevice)
-    {
-        if (!string.IsNullOrWhiteSpace(usbDevice.BusId))
-        {
-            return "busid:" + usbDevice.BusId.Trim();
-        }
-
-        if (!string.IsNullOrWhiteSpace(usbDevice.PersistedGuid))
-        {
-            return "guid:" + usbDevice.PersistedGuid.Trim();
-        }
-
-        return "instance:" + (usbDevice.InstanceId?.Trim() ?? string.Empty);
-    }
-
-    private UsbIpDeviceInfo? GetSelectedUsb()
-    {
-        if (_selectedUsbIndex < 0 || _selectedUsbIndex >= _usbDevices.Count)
-        {
-            return null;
-        }
-
-        return _usbDevices[_selectedUsbIndex];
-    }
-
     private void Enqueue(Action action)
     {
         if (_dispatcherQueue.HasThreadAccess)
@@ -893,6 +916,96 @@ internal sealed class TrayControlCenterService : ITrayControlCenterService
                 action();
             }
         });
+    }
+
+    private static UsbRuntimeStatus GetUsbipdRuntimeStatus()
+    {
+        var installed = IsUsbipdInstalled();
+        if (!installed)
+        {
+            return new UsbRuntimeStatus(
+                IsInstalled: false,
+                IsRunning: false);
+        }
+
+        var running = IsUsbipdServiceRunning();
+        return running
+            ? new UsbRuntimeStatus(
+                IsInstalled: true,
+                IsRunning: true)
+            : new UsbRuntimeStatus(
+                IsInstalled: true,
+                IsRunning: false);
+    }
+
+    private static bool IsUsbipdInstalled()
+    {
+        try
+        {
+            var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            var candidate1 = Path.Combine(programFiles, "usbipd-win", "usbipd.exe");
+            if (File.Exists(candidate1))
+            {
+                return true;
+            }
+
+            var programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+            var candidate2 = Path.Combine(programFilesX86, "usbipd-win", "usbipd.exe");
+            if (File.Exists(candidate2))
+            {
+                return true;
+            }
+
+            var where = RunProcess("where", "usbipd.exe");
+            return where.ExitCode == 0 && !string.IsNullOrWhiteSpace(where.StandardOutput);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool IsUsbipdServiceRunning()
+    {
+        try
+        {
+            var result = RunProcess("sc", "query usbipd");
+            if (result.ExitCode != 0)
+            {
+                return false;
+            }
+
+            var text = (result.StandardOutput + "\n" + result.StandardError).ToUpperInvariant();
+            return text.Contains("STATE") && text.Contains("RUNNING");
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static ProcessResult RunProcess(string fileName, string arguments)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = fileName,
+            Arguments = arguments,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+
+        using var process = Process.Start(startInfo);
+        if (process is null)
+        {
+            return new ProcessResult(1, string.Empty, string.Empty);
+        }
+
+        var stdout = process.StandardOutput.ReadToEnd();
+        var stderr = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+        return new ProcessResult(process.ExitCode, stdout, stderr);
     }
 
     [DllImport("user32.dll")]
@@ -912,9 +1025,13 @@ internal sealed class TrayControlCenterService : ITrayControlCenterService
         Compact
     }
 
+    private readonly record struct UsbRuntimeStatus(bool IsInstalled, bool IsRunning);
+
+    private readonly record struct ProcessResult(int ExitCode, string StandardOutput, string StandardError);
+
     private static int GetPopupWidth(TrayControlCenterMode mode)
     {
-        return mode == TrayControlCenterMode.Compact ? 228 : 404;
+        return mode == TrayControlCenterMode.Compact ? 228 : 428;
     }
 
     private static int GetPopupHeight(TrayControlCenterMode mode)
@@ -924,6 +1041,6 @@ internal sealed class TrayControlCenterService : ITrayControlCenterService
             return 196;
         }
 
-        return 740;
+        return 700;
     }
 }

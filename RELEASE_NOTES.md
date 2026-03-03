@@ -1,5 +1,41 @@
 # HyperTool Release Notes
 
+## v2.1.6
+
+### Highlights
+
+- Host- und Guest-Tray-Control-Center zeigen den USB-Runtime-Status klar über Farbpunkt und Statuszeile (grün/rot).
+- Host-Network und Guest-USB wurden auf konsistente, moderne Status-Chips umgestellt.
+- Guest-Info-Diagnose ist kompakter, mit sauber rechts platziertem Test-Button ohne Einfluss auf Zeilenabstände.
+
+### Neu
+
+- Host Tray USB:
+	- Runtime-Statusanzeige für usbipd-Dienst (aktiv/inaktiv/nicht installiert).
+	- Installationsbutton bei fehlendem usbipd-win mit Download aus dem offiziellen GitHub-Release.
+- Host Network:
+	- Adapter-Detailansicht mit Status-Chips für `Gateway` und `Default Switch`.
+	- Badge-Farblogik für klare Semantik: `Gateway` grün, `Default Switch` orange.
+- Guest Tray USB:
+	- Runtime-Statusanzeige für usbip-win2 Client.
+	- Installationsbutton bei fehlendem usbip-win2 mit Download aus dem offiziellen GitHub-Release.
+	- Modusanzeige im USB-Bereich (Hyper-V Socket / IP-Fallback) als klickbare Status-Chips.
+	- Modusabhängige Aktivierung/Anzeige des Host-IP-Eingabefelds.
+
+### Verbessert
+
+- USB-Bereich in Host und Guest kompakter aufgebaut (geringere Abstände, klarere Informationsdichte).
+- USB-Aktionszustände orientieren sich stärker am Runtime-Status.
+- Guest aktualisiert die Transportmodus-Anzeige nach Socket-Umschaltung unmittelbarer im UI.
+- Guest-Themewechsel erhält die aktuell gewählte Menüseite nach dem Neustart der Oberfläche.
+- Info-/Diagnosebereich im Guest auf reduzierte Textdichte und konsistente Abstände optimiert.
+
+### Doku / Hilfe
+
+- Host-Hilfe um aktuelle Hinweise zu Host-Network-Status-Chips ergänzt.
+- Guest-Hilfe um aktuelle Hinweise zu Transport-Status-Chips und Live-Diagnose ergänzt.
+- README auf v2.1.6 mit finalem Feature-Stand (Host/Guest UI, Build-Aufruf, Runtime-Hinweise) aktualisiert.
+
 ## v2.1.4
 
 ### Highlights

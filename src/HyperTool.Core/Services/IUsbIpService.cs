@@ -20,7 +20,5 @@ public interface IUsbIpService
 
     Task UnbindByPersistedGuidAsync(string persistedGuid, CancellationToken cancellationToken);
 
-    Task AttachToWslAsync(string busId, string? distribution, CancellationToken cancellationToken);
-
     Task DetachAsync(string busId, CancellationToken cancellationToken);
 }

@@ -34,6 +34,8 @@ internal sealed class GuestUsbSettings
     public bool UseHyperVSocket { get; set; } = true;
 
     public string HyperVSocketServiceId { get; set; } = HyperTool.Services.HyperVSocketUsbTunnelDefaults.ServiceIdString;
+
+    public List<string> AutoConnectDeviceKeys { get; set; } = [];
 }
 
 internal sealed class GuestUiSettings
@@ -175,6 +177,11 @@ internal static class GuestConfigService
         config.Usb.HyperVSocketServiceId = string.IsNullOrWhiteSpace(config.Usb.HyperVSocketServiceId)
             ? HyperTool.Services.HyperVSocketUsbTunnelDefaults.ServiceIdString
             : config.Usb.HyperVSocketServiceId.Trim();
+        config.Usb.AutoConnectDeviceKeys = (config.Usb.AutoConnectDeviceKeys ?? [])
+            .Where(static key => !string.IsNullOrWhiteSpace(key))
+            .Select(static key => key.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
         config.Ui ??= new GuestUiSettings();
         config.Ui.Theme = NormalizeTheme(config.Ui.Theme);

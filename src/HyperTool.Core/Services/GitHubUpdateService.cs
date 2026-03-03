@@ -153,6 +153,18 @@ public sealed class GitHubUpdateService : IUpdateService
                 score += 1;
             }
 
+            if (lowerName.Contains("x64", StringComparison.OrdinalIgnoreCase)
+                || lowerName.Contains("amd64", StringComparison.OrdinalIgnoreCase))
+            {
+                score += 5;
+            }
+
+            if (lowerName.Contains("arm64", StringComparison.OrdinalIgnoreCase)
+                || lowerName.Contains("aarch64", StringComparison.OrdinalIgnoreCase))
+            {
+                score -= 4;
+            }
+
             if (!string.IsNullOrWhiteSpace(installerAssetHint)
                 && lowerName.Contains(installerAssetHint.Trim().ToLowerInvariant(), StringComparison.OrdinalIgnoreCase))
             {

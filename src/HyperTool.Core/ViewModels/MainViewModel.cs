@@ -121,6 +121,9 @@ public partial class MainViewModel : ViewModelBase
     private bool _uiStartWithWindows;
 
     [ObservableProperty]
+    private bool _uiOpenConsoleAfterVmStart = true;
+
+    [ObservableProperty]
     private bool _uiOpenVmConnectWithSessionEdit;
 
     [ObservableProperty]
@@ -170,9 +173,6 @@ public partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     private UsbIpDeviceInfo? _selectedUsbDevice;
-
-    [ObservableProperty]
-    private string _usbWslDistribution = string.Empty;
 
     [ObservableProperty]
     private string _usbStatusText = "Noch nicht geladen";
@@ -353,8 +353,6 @@ public partial class MainViewModel : ViewModelBase
 
     public IAsyncRelayCommand UnbindUsbDeviceCommand { get; }
 
-    public IAsyncRelayCommand AttachUsbToWslCommand { get; }
-
     public IAsyncRelayCommand DetachUsbDeviceCommand { get; }
 
     private readonly IHyperVService _hyperVService;
@@ -416,6 +414,7 @@ public partial class MainViewModel : ViewModelBase
         UiEnableTrayMenu = configResult.Config.Ui.EnableTrayMenu;
         UiStartMinimized = configResult.Config.Ui.StartMinimized;
         UiStartWithWindows = configResult.Config.Ui.StartWithWindows;
+        UiOpenConsoleAfterVmStart = configResult.Config.Ui.OpenConsoleAfterVmStart;
         UiOpenVmConnectWithSessionEdit = configResult.Config.Ui.OpenVmConnectWithSessionEdit;
         UiTheme = NormalizeUiTheme(configResult.Config.Ui.Theme);
         UpdateCheckOnStartup = configResult.Config.Update.CheckOnStartup;
@@ -494,7 +493,6 @@ public partial class MainViewModel : ViewModelBase
         RefreshUsbDevicesCommand = new AsyncRelayCommand(RefreshUsbDevicesAsync, () => !IsBusy && UsbRuntimeAvailable);
         BindUsbDeviceCommand = new AsyncRelayCommand(BindSelectedUsbDeviceAsync, CanExecuteBindUsbAction);
         UnbindUsbDeviceCommand = new AsyncRelayCommand(UnbindSelectedUsbDeviceAsync, CanExecuteUnbindUsbAction);
-        AttachUsbToWslCommand = new AsyncRelayCommand(AttachSelectedUsbToWslAsync, CanExecuteAttachUsbToWslAction);
         DetachUsbDeviceCommand = new AsyncRelayCommand(DetachSelectedUsbDeviceAsync, CanExecuteDetachUsbAction);
 
         StartDefaultVmCommand = new AsyncRelayCommand(StartDefaultVmAsync, () => !IsBusy);
@@ -568,7 +566,6 @@ public partial class MainViewModel : ViewModelBase
         RefreshUsbDevicesCommand.NotifyCanExecuteChanged();
         BindUsbDeviceCommand.NotifyCanExecuteChanged();
         UnbindUsbDeviceCommand.NotifyCanExecuteChanged();
-        AttachUsbToWslCommand.NotifyCanExecuteChanged();
         DetachUsbDeviceCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(HasBusyProgress));
     }
@@ -633,6 +630,8 @@ public partial class MainViewModel : ViewModelBase
     partial void OnUiStartMinimizedChanged(bool value) => MarkConfigDirty();
 
     partial void OnUiStartWithWindowsChanged(bool value) => MarkConfigDirty();
+
+    partial void OnUiOpenConsoleAfterVmStartChanged(bool value) => MarkConfigDirty();
 
     partial void OnUiOpenVmConnectWithSessionEditChanged(bool value) => MarkConfigDirty();
 
@@ -799,7 +798,6 @@ public partial class MainViewModel : ViewModelBase
     {
         BindUsbDeviceCommand.NotifyCanExecuteChanged();
         UnbindUsbDeviceCommand.NotifyCanExecuteChanged();
-        AttachUsbToWslCommand.NotifyCanExecuteChanged();
         DetachUsbDeviceCommand.NotifyCanExecuteChanged();
         _suppressUsbAutoShareToggleHandling = true;
         try
@@ -927,16 +925,6 @@ public partial class MainViewModel : ViewModelBase
                && SelectedUsbDevice.IsShared;
     }
 
-    private bool CanExecuteAttachUsbToWslAction()
-    {
-         return !IsBusy
-             && UsbRuntimeAvailable
-               && SelectedUsbDevice is not null
-               && !string.IsNullOrWhiteSpace(SelectedUsbDevice.BusId)
-               && SelectedUsbDevice.IsShared
-               && !SelectedUsbDevice.IsAttached;
-    }
-
     private bool CanExecuteDetachUsbAction()
     {
          return !IsBusy
@@ -954,7 +942,6 @@ public partial class MainViewModel : ViewModelBase
         RefreshUsbDevicesCommand.NotifyCanExecuteChanged();
         BindUsbDeviceCommand.NotifyCanExecuteChanged();
         UnbindUsbDeviceCommand.NotifyCanExecuteChanged();
-        AttachUsbToWslCommand.NotifyCanExecuteChanged();
         DetachUsbDeviceCommand.NotifyCanExecuteChanged();
     }
     private bool CanExecuteStopVmAction() => CanExecuteVmAction() && IsRunningState(SelectedVmState);
@@ -1116,6 +1103,12 @@ public partial class MainViewModel : ViewModelBase
         {
             await _hyperVService.StartVmAsync(SelectedVm!.Name, token);
             AddNotification($"VM '{SelectedVm.Name}' gestartet.", "Success");
+
+            if (UiOpenConsoleAfterVmStart)
+            {
+                await _hyperVService.OpenVmConnectAsync(SelectedVm.Name, VmConnectComputerName, ShouldOpenConsoleWithSessionEdit(SelectedVm.Name), token);
+                AddNotification($"Konsole für '{SelectedVm.Name}' geöffnet.", "Info");
+            }
         });
         await RefreshVmStatusAsync();
     }
@@ -1399,6 +1392,13 @@ public partial class MainViewModel : ViewModelBase
             UsbDevices.Clear();
             foreach (var device in devices)
             {
+                if (device.IsAttached
+                    && !string.IsNullOrWhiteSpace(device.BusId)
+                    && UsbGuestConnectionRegistry.TryGetGuestComputerName(device.BusId, out var guestComputerName))
+                {
+                    device.AttachedGuestComputerName = guestComputerName;
+                }
+
                 UsbDevices.Add(device);
             }
 
@@ -1540,29 +1540,6 @@ public partial class MainViewModel : ViewModelBase
         {
             await _usbIpService.UnbindAsync(busId, token);
             AddNotification($"USB-Freigabe für '{busId}' wurde entfernt.", "Success");
-        });
-
-        await LoadUsbDevicesAsync(showNotification: false);
-    }
-
-    private async Task AttachSelectedUsbToWslAsync()
-    {
-        if (SelectedUsbDevice is null || string.IsNullOrWhiteSpace(SelectedUsbDevice.BusId))
-        {
-            return;
-        }
-
-        var busId = SelectedUsbDevice.BusId;
-        var distribution = string.IsNullOrWhiteSpace(UsbWslDistribution) ? null : UsbWslDistribution.Trim();
-
-        await ExecuteBusyActionAsync($"USB-Gerät {busId} wird an WSL angehängt...", async token =>
-        {
-            await _usbIpService.AttachToWslAsync(busId, distribution, token);
-            AddNotification(
-                distribution is null
-                    ? $"USB-Gerät '{busId}' an WSL angehängt."
-                    : $"USB-Gerät '{busId}' an WSL-Distribution '{distribution}' angehängt.",
-                "Success");
         });
 
         await LoadUsbDevicesAsync(showNotification: false);
@@ -1842,6 +1819,12 @@ public partial class MainViewModel : ViewModelBase
         {
             await _hyperVService.StartVmAsync(targetVm, token);
             AddNotification($"'{targetVm}' gestartet.", "Success");
+
+            if (UiOpenConsoleAfterVmStart)
+            {
+                await _hyperVService.OpenVmConnectAsync(targetVm, VmConnectComputerName, ShouldOpenConsoleWithSessionEdit(targetVm), token);
+                AddNotification($"Konsole für '{targetVm}' geöffnet.", "Info");
+            }
         });
         await RefreshVmStatusAsync();
     }
@@ -2458,6 +2441,7 @@ public partial class MainViewModel : ViewModelBase
                     EnableTrayIcon = true,
                     EnableTrayMenu = UiEnableTrayMenu,
                     StartWithWindows = UiStartWithWindows,
+                    OpenConsoleAfterVmStart = UiOpenConsoleAfterVmStart,
                     OpenVmConnectWithSessionEdit = UiOpenVmConnectWithSessionEdit,
                     TrayVmNames = [.. _trayVmNames]
                 },
@@ -2563,7 +2547,8 @@ public partial class MainViewModel : ViewModelBase
             HardwareId = SelectedUsbDevice.HardwareId,
             InstanceId = SelectedUsbDevice.InstanceId,
             PersistedGuid = SelectedUsbDevice.PersistedGuid,
-            ClientIpAddress = SelectedUsbDevice.ClientIpAddress
+            ClientIpAddress = SelectedUsbDevice.ClientIpAddress,
+            AttachedGuestComputerName = SelectedUsbDevice.AttachedGuestComputerName
         };
     }
 
@@ -2577,7 +2562,8 @@ public partial class MainViewModel : ViewModelBase
                 HardwareId = device.HardwareId,
                 InstanceId = device.InstanceId,
                 PersistedGuid = device.PersistedGuid,
-                ClientIpAddress = device.ClientIpAddress
+                ClientIpAddress = device.ClientIpAddress,
+                AttachedGuestComputerName = device.AttachedGuestComputerName
             })
             .ToList();
     }
@@ -2686,8 +2672,11 @@ public partial class MainViewModel : ViewModelBase
             await _hyperVService.StartVmAsync(vmName, token);
             AddNotification($"VM '{vmName}' gestartet.", "Success");
 
-            await _hyperVService.OpenVmConnectAsync(vmName, VmConnectComputerName, ShouldOpenConsoleWithSessionEdit(vmName), token);
-            AddNotification($"Konsole für '{vmName}' geöffnet.", "Info");
+            if (UiOpenConsoleAfterVmStart)
+            {
+                await _hyperVService.OpenVmConnectAsync(vmName, VmConnectComputerName, ShouldOpenConsoleWithSessionEdit(vmName), token);
+                AddNotification($"Konsole für '{vmName}' geöffnet.", "Info");
+            }
         });
         await RefreshVmStatusByNameAsync(vmName);
     }
@@ -2938,6 +2927,7 @@ public partial class MainViewModel : ViewModelBase
                 UiEnableTrayMenu = config.Ui.EnableTrayMenu;
                 UiStartMinimized = config.Ui.StartMinimized;
                 UiStartWithWindows = config.Ui.StartWithWindows;
+                UiOpenConsoleAfterVmStart = config.Ui.OpenConsoleAfterVmStart;
                 UiOpenVmConnectWithSessionEdit = config.Ui.OpenVmConnectWithSessionEdit;
                 UiTheme = NormalizeUiTheme(config.Ui.Theme);
                 ApplyConfiguredVmDefinitions(config.Vms);
@@ -3211,6 +3201,12 @@ public partial class MainViewModel : ViewModelBase
         {
             await _hyperVService.StartVmAsync(vmName, token);
             AddNotification($"VM '{vmName}' gestartet.", "Success");
+
+            if (UiOpenConsoleAfterVmStart)
+            {
+                await _hyperVService.OpenVmConnectAsync(vmName, VmConnectComputerName, ShouldOpenConsoleWithSessionEdit(vmName), token);
+                AddNotification($"Konsole für '{vmName}' geöffnet.", "Info");
+            }
         });
 
         await RefreshVmStatusByNameAsync(vmName);
@@ -3426,26 +3422,23 @@ public partial class MainViewModel : ViewModelBase
 
     private void OpenLogFile()
     {
-        var logFilePath = ResolveLatestLogFilePath();
-        if (string.IsNullOrWhiteSpace(logFilePath))
-        {
-            AddNotification("Keine Logdatei gefunden.", "Warning");
-            return;
-        }
+        var logDirectoryPath = ResolveLogDirectoryPath();
 
         try
         {
+            Directory.CreateDirectory(logDirectoryPath);
+
             Process.Start(new ProcessStartInfo
             {
-                FileName = logFilePath,
+                FileName = logDirectoryPath,
                 UseShellExecute = true
             });
 
-            AddNotification($"Logdatei geöffnet: {logFilePath}", "Info");
+            AddNotification($"Log-Ordner geöffnet: {logDirectoryPath}", "Info");
         }
         catch (Exception ex)
         {
-            AddNotification($"Logdatei konnte nicht geöffnet werden: {ex.Message}", "Error");
+            AddNotification($"Log-Ordner konnte nicht geöffnet werden: {ex.Message}", "Error");
         }
     }
 
@@ -3624,7 +3617,7 @@ public partial class MainViewModel : ViewModelBase
         return _uiInteropService.PickFolderPath(description);
     }
 
-    private static string? ResolveLatestLogFilePath()
+    private static string ResolveLogDirectoryPath()
     {
         var logDirectoryCandidates = new[]
         {
@@ -3635,22 +3628,12 @@ public partial class MainViewModel : ViewModelBase
 
         foreach (var directory in logDirectoryCandidates)
         {
-            if (!Directory.Exists(directory))
+            if (Directory.Exists(directory))
             {
-                continue;
-            }
-
-            var latestLog = new DirectoryInfo(directory)
-                .EnumerateFiles("hypertool-*.log", SearchOption.TopDirectoryOnly)
-                .OrderByDescending(file => file.LastWriteTimeUtc)
-                .FirstOrDefault();
-
-            if (latestLog is not null)
-            {
-                return latestLog.FullName;
+                return directory;
             }
         }
 
-        return null;
+        return logDirectoryCandidates[0];
     }
 }

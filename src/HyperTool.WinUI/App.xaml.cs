@@ -118,8 +118,12 @@ public sealed partial class App : Application
 
                 _usbDiagnosticsHostListener = new HyperVSocketDiagnosticsHostListener(ack =>
                 {
+                    UsbGuestConnectionRegistry.UpdateFromDiagnosticsAck(ack);
+
                     Log.Information(
-                    "Hyper-V socket diagnostics test acknowledged. GuestComputerName={GuestComputerName}; HostComputerName={HostComputerName}; GuestHyperVSocketActive={GuestHyperVSocketActive}; GuestRegistryServiceOk={GuestRegistryServiceOk}; GuestSentAtUtc={GuestSentAtUtc}; UsbTunnelActive={UsbTunnelActive}; RegistryServiceOk={RegistryServiceOk}",
+                    "Hyper-V socket diagnostics acknowledged. EventType={EventType}; BusId={BusId}; GuestComputerName={GuestComputerName}; HostComputerName={HostComputerName}; GuestHyperVSocketActive={GuestHyperVSocketActive}; GuestRegistryServiceOk={GuestRegistryServiceOk}; GuestSentAtUtc={GuestSentAtUtc}; UsbTunnelActive={UsbTunnelActive}; RegistryServiceOk={RegistryServiceOk}",
+                    ack.EventType,
+                    ack.BusId,
                     ack.GuestComputerName,
                         Environment.MachineName,
                     ack.HyperVSocketActive,

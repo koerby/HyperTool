@@ -14,6 +14,8 @@ public sealed class UsbIpDeviceInfo
 
     public string ClientIpAddress { get; set; } = string.Empty;
 
+    public string AttachedGuestComputerName { get; set; } = string.Empty;
+
     public bool IsConnected => !string.IsNullOrWhiteSpace(InstanceId);
 
     public bool IsRemoteAvailable => !string.IsNullOrWhiteSpace(BusId)
@@ -65,7 +67,10 @@ public sealed class UsbIpDeviceInfo
             var bus = string.IsNullOrWhiteSpace(BusId) ? "-" : BusId;
             var hardware = string.IsNullOrWhiteSpace(HardwareId) ? "----:----" : HardwareId;
             var description = string.IsNullOrWhiteSpace(Description) ? "USB Device" : Description;
-            return $"{bus}  {hardware}  {description}  [{StateText}]";
+            var guestInfo = IsAttached && !string.IsNullOrWhiteSpace(AttachedGuestComputerName)
+                ? $"  [VM: {AttachedGuestComputerName}]"
+                : string.Empty;
+            return $"{bus}  {hardware}  {description}  [{StateText}]{guestInfo}";
         }
     }
 }

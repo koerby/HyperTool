@@ -191,5 +191,9 @@ public sealed class HyperVSocketDiagnosticsAck
 
     public bool? RegistryServiceOk { get; set; }
 
+    public string? BusId { get; set; }
+
+    public string? EventType { get; set; }
+
     public string? SentAtUtc { get; set; }
 }

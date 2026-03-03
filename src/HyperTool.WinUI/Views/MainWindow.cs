@@ -18,7 +18,10 @@ using System.Collections.Specialized;
 using System.Diagnostics;
 using System.IO;
 using System.Media;
+using System.Net.Http;
 using System.Windows.Input;
+using Windows.Media.Core;
+using Windows.Media.Playback;
 using Windows.Graphics;
 using Windows.UI;
 
@@ -28,11 +31,24 @@ public sealed class MainWindow : Window
 {
     public const int DefaultWindowWidth = 1400;
     public const int DefaultWindowHeight = 940;
+    private const string HostUsbRuntimeOwner = "dorssel";
+    private const string HostUsbRuntimeRepo = "usbipd-win";
+    private const string HostUsbRuntimeAssetHint = "x64";
+    private static readonly HttpClient RuntimeInstallerDownloadClient = new();
 
     private readonly IThemeService _themeService;
     private readonly MainViewModel _viewModel;
     private readonly List<Button> _navButtons = [];
     private readonly StackPanel _vmChipPanel = new() { Orientation = Orientation.Horizontal, Spacing = 8 };
+    private readonly ScrollViewer _vmChipScrollViewer = new()
+    {
+        HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden,
+        VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
+        HorizontalScrollMode = ScrollMode.Enabled,
+        VerticalScrollMode = ScrollMode.Disabled
+    };
+    private readonly Button _vmChipsLeftButton = new();
+    private readonly Button _vmChipsRightButton = new();
     private readonly ContentPresenter _pageContent = new();
     private readonly TextBlock _statusText = new();
     private readonly Border _configurationNoticeBorder = new() { Visibility = Visibility.Collapsed };
@@ -49,7 +65,10 @@ public sealed class MainWindow : Window
     private readonly TreeView _checkpointTreeView = new();
     private readonly ListView _usbDevicesListView = new();
     private readonly CheckBox _usbAutoShareCheckBox = new();
-    private TextBox? _usbWslDistributionTextBox;
+    private readonly Ellipse _usbRuntimeStatusDot = new() { Width = 10, Height = 10, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _usbRuntimeStatusText = new() { Opacity = 0.9, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _usbRuntimeHintText = new() { TextWrapping = TextWrapping.Wrap, Opacity = 0.9 };
+    private Button? _usbRuntimeInstallButton;
     private readonly StackPanel _vmAdapterCardsPanel = new() { Spacing = 10 };
     private readonly Dictionary<string, TreeViewNode> _checkpointNodesById = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<TreeViewNode, HyperVCheckpointTreeItem> _checkpointItemsByNode = [];
@@ -71,6 +90,7 @@ public sealed class MainWindow : Window
     private TextBlock? _startupStatusText;
     private int _startupStatusIndex;
     private bool _isStartupStatusTransitionRunning;
+    private MediaPlayer? _logoSpinPlayer;
 
     public MainWindow(IThemeService themeService, MainViewModel viewModel, bool showStartupSplash = false)
     {
@@ -211,6 +231,28 @@ public sealed class MainWindow : Window
         {
             Background = LifecycleVisuals.CreateRootBackgroundBrush()
         };
+
+        overlayGrid.Children.Add(new TextBlock
+        {
+            Text = "Copyright: koerby",
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(20, 0, 0, 14),
+            FontSize = 12,
+            Opacity = 0.72,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(0xC8, 0x9B, 0xB7, 0xD7))
+        });
+
+        overlayGrid.Children.Add(new TextBlock
+        {
+            Text = LifecycleVisuals.ResolveDisplayVersion(_viewModel.AppVersion),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(0, 0, 20, 14),
+            FontSize = 12,
+            Opacity = 0.72,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(0xC8, 0x9B, 0xB7, 0xD7))
+        });
 
         overlayGrid.Children.Add(new Rectangle
         {
@@ -445,6 +487,18 @@ public sealed class MainWindow : Window
             Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(0xC8, 0x9B, 0xB7, 0xD7))
         };
         root.Children.Add(splashVersionText);
+
+        var splashCopyrightText = new TextBlock
+        {
+            Text = "Copyright: koerby",
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(20, 0, 0, 14),
+            FontSize = 12,
+            Opacity = 0.72,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(0xC8, 0x9B, 0xB7, 0xD7))
+        };
+        root.Children.Add(splashCopyrightText);
 
         var card = new Border
         {
@@ -1263,13 +1317,42 @@ public sealed class MainWindow : Window
         titleStack.Children.Add(titleRow);
         titleStack.Children.Add(new TextBlock { Text = "dein nützlicher Hyper V Helfer", Opacity = 0.8, Margin = new Thickness(0, 0, 0, 6) });
 
-        var chipScroller = new ScrollViewer
-        {
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = _vmChipPanel
-        };
-        titleStack.Children.Add(chipScroller);
+        _vmChipScrollViewer.Content = _vmChipPanel;
+        _vmChipScrollViewer.ViewChanged += (_, _) => UpdateVmChipNavigationButtons();
+        _vmChipScrollViewer.SizeChanged += (_, _) => UpdateVmChipNavigationButtons();
+        _vmChipPanel.SizeChanged += (_, _) => UpdateVmChipNavigationButtons();
+
+        _vmChipsLeftButton.Content = "◀";
+        _vmChipsLeftButton.Width = 30;
+        _vmChipsLeftButton.Height = 30;
+        _vmChipsLeftButton.CornerRadius = new CornerRadius(8);
+        _vmChipsLeftButton.BorderThickness = new Thickness(1);
+        _vmChipsLeftButton.BorderBrush = Application.Current.Resources["PanelBorderBrush"] as Brush;
+        _vmChipsLeftButton.Background = Application.Current.Resources["PanelBackgroundBrush"] as Brush;
+        _vmChipsLeftButton.Visibility = Visibility.Collapsed;
+        _vmChipsLeftButton.Click += (_, _) => ScrollVmChipsBy(-280);
+
+        _vmChipsRightButton.Content = "▶";
+        _vmChipsRightButton.Width = 30;
+        _vmChipsRightButton.Height = 30;
+        _vmChipsRightButton.CornerRadius = new CornerRadius(8);
+        _vmChipsRightButton.BorderThickness = new Thickness(1);
+        _vmChipsRightButton.BorderBrush = Application.Current.Resources["PanelBorderBrush"] as Brush;
+        _vmChipsRightButton.Background = Application.Current.Resources["PanelBackgroundBrush"] as Brush;
+        _vmChipsRightButton.Visibility = Visibility.Collapsed;
+        _vmChipsRightButton.Click += (_, _) => ScrollVmChipsBy(280);
+
+        var chipNavigationGrid = new Grid { ColumnSpacing = 8 };
+        chipNavigationGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        chipNavigationGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        chipNavigationGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        chipNavigationGrid.Children.Add(_vmChipsLeftButton);
+        Grid.SetColumn(_vmChipScrollViewer, 1);
+        chipNavigationGrid.Children.Add(_vmChipScrollViewer);
+        Grid.SetColumn(_vmChipsRightButton, 2);
+        chipNavigationGrid.Children.Add(_vmChipsRightButton);
+
+        titleStack.Children.Add(chipNavigationGrid);
         headerGrid.Children.Add(titleStack);
 
         var titleActions = new StackPanel
@@ -1471,7 +1554,7 @@ public sealed class MainWindow : Window
         summaryGrid.Children.Add(_notificationSummaryBorder);
 
         var summaryButtons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        summaryButtons.Children.Add(CreateIconButton("📄", "Logdatei öffnen", _viewModel.OpenLogFileCommand, compact: true));
+        summaryButtons.Children.Add(CreateIconButton("📄", "Log-Ordner öffnen", _viewModel.OpenLogFileCommand, compact: true));
         _toggleLogButton.Command = _viewModel.ToggleLogCommand;
         _toggleLogButton.CornerRadius = new CornerRadius(8);
         _toggleLogButton.Padding = new Thickness(8, 2, 8, 2);
@@ -1818,7 +1901,7 @@ public sealed class MainWindow : Window
         vmOverviewStack.Children.Add(defaultVmText);
 
         var trayAdapterRow = new Grid { ColumnSpacing = 8, VerticalAlignment = VerticalAlignment.Center };
-        trayAdapterRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(132) });
+        trayAdapterRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
         trayAdapterRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         trayAdapterRow.Children.Add(new TextBlock
         {
@@ -1827,6 +1910,8 @@ public sealed class MainWindow : Window
             Foreground = Application.Current.Resources["TextMutedBrush"] as Brush
         });
         var trayAdapterCombo = CreateStyledComboBox();
+        trayAdapterCombo.MinHeight = 38;
+        trayAdapterCombo.HorizontalAlignment = HorizontalAlignment.Stretch;
         trayAdapterCombo.ItemsSource = _viewModel.AvailableVmTrayAdapterOptions;
         trayAdapterCombo.DisplayMemberPath = nameof(VmTrayAdapterOption.DisplayName);
         trayAdapterCombo.SelectedItem = _viewModel.SelectedVmTrayAdapterOption;
@@ -1860,6 +1945,8 @@ public sealed class MainWindow : Window
         });
 
         var renameAdapterCombo = CreateStyledComboBox();
+        renameAdapterCombo.MinHeight = 38;
+        renameAdapterCombo.HorizontalAlignment = HorizontalAlignment.Stretch;
         renameAdapterCombo.ItemsSource = _viewModel.AvailableVmAdaptersForRename;
         renameAdapterCombo.DisplayMemberPath = nameof(HyperVVmNetworkAdapterInfo.DisplayName);
         renameAdapterCombo.SelectedItem = _viewModel.SelectedVmAdapterForRename;
@@ -1933,31 +2020,38 @@ public sealed class MainWindow : Window
         quickTogglesGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
         var trayMenuCheck = CreateCheckBox("Tasktray-Menü aktiv", () => _viewModel.UiEnableTrayMenu, value => _viewModel.UiEnableTrayMenu = value);
+        trayMenuCheck.Margin = new Thickness(0);
         Grid.SetColumn(trayMenuCheck, 0);
         Grid.SetRow(trayMenuCheck, 0);
         quickTogglesGrid.Children.Add(trayMenuCheck);
 
+        var openConsoleAfterStartCheck = CreateCheckBox("Beim VM-Start Konsole automatisch öffnen", () => _viewModel.UiOpenConsoleAfterVmStart, value => _viewModel.UiOpenConsoleAfterVmStart = value);
+        openConsoleAfterStartCheck.Margin = new Thickness(0);
+        Grid.SetColumn(openConsoleAfterStartCheck, 1);
+        Grid.SetRow(openConsoleAfterStartCheck, 0);
+        quickTogglesGrid.Children.Add(openConsoleAfterStartCheck);
+
         var startMinCheck = CreateCheckBox("Beim Start minimiert", () => _viewModel.UiStartMinimized, value => _viewModel.UiStartMinimized = value);
+        startMinCheck.Margin = new Thickness(0);
         Grid.SetColumn(startMinCheck, 1);
-        Grid.SetRow(startMinCheck, 0);
+        Grid.SetRow(startMinCheck, 1);
         quickTogglesGrid.Children.Add(startMinCheck);
 
         var startWithWindowsCheck = CreateCheckBox("Mit Windows starten", () => _viewModel.UiStartWithWindows, value => _viewModel.UiStartWithWindows = value);
+        startWithWindowsCheck.Margin = new Thickness(0);
         Grid.SetColumn(startWithWindowsCheck, 0);
         Grid.SetRow(startWithWindowsCheck, 1);
         quickTogglesGrid.Children.Add(startWithWindowsCheck);
 
-        var updateCheck = CreateCheckBox("Beim Start auf Updates prüfen", () => _viewModel.UpdateCheckOnStartup, value => _viewModel.UpdateCheckOnStartup = value);
-        Grid.SetColumn(updateCheck, 1);
-        Grid.SetRow(updateCheck, 1);
-        quickTogglesGrid.Children.Add(updateCheck);
-
         systemStack.Children.Add(quickTogglesGrid);
 
-        var themeRow = new Grid { ColumnSpacing = 8, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 2, 0, 0) };
+        var displayAndUpdatesRow = new Grid { ColumnSpacing = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0) };
+        displayAndUpdatesRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        displayAndUpdatesRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var themeRow = new Grid { ColumnSpacing = 8, VerticalAlignment = VerticalAlignment.Center };
         themeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(140) });
         themeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        themeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         themeRow.Children.Add(new TextBlock
         {
             Text = "Dark Mode",
@@ -1980,22 +2074,18 @@ public sealed class MainWindow : Window
         Grid.SetColumn(themeToggle, 1);
         themeRow.Children.Add(themeToggle);
 
-        var themeText = new TextBlock
-        {
-            Text = string.Equals(_viewModel.UiTheme, "Dark", StringComparison.OrdinalIgnoreCase) ? "Dunkles Theme" : "Helles Theme",
-            VerticalAlignment = VerticalAlignment.Center,
-            Foreground = Application.Current.Resources["TextMutedBrush"] as Brush,
-            Opacity = 0.95
-        };
-        themeToggle.Toggled += (_, _) =>
-        {
-            themeText.Text = themeToggle.IsOn ? "Dunkles Theme" : "Helles Theme";
-        };
-        Grid.SetColumn(themeText, 2);
-        themeRow.Children.Add(themeText);
-        systemStack.Children.Add(themeRow);
+        Grid.SetColumn(themeRow, 0);
+        displayAndUpdatesRow.Children.Add(themeRow);
 
-        var hostRow = new Grid { ColumnSpacing = 8, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 2, 0, 0) };
+        var updateCheck = CreateCheckBox("Beim Start auf Updates prüfen", () => _viewModel.UpdateCheckOnStartup, value => _viewModel.UpdateCheckOnStartup = value);
+        updateCheck.HorizontalAlignment = HorizontalAlignment.Left;
+        updateCheck.Margin = new Thickness(0);
+        Grid.SetColumn(updateCheck, 1);
+        displayAndUpdatesRow.Children.Add(updateCheck);
+
+        systemStack.Children.Add(displayAndUpdatesRow);
+
+        var hostRow = new Grid { ColumnSpacing = 8, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0) };
         hostRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(140) });
         hostRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         hostRow.Children.Add(new TextBlock
@@ -2005,6 +2095,9 @@ public sealed class MainWindow : Window
             Foreground = Application.Current.Resources["TextMutedBrush"] as Brush
         });
         var hostTextBox = CreateStyledTextBox(_viewModel.VmConnectComputerName, "z. B. KAI-PC");
+        hostTextBox.MinWidth = 420;
+        hostTextBox.MaxWidth = 620;
+        hostTextBox.HorizontalAlignment = HorizontalAlignment.Left;
         hostTextBox.TextChanged += (_, _) => _viewModel.VmConnectComputerName = hostTextBox.Text;
         Grid.SetColumn(hostTextBox, 1);
         hostRow.Children.Add(hostTextBox);
@@ -2127,14 +2220,26 @@ public sealed class MainWindow : Window
         versionWrap.Children.Add(versionText);
         Grid.SetColumn(versionWrap, 1);
         titleWrap.Children.Add(versionWrap);
+
         panel.Children.Add(titleWrap);
 
-        var updateWrap = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        var infoStatusRow = new Grid { ColumnSpacing = 8 };
+        infoStatusRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        infoStatusRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var updateWrap = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
         updateWrap.Children.Add(new TextBlock { Text = "Update-Status:", Opacity = 0.9 });
         var updateText = new TextBlock { TextWrapping = TextWrapping.Wrap, Opacity = 0.9 };
         updateText.SetBinding(TextBlock.TextProperty, new Binding { Source = _viewModel, Path = new PropertyPath(nameof(MainViewModel.UpdateStatus)) });
         updateWrap.Children.Add(updateText);
-        panel.Children.Add(updateWrap);
+
+        var copyrightText = new TextBlock { Text = "Copyright: koerby", Opacity = 0.9, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
+
+        Grid.SetColumn(updateWrap, 0);
+        infoStatusRow.Children.Add(updateWrap);
+        Grid.SetColumn(copyrightText, 1);
+        infoStatusRow.Children.Add(copyrightText);
+        panel.Children.Add(infoStatusRow);
 
         var infoCard = new Border
         {
@@ -2236,7 +2341,7 @@ public sealed class MainWindow : Window
 
     private UIElement BuildUsbPage()
     {
-        var root = new Grid { RowSpacing = 10 };
+        var root = new Grid { RowSpacing = 8 };
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
@@ -2247,58 +2352,43 @@ public sealed class MainWindow : Window
             BorderThickness = new Thickness(1),
             BorderBrush = Application.Current.Resources["PanelBorderBrush"] as Brush,
             Background = Application.Current.Resources["SurfaceSoftBrush"] as Brush,
-            Padding = new Thickness(10)
+            Padding = new Thickness(8)
         };
 
-        var actionsStack = new StackPanel { Spacing = 8 };
+        var actionsStack = new StackPanel { Spacing = 4 };
         actionsStack.Children.Add(new TextBlock
         {
             Text = "USB Share (usbipd CLI Bridge)",
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
         });
 
-        var usbRuntimeHintText = new TextBlock
-        {
-            TextWrapping = TextWrapping.Wrap,
-            Opacity = 0.9,
-            Foreground = Application.Current.Resources["TextMutedBrush"] as Brush
-        };
-        usbRuntimeHintText.SetBinding(TextBlock.TextProperty, new Binding { Source = _viewModel, Path = new PropertyPath(nameof(MainViewModel.UsbRuntimeHintText)) });
-        actionsStack.Children.Add(usbRuntimeHintText);
+        var runtimeRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        runtimeRow.Children.Add(_usbRuntimeStatusDot);
+        runtimeRow.Children.Add(_usbRuntimeStatusText);
+        actionsStack.Children.Add(runtimeRow);
 
-        var actionRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        _usbRuntimeInstallButton = CreateIconButton("⬇", "Installation usbip-win", onClick: async (_, _) => await InstallHostUsbRuntimeAsync());
+        _usbRuntimeHintText.Foreground = Application.Current.Resources["TextMutedBrush"] as Brush;
+        _usbRuntimeHintText.SetBinding(TextBlock.TextProperty, new Binding { Source = _viewModel, Path = new PropertyPath(nameof(MainViewModel.UsbRuntimeHintText)) });
+
+        var actionRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
         actionRow.Children.Add(CreateIconButton("⟳", "Refresh", _viewModel.RefreshUsbDevicesCommand));
         actionRow.Children.Add(CreateIconButton("🔓", "Share", _viewModel.BindUsbDeviceCommand));
         actionRow.Children.Add(CreateIconButton("🔒", "Unshare", _viewModel.UnbindUsbDeviceCommand));
-        actionRow.Children.Add(CreateIconButton("🧩", "Attach WSL", _viewModel.AttachUsbToWslCommand));
-        actionRow.Children.Add(CreateIconButton("⏏", "Detach", _viewModel.DetachUsbDeviceCommand));
         actionsStack.Children.Add(actionRow);
 
-        var distributionRow = new Grid { ColumnSpacing = 8 };
-        distributionRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(130) });
-        distributionRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        distributionRow.Children.Add(new TextBlock
-        {
-            Text = "WSL Distro",
-            VerticalAlignment = VerticalAlignment.Center,
-            Opacity = 0.9,
-            Foreground = Application.Current.Resources["TextMutedBrush"] as Brush
-        });
-
-        var distroTextBox = CreateStyledTextBox(_viewModel.UsbWslDistribution, "leer = default WSL Distribution");
-        distroTextBox.IsEnabled = _viewModel.UsbRuntimeAvailable;
-        _usbWslDistributionTextBox = distroTextBox;
-        distroTextBox.TextChanged += (_, _) => _viewModel.UsbWslDistribution = distroTextBox.Text;
-        Grid.SetColumn(distroTextBox, 1);
-        distributionRow.Children.Add(distroTextBox);
-        actionsStack.Children.Add(distributionRow);
-
         _usbAutoShareCheckBox.Content = "Auto-Share für ausgewähltes Gerät";
+        _usbAutoShareCheckBox.Margin = new Thickness(0);
         _usbAutoShareCheckBox.IsChecked = _viewModel.SelectedUsbDeviceAutoShareEnabled;
         _usbAutoShareCheckBox.IsEnabled = _viewModel.SelectedUsbDevice is not null && _viewModel.UsbRuntimeAvailable;
         _usbAutoShareCheckBox.Checked += (_, _) => _viewModel.SelectedUsbDeviceAutoShareEnabled = true;
         _usbAutoShareCheckBox.Unchecked += (_, _) => _viewModel.SelectedUsbDeviceAutoShareEnabled = false;
         actionsStack.Children.Add(_usbAutoShareCheckBox);
+
+        actionsStack.Children.Add(_usbRuntimeInstallButton);
+        actionsStack.Children.Add(_usbRuntimeHintText);
+
+        UpdateUsbRuntimeStatusUi();
 
         actionsCard.Child = actionsStack;
         root.Children.Add(actionsCard);
@@ -2596,6 +2686,32 @@ public sealed class MainWindow : Window
         {
             _vmChipPanel.Children.Add(CreateVmChip(vm));
         }
+
+        UpdateVmChipNavigationButtons();
+    }
+
+    private void ScrollVmChipsBy(double delta)
+    {
+        var currentOffset = _vmChipScrollViewer.HorizontalOffset;
+        var targetOffset = Math.Max(0, currentOffset + delta);
+        _vmChipScrollViewer.ChangeView(targetOffset, null, null);
+        UpdateVmChipNavigationButtons();
+    }
+
+    private void UpdateVmChipNavigationButtons()
+    {
+        var hasOverflow = _vmChipScrollViewer.ScrollableWidth > 1;
+
+        _vmChipsLeftButton.Visibility = hasOverflow ? Visibility.Visible : Visibility.Collapsed;
+        _vmChipsRightButton.Visibility = hasOverflow ? Visibility.Visible : Visibility.Collapsed;
+
+        if (!hasOverflow)
+        {
+            return;
+        }
+
+        _vmChipsLeftButton.IsEnabled = _vmChipScrollViewer.HorizontalOffset > 1;
+        _vmChipsRightButton.IsEnabled = _vmChipScrollViewer.HorizontalOffset < (_vmChipScrollViewer.ScrollableWidth - 1);
     }
 
     private void RefreshVmAdapterCards()
@@ -2830,7 +2946,32 @@ public sealed class MainWindow : Window
             var soundPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "logo-spin.wav");
             if (File.Exists(soundPath))
             {
-                using var player = new SoundPlayer(soundPath);
+                _logoSpinPlayer?.Dispose();
+
+                var player = new MediaPlayer
+                {
+                    AudioCategory = MediaPlayerAudioCategory.SoundEffects,
+                    Volume = 0.30,
+                    Source = MediaSource.CreateFromUri(new Uri(soundPath))
+                };
+
+                player.MediaEnded += (_, _) =>
+                {
+                    try
+                    {
+                        player.Dispose();
+                    }
+                    catch
+                    {
+                    }
+
+                    if (ReferenceEquals(_logoSpinPlayer, player))
+                    {
+                        _logoSpinPlayer = null;
+                    }
+                };
+
+                _logoSpinPlayer = player;
                 player.Play();
             }
             else
@@ -3058,10 +3199,7 @@ public sealed class MainWindow : Window
         if (string.Equals(e.PropertyName, nameof(MainViewModel.UsbRuntimeAvailable), StringComparison.Ordinal))
         {
             _usbAutoShareCheckBox.IsEnabled = _viewModel.SelectedUsbDevice is not null && _viewModel.UsbRuntimeAvailable;
-            if (_usbWslDistributionTextBox is not null)
-            {
-                _usbWslDistributionTextBox.IsEnabled = _viewModel.UsbRuntimeAvailable;
-            }
+            UpdateUsbRuntimeStatusUi();
         }
 
         if (string.Equals(e.PropertyName, nameof(MainViewModel.SelectedUsbDeviceAutoShareEnabled), StringComparison.Ordinal))
@@ -3084,6 +3222,126 @@ public sealed class MainWindow : Window
         }
 
         _ = DispatcherQueue.TryEnqueue(() => action());
+    }
+
+    private void UpdateUsbRuntimeStatusUi()
+    {
+        var isAvailable = _viewModel.UsbRuntimeAvailable;
+        _usbRuntimeStatusDot.Fill = new SolidColorBrush(isAvailable
+            ? Windows.UI.Color.FromArgb(0xFF, 0x32, 0xD7, 0x4B)
+            : Windows.UI.Color.FromArgb(0xFF, 0xE8, 0x4A, 0x5F));
+        _usbRuntimeStatusText.Text = isAvailable
+            ? "usbipd Runtime: Verfügbar"
+            : "usbipd Runtime: Nicht installiert";
+
+        if (_usbRuntimeInstallButton is not null)
+        {
+            _usbRuntimeInstallButton.Visibility = isAvailable ? Visibility.Collapsed : Visibility.Visible;
+        }
+
+        _usbRuntimeHintText.Visibility = isAvailable ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private async Task InstallHostUsbRuntimeAsync()
+    {
+        if (_usbRuntimeInstallButton is not null)
+        {
+            _usbRuntimeInstallButton.IsEnabled = false;
+        }
+
+        try
+        {
+            _viewModel.PublishNotification("usbipd-win Installer wird vorbereitet...", "Info");
+
+            var installerResult = await new GitHubUpdateService().CheckForUpdateAsync(
+                HostUsbRuntimeOwner,
+                HostUsbRuntimeRepo,
+                "0.0.0",
+                CancellationToken.None,
+                HostUsbRuntimeAssetHint);
+
+            if (!installerResult.Success || string.IsNullOrWhiteSpace(installerResult.InstallerDownloadUrl))
+            {
+                _viewModel.PublishNotification("Installer-Asset konnte nicht automatisch ermittelt werden. Release-Seite wird geöffnet.", "Warning");
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "https://github.com/dorssel/usbipd-win/releases/latest",
+                    UseShellExecute = true
+                });
+                return;
+            }
+
+            var targetDirectory = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "HyperTool", "runtime-installers");
+            Directory.CreateDirectory(targetDirectory);
+
+            var fileName = ResolveInstallerFileName(
+                installerResult.InstallerDownloadUrl,
+                installerResult.InstallerFileName,
+                "usbipd-win-x64.msi");
+
+            var installerPath = System.IO.Path.Combine(targetDirectory, fileName);
+
+            _viewModel.PublishNotification($"Lade usbipd-win herunter: {fileName}", "Info");
+            using (var response = await RuntimeInstallerDownloadClient.GetAsync(installerResult.InstallerDownloadUrl, CancellationToken.None))
+            {
+                response.EnsureSuccessStatusCode();
+                await using var stream = new System.IO.FileStream(installerPath, FileMode.Create, FileAccess.Write, FileShare.None);
+                await response.Content.CopyToAsync(stream);
+            }
+
+            var extension = System.IO.Path.GetExtension(installerPath);
+            if (string.Equals(extension, ".msi", StringComparison.OrdinalIgnoreCase))
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "msiexec.exe",
+                    Arguments = $"/i \"{installerPath}\" /passive",
+                    UseShellExecute = true,
+                    Verb = "runas"
+                });
+            }
+            else
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = installerPath,
+                    UseShellExecute = true,
+                    Verb = "runas"
+                });
+            }
+
+            _viewModel.PublishNotification("usbipd-win Installer gestartet. Nach Abschluss USB-Refresh oder App-Neustart ausführen.", "Success");
+        }
+        catch (Exception ex)
+        {
+            _viewModel.PublishNotification($"Automatische usbipd-win Installation fehlgeschlagen: {ex.Message}", "Error");
+        }
+        finally
+        {
+            if (_usbRuntimeInstallButton is not null)
+            {
+                _usbRuntimeInstallButton.IsEnabled = true;
+            }
+        }
+    }
+
+    private static string ResolveInstallerFileName(string downloadUrl, string? fileName, string defaultFileName)
+    {
+        if (!string.IsNullOrWhiteSpace(fileName))
+        {
+            return fileName.Trim();
+        }
+
+        if (Uri.TryCreate(downloadUrl, UriKind.Absolute, out var uri))
+        {
+            var inferred = System.IO.Path.GetFileName(uri.LocalPath);
+            if (!string.IsNullOrWhiteSpace(inferred))
+            {
+                return inferred;
+            }
+        }
+
+        return defaultFileName;
     }
 
     private void UpdateTitleBarAppearance()

@@ -67,11 +67,14 @@ public sealed class HelpWindow : Window
 
         var bodyCard = CreateCard(12);
         var bodyStack = new StackPanel { Spacing = 12 };
-        bodyStack.Children.Add(CreateSection("VM Auswahl", "Oben im Header werden alle Hyper-V VMs angezeigt. Klick auf einen Chip wählt die aktive Arbeits-VM."));
-        bodyStack.Children.Add(CreateSection("One Click Aktionen", "Im VM-Bereich kannst du VM starten, stoppen, hart ausschalten, neu starten und die VM-Konsole öffnen."));
-        bodyStack.Children.Add(CreateSection("Netzwerk", "Pro Netzwerkkarte kannst du den Switch direkt per One-Click umstellen. Host-Netzwerk öffnet die detaillierte Adapter-Ansicht."));
-        bodyStack.Children.Add(CreateSection("Snapshots", "Checkpoints erstellen, anwenden und löschen."));
-        bodyStack.Children.Add(CreateSection("Config / Info", "Einstellungen speichern, Updates prüfen und Konfiguration verwalten."));
+        bodyStack.Children.Add(CreateSection("VM Auswahl", "Im Header siehst du alle Hyper-V VMs. Ein Klick auf einen Chip setzt die aktive Arbeits-VM."));
+        bodyStack.Children.Add(CreateSection("VM Aktionen", "Start, Stop, Hard Off, Restart und Konsole stehen als Schnellaktionen bereit (inkl. Tray-Aktionen)."));
+        bodyStack.Children.Add(CreateSection("Netzwerk", "Switches werden pro VM-Adapter verwaltet. Über Host-Netzwerk öffnest du die Adapter-Detailansicht mit Status-Chips (Gateway/Default Switch)."));
+        bodyStack.Children.Add(CreateSection("USB Host", "USB-Geräte können aktualisiert, freigegeben und entfernt werden. Verbundene Guest-VMs werden im USB-Status sichtbar."));
+        bodyStack.Children.Add(CreateSection("USB Tray Control Center", "Der USB-Bereich bietet Schnellaktionen (Refresh/Share/Unshare) und bei fehlendem usbipd-win einen Installationsbutton mit automatischem Download und Installer-Start. Der Runtime-Status wird im USB-Menü der Haupt-App angezeigt."));
+        bodyStack.Children.Add(CreateSection("Tray Klickverhalten", "Linksklick und Rechtsklick auf das Tasktray-Icon öffnen das Control Center."));
+        bodyStack.Children.Add(CreateSection("Config / Info", "Konfiguration speichern, Update-Status prüfen und kompakte Diagnose-/Versionsinfos einsehen."));
+        bodyStack.Children.Add(CreateSection("Logs", "'Logs öffnen' öffnet immer den Log-Ordner (nicht einzelne Dateien)."));
         bodyCard.Child = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,

@@ -16,6 +16,7 @@
     "minimizeToTray": true,
     "enableTrayIcon": true,
     "startWithWindows": false,
+    "openConsoleAfterVmStart": true,
     "trayVmNames": []
   },
   "update": {

@@ -18,7 +18,15 @@
 AppId={{4B7BB8BE-2B17-4B63-8EA2-67B429B7AB33}
 AppName=HyperTool Guest
 AppVersion={#MyAppVersion}
-AppPublisher=koerby
+AppPublisher=github.com/koerby
+AppPublisherURL=https://github.com/koerby
+AppSupportURL=https://github.com/koerby/HyperTool/issues
+AppUpdatesURL=https://github.com/koerby/HyperTool/releases
+VersionInfoVersion={#MyAppVersion}
+VersionInfoCompany=github.com/koerby
+VersionInfoDescription=HyperTool Guest Setup
+VersionInfoProductName=HyperTool Guest
+VersionInfoProductVersion={#MyAppVersion}
 DefaultDirName={autopf}\HyperTool Guest
 DefaultGroupName=HyperTool Guest
 OutputDir={#MyOutputDir}
@@ -59,9 +67,9 @@ Source: "{#MySourceDir}\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversio
 Root: HKLM64; Subkey: "SOFTWARE\Microsoft\Windows NT\CurrentVersion\Virtualization\GuestCommunicationServices\6c4eb1be-40e8-4c8b-a4d6-5b0f67d7e40f"; ValueType: string; ValueName: "ElementName"; ValueData: "HyperTool Hyper-V Socket USB Tunnel"; Flags: uninsdeletekeyifempty
 
 [Icons]
-Name: "{group}\HyperTool Guest"; Filename: "{app}\HyperTool.Guest.exe"
+Name: "{group}\HyperTool Guest"; Filename: "{app}\HyperTool.Guest.exe"; IconFilename: "{app}\HyperTool.Guest.exe"; IconIndex: 0; AppUserModelID: "HyperTool.Guest"
 Name: "{group}\{cm:UninstallShortcut}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\HyperTool Guest"; Filename: "{app}\HyperTool.Guest.exe"; Tasks: desktopicon
+Name: "{autodesktop}\HyperTool Guest"; Filename: "{app}\HyperTool.Guest.exe"; IconFilename: "{app}\HyperTool.Guest.exe"; IconIndex: 0; AppUserModelID: "HyperTool.Guest"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\HyperTool.Guest.exe"; Description: "{cm:RunAfterInstall}"; Flags: nowait postinstall skipifsilent

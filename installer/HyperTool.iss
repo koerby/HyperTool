@@ -18,7 +18,15 @@
 AppId={{E3AF03D2-9A6A-4E17-9E42-1B95A4D0FA93}
 AppName=HyperTool
 AppVersion={#MyAppVersion}
-AppPublisher=koerby
+AppPublisher=github.com/koerby
+AppPublisherURL=https://github.com/koerby
+AppSupportURL=https://github.com/koerby/HyperTool/issues
+AppUpdatesURL=https://github.com/koerby/HyperTool/releases
+VersionInfoVersion={#MyAppVersion}
+VersionInfoCompany=github.com/koerby
+VersionInfoDescription=HyperTool Setup
+VersionInfoProductName=HyperTool
+VersionInfoProductVersion={#MyAppVersion}
 DefaultDirName={autopf}\HyperTool
 DefaultGroupName=HyperTool
 OutputDir={#MyOutputDir}
@@ -62,9 +70,9 @@ Root: HKLM64; Subkey: "SOFTWARE\Microsoft\Windows NT\CurrentVersion\Virtualizati
 Root: HKLM64; Subkey: "SOFTWARE\Microsoft\Windows NT\CurrentVersion\Virtualization\GuestCommunicationServices\67c53bca-3f3d-4628-98e4-e45be5d6d1ad"; ValueType: string; ValueName: "ElementName"; ValueData: "HyperTool Hyper-V Socket Diagnostics"; Flags: uninsdeletekeyifempty
 
 [Icons]
-Name: "{group}\HyperTool"; Filename: "{app}\HyperTool.exe"
+Name: "{group}\HyperTool"; Filename: "{app}\HyperTool.exe"; IconFilename: "{app}\Assets\HyperTool.ico"
 Name: "{group}\{cm:UninstallShortcut}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\HyperTool"; Filename: "{app}\HyperTool.exe"; Tasks: desktopicon
+Name: "{autodesktop}\HyperTool"; Filename: "{app}\HyperTool.exe"; IconFilename: "{app}\Assets\HyperTool.ico"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\HyperTool.exe"; Description: "{cm:RunAfterInstall}"; Flags: nowait postinstall skipifsilent

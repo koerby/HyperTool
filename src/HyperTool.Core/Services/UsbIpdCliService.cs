@@ -201,26 +201,6 @@ public sealed class UsbIpdCliService : IUsbIpService
         EnsureSuccess(result, $"USB-Freigabe für GUID '{persistedGuid}' konnte nicht entfernt werden.");
     }
 
-    public async Task AttachToWslAsync(string busId, string? distribution, CancellationToken cancellationToken)
-    {
-        await EnsureReadyAsync(cancellationToken);
-        var args = new List<string>
-        {
-            "attach",
-            "--wsl",
-            "--busid",
-            busId
-        };
-
-        if (!string.IsNullOrWhiteSpace(distribution))
-        {
-            args.Add(distribution.Trim());
-        }
-
-        var result = await RunCommandAsync(args, cancellationToken);
-        EnsureSuccess(result, $"USB-Gerät mit BUSID '{busId}' konnte nicht an WSL angehängt werden.");
-    }
-
     public async Task DetachAsync(string busId, CancellationToken cancellationToken)
     {
         await EnsureReadyAsync(cancellationToken);

@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Shapes;
+using System.Diagnostics;
 using System.Linq;
 using Windows.Graphics;
 using Windows.UI;
@@ -60,6 +61,28 @@ public sealed class ExitScreenWindow : Window
             Opacity = 0,
             Background = LifecycleVisuals.CreateRootBackgroundBrush()
         };
+
+        _root.Children.Add(new TextBlock
+        {
+            Text = "Copyright: koerby",
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(20, 0, 0, 14),
+            FontSize = 12,
+            Opacity = 0.72,
+            Foreground = new SolidColorBrush(Color.FromArgb(0xC8, 0x9B, 0xB7, 0xD7))
+        });
+
+        _root.Children.Add(new TextBlock
+        {
+            Text = ResolveAppVersionText(),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(0, 0, 20, 14),
+            FontSize = 12,
+            Opacity = 0.72,
+            Foreground = new SolidColorBrush(Color.FromArgb(0xC8, 0x9B, 0xB7, 0xD7))
+        });
 
         var focusLayerPrimary = new Ellipse
         {
@@ -710,5 +733,26 @@ public sealed class ExitScreenWindow : Window
 
         storyboard.Begin();
         await Task.Delay(durationMs + 20);
+    }
+
+    private static string ResolveAppVersionText()
+    {
+        try
+        {
+            var processPath = Environment.ProcessPath;
+            if (!string.IsNullOrWhiteSpace(processPath))
+            {
+                var fileVersion = FileVersionInfo.GetVersionInfo(processPath).FileVersion;
+                if (!string.IsNullOrWhiteSpace(fileVersion))
+                {
+                    return fileVersion;
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return "2.1.0";
     }
 }

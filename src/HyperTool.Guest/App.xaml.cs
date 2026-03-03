@@ -175,9 +175,6 @@ public sealed partial class App : Application
         _mainWindow.ApplyTheme(_config.Ui.Theme);
 
         TryInitializeTray();
-        await RefreshUsbDevicesAsync();
-
-        _ = _mainWindow.CheckForUpdatesOnStartupIfEnabledAsync();
 
         if (_config.Ui.StartMinimized && _isTrayFunctional && !_pendingSingleInstanceShow)
         {
@@ -212,6 +209,8 @@ public sealed partial class App : Application
             }
         }
 
+        _ = RunDeferredStartupTasksAsync();
+
         if (_pendingSingleInstanceShow)
         {
             BringMainWindowToFront();
@@ -229,6 +228,30 @@ public sealed partial class App : Application
         UpdateTrayControlCenterView();
 
         await Task.CompletedTask;
+    }
+
+    private async Task RunDeferredStartupTasksAsync()
+    {
+        try
+        {
+            await RefreshUsbDevicesAsync();
+        }
+        catch (Exception ex)
+        {
+            GuestLogger.Warn("startup.usb_refresh_failed", ex.Message);
+        }
+
+        try
+        {
+            if (_mainWindow is not null)
+            {
+                await _mainWindow.CheckForUpdatesOnStartupIfEnabledAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            GuestLogger.Warn("startup.updatecheck_failed", ex.Message);
+        }
     }
 
     private void ApplyStartWithWindows(GuestConfig config)
@@ -273,18 +296,44 @@ public sealed partial class App : Application
         {
             PointInt32 exitPosition;
             SizeInt32 exitSize;
+            HyperTool.WinUI.Views.ExitScreenWindow? exitWindow = null;
 
             if (_mainWindow is not null)
             {
                 exitPosition = _mainWindow.AppWindow.Position;
                 exitSize = _mainWindow.AppWindow.Size;
 
+                if (showExitScreen)
+                {
+                    try
+                    {
+                        exitWindow = new HyperTool.WinUI.Views.ExitScreenWindow(GuestWindowTitle, GuestHeadline, GuestIconUri);
+                        exitWindow.ConfigureBounds(exitPosition, exitSize);
+                    }
+                    catch
+                    {
+                        exitWindow = null;
+                    }
+                }
+
                 try
                 {
-                    await _mainWindow.PlayExitFadeAsync();
+                    await _mainWindow.PlayExitAnimationAsync();
                 }
                 catch
                 {
+                }
+
+                if (exitWindow is not null)
+                {
+                    try
+                    {
+                        exitWindow.Activate();
+                        await Task.Delay(60);
+                    }
+                    catch
+                    {
+                    }
                 }
 
                 try
@@ -319,9 +368,13 @@ public sealed partial class App : Application
             {
                 try
                 {
-                    var exitWindow = new HyperTool.WinUI.Views.ExitScreenWindow(GuestWindowTitle, GuestHeadline, GuestIconUri);
-                    exitWindow.ConfigureBounds(exitPosition, exitSize);
-                    exitWindow.Activate();
+                    if (exitWindow is null)
+                    {
+                        exitWindow = new HyperTool.WinUI.Views.ExitScreenWindow(GuestWindowTitle, GuestHeadline, GuestIconUri);
+                        exitWindow.ConfigureBounds(exitPosition, exitSize);
+                        exitWindow.Activate();
+                    }
+
                     await exitWindow.PlayAndCloseAsync();
                 }
                 catch
@@ -358,6 +411,7 @@ public sealed partial class App : Application
             PointInt32 previousPosition;
             SizeInt32 previousSize;
             bool previousVisible;
+            var previousMenuIndex = previousWindow.SelectedMenuIndex;
 
             try
             {
@@ -419,6 +473,7 @@ public sealed partial class App : Application
             _mainWindow = nextWindow;
             _minimizeToTray = _config.Ui.MinimizeToTray;
             _mainWindow.ApplyTheme(_config.Ui.Theme);
+            _mainWindow.SelectMenuIndex(previousMenuIndex);
 
             TryInitializeTray();
             await RefreshUsbDevicesAsync();
@@ -516,6 +571,9 @@ public sealed partial class App : Application
             InitializeTrayServiceCompat(_trayService);
 
             _isTrayFunctional = true;
+
+            EnsureTrayControlCenterWindow();
+            UpdateTrayControlCenterView();
         }
         catch (Exception ex)
         {
@@ -751,7 +809,7 @@ public sealed partial class App : Application
         }
 
         _trayControlCenterWindow.ApplyTheme(_mainWindow.CurrentTheme == "dark");
-        _trayControlCenterWindow.UpdateView(_usbDevices, _selectedUsbBusId, _mainWindow.AppWindow.IsVisible, _minimizeToTray);
+        _trayControlCenterWindow.UpdateView(_usbDevices, _selectedUsbBusId, _mainWindow.AppWindow.IsVisible, _minimizeToTray, _isUsbClientAvailable);
     }
 
     private UsbIpDeviceInfo? GetSelectedUsbDevice()
