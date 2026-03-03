@@ -41,6 +41,19 @@ public sealed class MainWindow : Window
         public bool ReadOnly { get; set; }
     }
 
+    private sealed class SharedFolderNetworkLogonPolicySnapshot
+    {
+        public bool ProbeSucceeded { get; set; }
+        public bool AllowUser { get; set; }
+        public bool AllowGroup { get; set; }
+        public bool DenyUser { get; set; }
+        public bool DenyGroup { get; set; }
+        public string UserPrincipal { get; set; } = string.Empty;
+        public string GroupPrincipal { get; set; } = string.Empty;
+        public string Error { get; set; } = string.Empty;
+        public string UpdatedAtUtc { get; set; } = string.Empty;
+    }
+
     public const int DefaultWindowWidth = 1400;
     public const int DefaultWindowHeight = 940;
     private const string HostUsbRuntimeOwner = "dorssel";
@@ -2912,7 +2925,7 @@ Write-Output ('PROBE=' + $probeSource)
         try
         {
             var scriptContent = File.ReadAllText(scriptPath);
-            if (!scriptContent.Contains("Script-Version: 2026-03-03.7", StringComparison.Ordinal))
+            if (!scriptContent.Contains("Script-Version: 2026-03-03.8", StringComparison.Ordinal))
             {
                 Log.Warning("Shared-folder provisioning script appears outdated (missing expected version marker). Path={ScriptPath}", scriptPath);
             }
@@ -2981,163 +2994,57 @@ Write-Output ('PROBE=' + $probeSource)
     {
         try
         {
-            var status = await ProbeSharedFolderNetworkLogonPolicyAsync();
-            if (!status.ProbeSucceeded)
+            await Task.Yield();
+
+            var snapshotPath = System.IO.Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "HyperTool",
+                "credentials",
+                "host-sharedfolder-rights-status.json");
+
+            if (!File.Exists(snapshotPath))
+            {
+                Log.Information("Shared-folder network logon rights snapshot not found after provisioning. Path={Path}", snapshotPath);
+                return;
+            }
+
+            var rawJson = await File.ReadAllTextAsync(snapshotPath);
+            var snapshot = JsonSerializer.Deserialize<SharedFolderNetworkLogonPolicySnapshot>(rawJson, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            if (snapshot is null)
+            {
+                Log.Warning("Shared-folder network logon rights snapshot could not be parsed. Path={Path}", snapshotPath);
+                return;
+            }
+
+            if (!snapshot.ProbeSucceeded)
             {
                 Log.Warning(
-                    "Shared-folder network logon rights probe failed after provisioning. Error={Error}",
-                    status.Error);
+                    "Shared-folder network logon rights snapshot indicates failed probe. Error={Error}; User={UserPrincipal}; Group={GroupPrincipal}; UpdatedAtUtc={UpdatedAtUtc}",
+                    snapshot.Error,
+                    snapshot.UserPrincipal,
+                    snapshot.GroupPrincipal,
+                    snapshot.UpdatedAtUtc);
                 return;
             }
 
             Log.Information(
-                "Shared-folder network logon rights after provisioning: AllowUser={AllowUser}; AllowGroup={AllowGroup}; DenyUser={DenyUser}; DenyGroup={DenyGroup}; User={UserPrincipal}; Group={GroupPrincipal}",
-                status.AllowUser,
-                status.AllowGroup,
-                status.DenyUser,
-                status.DenyGroup,
-                status.UserPrincipal,
-                status.GroupPrincipal);
+                "Shared-folder network logon rights after provisioning: AllowUser={AllowUser}; AllowGroup={AllowGroup}; DenyUser={DenyUser}; DenyGroup={DenyGroup}; User={UserPrincipal}; Group={GroupPrincipal}; UpdatedAtUtc={UpdatedAtUtc}",
+                snapshot.AllowUser,
+                snapshot.AllowGroup,
+                snapshot.DenyUser,
+                snapshot.DenyGroup,
+                snapshot.UserPrincipal,
+                snapshot.GroupPrincipal,
+                snapshot.UpdatedAtUtc);
         }
         catch (Exception ex)
         {
             Log.Warning(ex, "Failed to probe shared-folder network logon rights after provisioning.");
         }
-    }
-
-    private async Task<(bool ProbeSucceeded, bool AllowUser, bool AllowGroup, bool DenyUser, bool DenyGroup, string UserPrincipal, string GroupPrincipal, string Error)> ProbeSharedFolderNetworkLogonPolicyAsync()
-    {
-        var userPrincipal = $"{Environment.MachineName}\\{SharedFolderProvisioningUserName}";
-        var groupPrincipal = $"{Environment.MachineName}\\{SharedFolderProvisioningGroupName}";
-        var userSid = TryResolvePrincipalSid(userPrincipal);
-        var groupSid = TryResolvePrincipalSid(groupPrincipal);
-
-        var tempRoot = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"hypertool-rights-probe-{Guid.NewGuid():N}");
-        var cfgPath = System.IO.Path.Combine(tempRoot, "security.inf");
-
-        try
-        {
-            Directory.CreateDirectory(tempRoot);
-
-            using var process = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = "secedit.exe",
-                    Arguments = $"/export /cfg \"{cfgPath}\" /areas USER_RIGHTS",
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    StandardOutputEncoding = Encoding.UTF8,
-                    StandardErrorEncoding = Encoding.UTF8
-                }
-            };
-
-            process.Start();
-            _ = await process.StandardOutput.ReadToEndAsync();
-            var stderr = await process.StandardError.ReadToEndAsync();
-            await process.WaitForExitAsync();
-
-            if (process.ExitCode != 0 || !File.Exists(cfgPath))
-            {
-                var error = string.IsNullOrWhiteSpace(stderr)
-                    ? $"secedit /export fehlgeschlagen (ExitCode={process.ExitCode})."
-                    : $"secedit /export fehlgeschlagen (ExitCode={process.ExitCode}): {stderr.Trim()}";
-                return (false, false, false, false, false, userPrincipal, groupPrincipal, error);
-            }
-
-            var lines = await File.ReadAllLinesAsync(cfgPath);
-            var allowEntries = GetPrivilegeEntries(lines, "SeNetworkLogonRight");
-            var denyEntries = GetPrivilegeEntries(lines, "SeDenyNetworkLogonRight");
-
-            var allowSet = new HashSet<string>(allowEntries.Select(entry => entry.Trim().TrimStart('*')), StringComparer.OrdinalIgnoreCase);
-            var denySet = new HashSet<string>(denyEntries.Select(entry => entry.Trim().TrimStart('*')), StringComparer.OrdinalIgnoreCase);
-
-            var allowUser = MatchesPolicyEntry(allowSet, userSid, userPrincipal, SharedFolderProvisioningUserName);
-            var allowGroup = MatchesPolicyEntry(allowSet, groupSid, groupPrincipal, SharedFolderProvisioningGroupName);
-            var denyUser = MatchesPolicyEntry(denySet, userSid, userPrincipal, SharedFolderProvisioningUserName);
-            var denyGroup = MatchesPolicyEntry(denySet, groupSid, groupPrincipal, SharedFolderProvisioningGroupName);
-
-            return (true, allowUser, allowGroup, denyUser, denyGroup, userPrincipal, groupPrincipal, string.Empty);
-        }
-        catch (Exception ex)
-        {
-            return (false, false, false, false, false, userPrincipal, groupPrincipal, ex.Message);
-        }
-        finally
-        {
-            try
-            {
-                if (Directory.Exists(tempRoot))
-                {
-                    Directory.Delete(tempRoot, recursive: true);
-                }
-            }
-            catch
-            {
-            }
-        }
-    }
-
-    private static string TryResolvePrincipalSid(string principalName)
-    {
-        try
-        {
-            var account = new System.Security.Principal.NTAccount(principalName);
-            var sid = (System.Security.Principal.SecurityIdentifier)account.Translate(typeof(System.Security.Principal.SecurityIdentifier));
-            return sid.Value;
-        }
-        catch
-        {
-            return string.Empty;
-        }
-    }
-
-    private static IReadOnlyList<string> GetPrivilegeEntries(IEnumerable<string> lines, string privilegeName)
-    {
-        foreach (var rawLine in lines)
-        {
-            var line = (rawLine ?? string.Empty).Trim();
-            if (!line.StartsWith(privilegeName, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            var separator = line.IndexOf('=');
-            if (separator < 0 || separator >= line.Length - 1)
-            {
-                return [];
-            }
-
-            return line[(separator + 1)..]
-                .Split(',', StringSplitOptions.RemoveEmptyEntries)
-                .Select(part => part.Trim())
-                .Where(part => !string.IsNullOrWhiteSpace(part))
-                .ToArray();
-        }
-
-        return [];
-    }
-
-    private static bool MatchesPolicyEntry(HashSet<string> normalizedEntries, string sid, string machineQualifiedName, string shortName)
-    {
-        if (!string.IsNullOrWhiteSpace(sid) && normalizedEntries.Contains(sid))
-        {
-            return true;
-        }
-
-        if (normalizedEntries.Contains(machineQualifiedName))
-        {
-            return true;
-        }
-
-        if (normalizedEntries.Contains($@".\{shortName}"))
-        {
-            return true;
-        }
-
-        return normalizedEntries.Contains(shortName);
     }
 
     private string ResolveSharedFolderProvisioningScriptPath()

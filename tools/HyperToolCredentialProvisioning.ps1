@@ -372,6 +372,129 @@ function Ensure-NetworkLogonRights {
     }
 }
 
+function Get-PrivilegeEntriesFromConfigLines {
+    param(
+        [string[]]$Lines,
+        [string]$Privilege
+    )
+
+    foreach ($line in $Lines) {
+        if ($line -notmatch ('^{0}\s*=' -f [regex]::Escape($Privilege))) {
+            continue
+        }
+
+        $parts = $line -split '=', 2
+        if ($parts.Count -lt 2 -or [string]::IsNullOrWhiteSpace($parts[1])) {
+            return @()
+        }
+
+        return $parts[1].Split(',') | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    }
+
+    return @()
+}
+
+function Get-NetworkLogonPolicyStatus {
+    param(
+        [string]$Group,
+        [string]$User
+    )
+
+    $machine = $env:COMPUTERNAME
+    $userPrincipal = "$machine\$User"
+    $groupPrincipal = "$machine\$Group"
+    $userSid = Get-PrincipalSidValue -AccountName $userPrincipal
+    $groupSid = Get-PrincipalSidValue -AccountName $groupPrincipal
+
+    $tempRoot = Join-Path $env:TEMP ("hypertool-secpol-status-{0}" -f [Guid]::NewGuid().ToString('N'))
+    $cfgPath = Join-Path $tempRoot 'security.inf'
+
+    $allowUser = $false
+    $allowGroup = $false
+    $denyUser = $false
+    $denyGroup = $false
+    $probeSucceeded = $false
+    $errorText = ''
+
+    New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
+    try {
+        & secedit.exe /export /cfg $cfgPath /areas USER_RIGHTS | Out-Null
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $cfgPath)) {
+            throw "secedit /export fehlgeschlagen (ExitCode=$LASTEXITCODE)."
+        }
+
+        $lines = Get-Content -LiteralPath $cfgPath -ErrorAction Stop
+        $allowEntries = Get-PrivilegeEntriesFromConfigLines -Lines $lines -Privilege 'SeNetworkLogonRight'
+        $denyEntries = Get-PrivilegeEntriesFromConfigLines -Lines $lines -Privilege 'SeDenyNetworkLogonRight'
+
+        $allowSet = New-Object System.Collections.Generic.HashSet[string]([System.StringComparer]::OrdinalIgnoreCase)
+        foreach ($entry in $allowEntries) {
+            [void]$allowSet.Add($entry.Trim().TrimStart('*'))
+        }
+
+        $denySet = New-Object System.Collections.Generic.HashSet[string]([System.StringComparer]::OrdinalIgnoreCase)
+        foreach ($entry in $denyEntries) {
+            [void]$denySet.Add($entry.Trim().TrimStart('*'))
+        }
+
+        $allowUser = ((-not [string]::IsNullOrWhiteSpace($userSid)) -and $allowSet.Contains($userSid)) -or $allowSet.Contains($userPrincipal) -or $allowSet.Contains(".\$User") -or $allowSet.Contains($User)
+        $allowGroup = ((-not [string]::IsNullOrWhiteSpace($groupSid)) -and $allowSet.Contains($groupSid)) -or $allowSet.Contains($groupPrincipal) -or $allowSet.Contains(".\$Group") -or $allowSet.Contains($Group)
+        $denyUser = ((-not [string]::IsNullOrWhiteSpace($userSid)) -and $denySet.Contains($userSid)) -or $denySet.Contains($userPrincipal) -or $denySet.Contains(".\$User") -or $denySet.Contains($User)
+        $denyGroup = ((-not [string]::IsNullOrWhiteSpace($groupSid)) -and $denySet.Contains($groupSid)) -or $denySet.Contains($groupPrincipal) -or $denySet.Contains(".\$Group") -or $denySet.Contains($Group)
+        $probeSucceeded = $true
+    }
+    catch {
+        $errorText = $_.Exception.Message
+    }
+    finally {
+        try {
+            if (Test-Path -LiteralPath $tempRoot) {
+                Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+        catch {
+        }
+    }
+
+    return [PSCustomObject]@{
+        probeSucceeded = $probeSucceeded
+        allowUser = $allowUser
+        allowGroup = $allowGroup
+        denyUser = $denyUser
+        denyGroup = $denyGroup
+        userPrincipal = $userPrincipal
+        groupPrincipal = $groupPrincipal
+        userSid = $userSid
+        groupSid = $groupSid
+        error = $errorText
+        updatedAtUtc = [DateTime]::UtcNow.ToString('O')
+    }
+}
+
+function Write-NetworkLogonPolicySnapshot {
+    param(
+        [string]$Group,
+        [string]$User
+    )
+
+    $snapshot = Get-NetworkLogonPolicyStatus -Group $Group -User $User
+    $snapshotPath = Join-Path $env:LOCALAPPDATA 'HyperTool\credentials\host-sharedfolder-rights-status.json'
+    $snapshotDir = Split-Path -Path $snapshotPath -Parent
+    if (-not (Test-Path -LiteralPath $snapshotDir)) {
+        New-Item -ItemType Directory -Path $snapshotDir -Force | Out-Null
+    }
+
+    $snapshotJson = $snapshot | ConvertTo-Json -Depth 4
+    [System.IO.File]::WriteAllText($snapshotPath, $snapshotJson, [System.Text.UTF8Encoding]::new($false))
+
+    if ($snapshot.probeSucceeded) {
+        Write-Host ("[OK] Netzwerk-Logon-Rechte Snapshot: AllowUser={0}; AllowGroup={1}; DenyUser={2}; DenyGroup={3}" -f $snapshot.allowUser, $snapshot.allowGroup, $snapshot.denyUser, $snapshot.denyGroup)
+    }
+    else {
+        Write-Warning ("Netzwerk-Logon-Rechte Snapshot fehlgeschlagen: {0}" -f $snapshot.error)
+    }
+}
+
 function Test-State {
     param(
         [string]$Group,
@@ -625,7 +748,7 @@ if ([string]::IsNullOrWhiteSpace($Password)) {
     Exit-WithDelay -Code 1
 }
 
-Write-Host "[INFO] Script-Version: 2026-03-03.7"
+Write-Host "[INFO] Script-Version: 2026-03-03.8"
 Write-Host "[INFO] Provisioning-Test startet..."
 Write-Host "[INFO] Gruppe: $GroupName"
 Write-Host "[INFO] Benutzer: $UserName"
@@ -661,6 +784,7 @@ if (-not $provisioningSucceeded) {
 }
 
 Ensure-NetworkLogonRights -Group $GroupName -User $UserName
+Write-NetworkLogonPolicySnapshot -Group $GroupName -User $UserName
 
 $state = Test-State -Group $GroupName -User $UserName
 Write-Host "[INFO] Prüfung: Gruppe=$($state.GroupExists), Benutzer=$($state.UserExists), Mitgliedschaft=$($state.UserInGroup)"
