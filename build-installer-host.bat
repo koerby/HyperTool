@@ -36,7 +36,7 @@ if not defined VERSION_ARG if /I "%NO_VERSION_PROMPT%"=="false" (
 if not defined VERSION set "VERSION=2.0.0"
 
 if not exist "%ROOT%dist\HyperTool.WinUI\HyperTool.exe" (
-    echo WinUI DIST-Build nicht gefunden. Fuehre zuerst build-winui.bat aus.
+    echo WinUI DIST-Build nicht gefunden. Fuehre zuerst build-host.bat aus.
     if /I "%NO_PAUSE%"=="false" pause
     exit /b 1
 )

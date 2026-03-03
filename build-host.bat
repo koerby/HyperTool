@@ -107,7 +107,7 @@ if /I "%INSTALLER_DECIDED%"=="false" (
 
 if /I "%CREATE_INSTALLER%"=="true" (
     echo [5/5] Erzeuge WinUI Installer...
-    call "%ROOT%build-installer-winui.bat" "version=%VERSION%" no-version-prompt no-pause
+    call "%ROOT%build-installer-host.bat" "version=%VERSION%" no-version-prompt no-pause
     if errorlevel 1 goto :fail
 )
 

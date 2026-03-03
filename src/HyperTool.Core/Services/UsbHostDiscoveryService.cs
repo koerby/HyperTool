@@ -17,7 +17,20 @@ public static class UsbHostDiscoveryService
         PropertyNameCaseInsensitive = true
     };
 
+    public sealed class UsbHostDiscoveryResult
+    {
+        public string HostAddress { get; init; } = string.Empty;
+        public string HostComputerName { get; init; } = string.Empty;
+    }
+
     public static async Task<string?> DiscoverHostAddressAsync(string requesterComputerName, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        var result = await DiscoverHostAsync(requesterComputerName, timeout, cancellationToken);
+        var address = (result?.HostAddress ?? string.Empty).Trim();
+        return string.IsNullOrWhiteSpace(address) ? null : address;
+    }
+
+    public static async Task<UsbHostDiscoveryResult?> DiscoverHostAsync(string requesterComputerName, TimeSpan timeout, CancellationToken cancellationToken)
     {
         using var udpClient = new UdpClient(AddressFamily.InterNetwork)
         {
@@ -51,18 +64,22 @@ public static class UsbHostDiscoveryService
                 }
 
                 var hostAddress = (response.HostAddress ?? string.Empty).Trim();
-                if (!string.IsNullOrWhiteSpace(hostAddress))
+                if (string.IsNullOrWhiteSpace(hostAddress))
                 {
-                    return hostAddress;
+                    hostAddress = response.HostAddresses
+                    .Select(entry => (entry ?? string.Empty).Trim())
+                    .FirstOrDefault(entry => !string.IsNullOrWhiteSpace(entry)) ?? string.Empty;
                 }
 
-                var fallback = response.HostAddresses
-                    .Select(entry => (entry ?? string.Empty).Trim())
-                    .FirstOrDefault(entry => !string.IsNullOrWhiteSpace(entry));
+                var hostComputerName = (response.HostComputerName ?? string.Empty).Trim();
 
-                if (!string.IsNullOrWhiteSpace(fallback))
+                if (!string.IsNullOrWhiteSpace(hostAddress) || !string.IsNullOrWhiteSpace(hostComputerName))
                 {
-                    return fallback;
+                    return new UsbHostDiscoveryResult
+                    {
+                        HostAddress = hostAddress,
+                        HostComputerName = hostComputerName
+                    };
                 }
             }
             catch (OperationCanceledException)

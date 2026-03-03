@@ -155,10 +155,10 @@ echo.
 if /I "%BUILD_HOST%"=="true" (
     if /I "%HOST_INSTALLER%"=="true" (
         echo [1/2] Starte Host-Build inkl. Installer...
-        call "%ROOT%build-winui.bat" "version=%HOST_VERSION%" installer no-pause
+        call "%ROOT%build-host.bat" "version=%HOST_VERSION%" installer no-pause
     ) else (
         echo [1/2] Starte Host-Build ohne Installer...
-        call "%ROOT%build-winui.bat" "version=%HOST_VERSION%" no-installer no-pause
+        call "%ROOT%build-host.bat" "version=%HOST_VERSION%" no-installer no-pause
     )
     if errorlevel 1 goto :fail
 )

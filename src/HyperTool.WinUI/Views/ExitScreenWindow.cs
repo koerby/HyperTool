@@ -287,22 +287,28 @@ public sealed class ExitScreenWindow : Window
 
     public async Task PlayAndCloseAsync()
     {
-        await Task.Delay(220);
+        const double timingFactor = 0.38;
+        static int Step(int milliseconds)
+        {
+            return Math.Max(1, (int)Math.Round(milliseconds * timingFactor));
+        }
+
+        await Task.Delay(Step(220));
         await AnimateStatusTextAsync(LifecycleVisuals.ShutdownStatusMessages[1]);
 
-        await Task.Delay(300);
-        await AnimateLayerOpacityAsync(_networkLines.Cast<UIElement>(), 0.28, 440);
-        await AnimateLayerOpacityAsync(_impulses.Cast<UIElement>(), 0.14, 420);
+        await Task.Delay(Step(300));
+        await AnimateLayerOpacityAsync(_networkLines.Cast<UIElement>(), 0.28, Step(440));
+        await AnimateLayerOpacityAsync(_impulses.Cast<UIElement>(), 0.14, Step(420));
 
         await AnimateStatusTextAsync(LifecycleVisuals.ShutdownStatusMessages[2]);
-        await Task.Delay(280);
+        await Task.Delay(Step(280));
 
-        await AnimateLayerOpacityAsync(_impulses.Cast<UIElement>(), 0.04, 460);
+        await AnimateLayerOpacityAsync(_impulses.Cast<UIElement>(), 0.04, Step(460));
         await AnimateStatusTextAsync(LifecycleVisuals.ShutdownStatusMessages[3]);
 
-        await Task.Delay(320);
-        await AnimateLayerOpacityAsync(_networkLines.Cast<UIElement>(), 0.04, 620);
-        await AnimateLayerOpacityAsync(_particles.Cast<UIElement>(), 0.02, 520);
+        await Task.Delay(Step(320));
+        await AnimateLayerOpacityAsync(_networkLines.Cast<UIElement>(), 0.04, Step(620));
+        await AnimateLayerOpacityAsync(_particles.Cast<UIElement>(), 0.02, Step(520));
 
         var calmStoryboard = new Storyboard();
 
@@ -310,7 +316,7 @@ public sealed class ExitScreenWindow : Window
         {
             From = _outerHalo.Opacity,
             To = 0.08,
-            Duration = TimeSpan.FromMilliseconds(720),
+            Duration = TimeSpan.FromMilliseconds(Step(720)),
             EasingFunction = LifecycleVisuals.CreateEaseInOut(),
             EnableDependentAnimation = true
         };
@@ -322,7 +328,7 @@ public sealed class ExitScreenWindow : Window
         {
             From = _coreHalo.Opacity,
             To = 0.04,
-            Duration = TimeSpan.FromMilliseconds(720),
+            Duration = TimeSpan.FromMilliseconds(Step(720)),
             EasingFunction = LifecycleVisuals.CreateEaseInOut(),
             EnableDependentAnimation = true
         };
@@ -334,7 +340,7 @@ public sealed class ExitScreenWindow : Window
         {
             From = 1.0,
             To = 0.03,
-            Duration = TimeSpan.FromMilliseconds(860),
+            Duration = TimeSpan.FromMilliseconds(Step(860)),
             EasingFunction = LifecycleVisuals.CreateEaseInOut(),
             EnableDependentAnimation = true
         };
@@ -346,7 +352,7 @@ public sealed class ExitScreenWindow : Window
         {
             From = _progressShimmer.Opacity,
             To = 0.0,
-            Duration = TimeSpan.FromMilliseconds(520),
+            Duration = TimeSpan.FromMilliseconds(Step(520)),
             EasingFunction = LifecycleVisuals.CreateEaseOut(),
             EnableDependentAnimation = true
         };
@@ -355,16 +361,16 @@ public sealed class ExitScreenWindow : Window
         calmStoryboard.Children.Add(shimmerFade);
 
         calmStoryboard.Begin();
-        await Task.Delay(700);
+        await Task.Delay(Step(700));
 
         await AnimateStatusTextAsync(LifecycleVisuals.ShutdownStatusMessages[4]);
-        await Task.Delay(220);
+        await Task.Delay(Step(220));
 
         var fadeOut = new DoubleAnimation
         {
             From = 1.0,
             To = 0.0,
-            Duration = TimeSpan.FromMilliseconds(520),
+            Duration = TimeSpan.FromMilliseconds(Step(520)),
             EasingFunction = LifecycleVisuals.CreateEaseInOut(),
             EnableDependentAnimation = true
         };
@@ -375,7 +381,7 @@ public sealed class ExitScreenWindow : Window
         fadeStory.Children.Add(fadeOut);
         fadeStory.Begin();
 
-        await Task.Delay(560);
+        await Task.Delay(Step(560));
 
         try
         {

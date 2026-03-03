@@ -70,8 +70,8 @@ Hinweise:
 - src/HyperTool.Guest
 - installer/HyperTool.iss
 - installer/HyperTool.Guest.iss
-- build-winui.bat
-- build-installer-winui.bat
+- build-host.bat
+- build-installer-host.bat
 - build-guest.bat
 - build-installer-guest.bat
 - build-all.bat
@@ -80,8 +80,8 @@ Hinweise:
 
 ### Host
 
-- build-winui.bat
-- build-installer-winui.bat version=2.1.6
+- build-host.bat
+- build-installer-host.bat version=2.1.6
 
 ### Guest
 

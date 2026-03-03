@@ -19,7 +19,7 @@ internal static class GuestCli
                 GuestLogger.Initialize(new GuestLoggingSettings
                 {
                     DirectoryPath = GuestConfigService.DefaultLogDirectory,
-                    FileName = "hypertool-guest.ndjson",
+                    FileName = "hypertool-guest.log",
                     EchoToConsole = true
                 });
 

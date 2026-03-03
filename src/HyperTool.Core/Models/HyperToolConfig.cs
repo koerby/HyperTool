@@ -20,6 +20,8 @@ public sealed class HyperToolConfig
 
     public UsbSettings Usb { get; set; } = new();
 
+    public SharedFolderSettings SharedFolders { get; set; } = new();
+
     public static HyperToolConfig CreateDefault() => new();
 }
 
@@ -67,4 +69,9 @@ public sealed class UpdateSettings
 public sealed class UsbSettings
 {
     public List<string> AutoShareDeviceKeys { get; set; } = [];
+}
+
+public sealed class SharedFolderSettings
+{
+    public List<HostSharedFolderDefinition> HostDefinitions { get; set; } = [];
 }

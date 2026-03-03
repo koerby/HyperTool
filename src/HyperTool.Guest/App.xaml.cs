@@ -9,10 +9,12 @@ using Microsoft.UI.Xaml;
 using System.Diagnostics;
 using System.IO.Pipes;
 using System.Net;
+using System.Net.Sockets;
 using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
+using System.Collections.Concurrent;
 using Windows.Graphics;
 using Windows.UI;
 
@@ -21,6 +23,8 @@ namespace HyperTool.Guest;
 public sealed partial class App : Application
 {
     private const int GuestUsbAutoRefreshSeconds = 4;
+    private const int SharedFolderCatalogFetchMaxAttempts = 3;
+    private static readonly TimeSpan RecurringWarnRateLimitInterval = TimeSpan.FromMinutes(2);
     private const string GuestWindowTitle = "HyperTool Guest";
     private const string GuestHeadline = "HyperTool Guest";
     private const string GuestIconUri = "ms-appx:///Assets/HyperTool.Guest.Icon.Transparent.png";
@@ -54,6 +58,7 @@ public sealed partial class App : Application
     private string? _selectedUsbBusId;
     private bool _isUsbClientAvailable;
     private bool _usbClientMissingLogged;
+    private bool _currentUsbTransportUseHyperVSocket = true;
     private HyperVSocketUsbGuestProxy? _usbHyperVSocketProxy;
     private bool _usbHyperVSocketTransportActive;
     private bool _usbIpFallbackActive;
@@ -63,7 +68,29 @@ public sealed partial class App : Application
     private Task? _usbDiagnosticsTask;
     private CancellationTokenSource? _usbAutoRefreshCts;
     private Task? _usbAutoRefreshTask;
+    private readonly GuestDriveMappingService _sharedFolderMappingService = new();
+    private readonly SemaphoreSlim _sharedFolderReconnectGate = new(1, 1);
+    private CancellationTokenSource? _sharedFolderAutoMountCts;
+    private Task? _sharedFolderAutoMountTask;
     private readonly SemaphoreSlim _usbRefreshGate = new(1, 1);
+    private readonly ConcurrentDictionary<string, RateLimitedWarnState> _rateLimitedWarnStates = new(StringComparer.Ordinal);
+    private DateTimeOffset? _sharedFolderReconnectLastRunUtc;
+    private string _sharedFolderReconnectLastSummary = "Noch kein Lauf";
+    private bool _sharedFolderCredentialSocketActive;
+    private DateTimeOffset? _sharedFolderCredentialLastSyncUtc;
+
+    private sealed class RateLimitedWarnState
+    {
+        public DateTimeOffset LastLoggedAtUtc { get; set; }
+        public int SuppressedCount { get; set; }
+    }
+
+    private sealed class SharedFolderReconnectCycleResult
+    {
+        public int Attempted { get; init; }
+        public int NewlyMounted { get; init; }
+        public int Failed { get; init; }
+    }
 
     public App()
     {
@@ -155,11 +182,13 @@ public sealed partial class App : Application
 
         _configPath = ResolveConfigPath(parsedArgs);
         _config = GuestConfigService.LoadOrCreate(_configPath, out _);
+        _currentUsbTransportUseHyperVSocket = _config.Usb?.UseHyperVSocket != false;
         GuestLogger.Initialize(_config.Logging);
         await RefreshUsbClientAvailabilityAsync();
         UpdateUsbTransportBridge();
         StartUsbDiagnosticsLoop();
         StartUsbAutoRefreshLoop();
+        StartSharedFolderAutoMountLoop();
 
         ApplyStartWithWindows(_config);
 
@@ -172,13 +201,27 @@ public sealed partial class App : Application
             RestartForThemeChangeAsync,
             RunTransportDiagnosticsTestAsync,
             DiscoverUsbHostAddressAsync,
+            FetchHostSharedFoldersAsync,
             _isUsbClientAvailable);
         UpdateUsbDiagnosticsPanel();
+        UpdateSharedFolderReconnectStatusPanel();
+        UpdateSharedFolderCredentialStatusPanel();
 
         _mainWindow.AppWindow.Closing += OnMainWindowClosing;
 
         _minimizeToTray = _config.Ui.MinimizeToTray;
         _mainWindow.ApplyTheme(_config.Ui.Theme);
+
+        if (!skipStartScreen)
+        {
+            try
+            {
+                _mainWindow.PrepareStartupSplash();
+            }
+            catch
+            {
+            }
+        }
 
         TryInitializeTray();
 
@@ -188,17 +231,6 @@ public sealed partial class App : Application
         }
         else
         {
-            if (!skipStartScreen)
-            {
-                try
-                {
-                    _mainWindow.PrepareStartupSplash();
-                }
-                catch
-                {
-                }
-            }
-
             _mainWindow.Activate();
             _mainWindow.ApplyTheme(_config.Ui.Theme);
 
@@ -225,13 +257,24 @@ public sealed partial class App : Application
 
     private async Task SaveConfigAsync(GuestConfig config)
     {
+        var previousTransportMode = _currentUsbTransportUseHyperVSocket;
+        var nextTransportMode = config.Usb?.UseHyperVSocket != false;
+
+        if (previousTransportMode != nextTransportMode)
+        {
+            await DisconnectAllAttachedUsbForTransportSwitchAsync();
+        }
+
         _config = config;
         GuestConfigService.Save(_configPath, config);
 
         ApplyStartWithWindows(config);
         _minimizeToTray = config.Ui.MinimizeToTray;
         UpdateUsbTransportBridge();
+        _currentUsbTransportUseHyperVSocket = nextTransportMode;
         UpdateTrayControlCenterView();
+        TriggerSharedFolderReconnectCycle();
+        UpdateSharedFolderReconnectStatusPanel();
 
         await Task.CompletedTask;
     }
@@ -300,28 +343,11 @@ public sealed partial class App : Application
 
         try
         {
-            PointInt32 exitPosition;
-            SizeInt32 exitSize;
-            HyperTool.WinUI.Views.ExitScreenWindow? exitWindow = null;
+            var exitAnimationStopwatch = Stopwatch.StartNew();
+            const int inlineExitAnimationDurationMs = 2000;
 
             if (_mainWindow is not null)
             {
-                exitPosition = _mainWindow.AppWindow.Position;
-                exitSize = _mainWindow.AppWindow.Size;
-
-                if (showExitScreen)
-                {
-                    try
-                    {
-                        exitWindow = new HyperTool.WinUI.Views.ExitScreenWindow(GuestWindowTitle, GuestHeadline, GuestIconUri);
-                        exitWindow.ConfigureBounds(exitPosition, exitSize);
-                    }
-                    catch
-                    {
-                        exitWindow = null;
-                    }
-                }
-
                 try
                 {
                     await _mainWindow.PlayExitAnimationAsync();
@@ -329,31 +355,6 @@ public sealed partial class App : Application
                 catch
                 {
                 }
-
-                if (exitWindow is not null)
-                {
-                    try
-                    {
-                        exitWindow.Activate();
-                        await Task.Delay(60);
-                    }
-                    catch
-                    {
-                    }
-                }
-
-                try
-                {
-                    _mainWindow.AppWindow.Hide();
-                }
-                catch
-                {
-                }
-            }
-            else
-            {
-                exitPosition = new PointInt32(120, 120);
-                exitSize = new SizeInt32(980, 640);
             }
 
             _isExitRequested = true;
@@ -363,6 +364,7 @@ public sealed partial class App : Application
 
             StopUsbDiagnosticsLoop();
             StopUsbAutoRefreshLoop();
+            StopSharedFolderAutoMountLoop();
 
             await DisconnectAllAttachedUsbOnExitAsync();
 
@@ -376,20 +378,25 @@ public sealed partial class App : Application
 
             if (showExitScreen)
             {
-                try
+                var remainingMs = inlineExitAnimationDurationMs - (int)exitAnimationStopwatch.ElapsedMilliseconds;
+                if (remainingMs > 0)
                 {
-                    if (exitWindow is null)
+                    try
                     {
-                        exitWindow = new HyperTool.WinUI.Views.ExitScreenWindow(GuestWindowTitle, GuestHeadline, GuestIconUri);
-                        exitWindow.ConfigureBounds(exitPosition, exitSize);
-                        exitWindow.Activate();
+                        await Task.Delay(remainingMs);
                     }
+                    catch
+                    {
+                    }
+                }
+            }
 
-                    await exitWindow.PlayAndCloseAsync();
-                }
-                catch
-                {
-                }
+            try
+            {
+                _mainWindow?.AppWindow.Hide();
+            }
+            catch
+            {
             }
 
             _mainWindow?.Close();
@@ -478,7 +485,16 @@ public sealed partial class App : Application
                 RestartForThemeChangeAsync,
                 RunTransportDiagnosticsTestAsync,
                 DiscoverUsbHostAddressAsync,
+                FetchHostSharedFoldersAsync,
                 _isUsbClientAvailable);
+
+            try
+            {
+                nextWindow.PrepareLifecycleGuard("Design wird neu geladen …");
+            }
+            catch
+            {
+            }
 
             nextWindow.AppWindow.Closing += OnMainWindowClosing;
             _mainWindow = nextWindow;
@@ -530,6 +546,14 @@ public sealed partial class App : Application
 
                 nextWindow.Activate();
                 nextWindow.ApplyTheme(_config.Ui.Theme);
+
+                try
+                {
+                    await nextWindow.DismissLifecycleGuardAsync();
+                }
+                catch
+                {
+                }
             }
             else if (_isTrayFunctional && _minimizeToTray)
             {
@@ -545,6 +569,14 @@ public sealed partial class App : Application
             {
                 nextWindow.Activate();
                 nextWindow.ApplyTheme(_config.Ui.Theme);
+
+                try
+                {
+                    await nextWindow.DismissLifecycleGuardAsync();
+                }
+                catch
+                {
+                }
             }
 
             UpdateTrayControlCenterView();
@@ -863,7 +895,12 @@ public sealed partial class App : Application
         apply();
     }
 
-    private async Task<IReadOnlyList<UsbIpDeviceInfo>> RefreshUsbDevicesAsync()
+    private Task<IReadOnlyList<UsbIpDeviceInfo>> RefreshUsbDevicesAsync()
+    {
+        return RefreshUsbDevicesAsync(emitLogs: true);
+    }
+
+    private async Task<IReadOnlyList<UsbIpDeviceInfo>> RefreshUsbDevicesAsync(bool emitLogs)
     {
         if (!await _usbRefreshGate.WaitAsync(0))
         {
@@ -892,15 +929,6 @@ public sealed partial class App : Application
         var operationId = CreateUsbOperationId("refresh");
         var stopwatch = Stopwatch.StartNew();
         var hostResolution = ResolveUsbHostAddressDiagnostics();
-        if (_usbHyperVSocketProxy?.IsRunning == true
-            && !string.Equals(hostResolution.Source, "hyperv-socket", StringComparison.OrdinalIgnoreCase))
-        {
-            hostResolution = new UsbHostResolution(
-                HyperVSocketUsbTunnelDefaults.LoopbackAddress,
-                "hyperv-socket",
-                "AF_HYPERV",
-                string.Empty);
-        }
 
         ApplyUsbTransportResolution(hostResolution);
         var previousCount = _usbDevices.Count;
@@ -977,47 +1005,53 @@ public sealed partial class App : Application
 
             UpdateUsbViews();
 
-            GuestLogger.Info("usb.refresh.success", "USB-Geräte aktualisiert.", new
+            if (emitLogs)
             {
-                operationId,
-                elapsedMs = stopwatch.ElapsedMilliseconds,
-                count = _usbDevices.Count,
-                selectedBusId = _selectedUsbBusId,
-                attachedCount = _usbDevices.Count(item => item.IsAttached),
-                sharedCount = _usbDevices.Count(item => item.IsShared),
-                autoConnectApplied,
-                retryTriggered,
-                previousCount,
-                listSource = useRemoteHostList ? "remote-host" : "local-state",
-                hostAddress = hostResolution.ResolvedIpv4,
-                hostSource = hostResolution.Source,
-                hostInput = hostResolution.RawInput,
-                transportPath = fallbackToIpUsed
-                    ? "ip-fallback"
-                    : (string.Equals(hostResolution.Source, "hyperv-socket", StringComparison.OrdinalIgnoreCase) ? "hyperv" : "ip-fallback"),
-                fallbackToIpUsed,
-                fallbackHostAddress
-            });
+                GuestLogger.Info("usb.refresh.success", "USB-Geräte aktualisiert.", new
+                {
+                    operationId,
+                    elapsedMs = stopwatch.ElapsedMilliseconds,
+                    count = _usbDevices.Count,
+                    selectedBusId = _selectedUsbBusId,
+                    attachedCount = _usbDevices.Count(item => item.IsAttached),
+                    sharedCount = _usbDevices.Count(item => item.IsShared),
+                    autoConnectApplied,
+                    retryTriggered,
+                    previousCount,
+                    listSource = useRemoteHostList ? "remote-host" : "local-state",
+                    hostAddress = hostResolution.ResolvedIpv4,
+                    hostSource = hostResolution.Source,
+                    hostInput = hostResolution.RawInput,
+                    transportPath = fallbackToIpUsed
+                        ? "ip-fallback"
+                        : (string.Equals(hostResolution.Source, "hyperv-socket", StringComparison.OrdinalIgnoreCase) ? "hyperv" : "ip-fallback"),
+                    fallbackToIpUsed,
+                    fallbackHostAddress
+                });
+            }
 
             return _usbDevices;
         }
         catch (Exception ex)
         {
-            GuestLogger.Warn("usb.refresh.failed", ex.Message, new
+            if (emitLogs)
             {
-                operationId,
-                elapsedMs = stopwatch.ElapsedMilliseconds,
-                selectedBusId = _selectedUsbBusId,
-                exceptionType = ex.GetType().FullName,
-                hResult = ex.HResult,
-                hostAddress = hostResolution.ResolvedIpv4,
-                hostSource = hostResolution.Source,
-                hostInput = hostResolution.RawInput,
-                transportPath = fallbackToIpUsedForLog
-                    ? "ip-fallback"
-                    : (string.Equals(hostResolution.Source, "hyperv-socket", StringComparison.OrdinalIgnoreCase) ? "hyperv" : "ip-fallback"),
-                hostResolutionFailure = hostResolution.FailureReason
-            });
+                GuestLogger.Warn("usb.refresh.failed", ex.Message, new
+                {
+                    operationId,
+                    elapsedMs = stopwatch.ElapsedMilliseconds,
+                    selectedBusId = _selectedUsbBusId,
+                    exceptionType = ex.GetType().FullName,
+                    hResult = ex.HResult,
+                    hostAddress = hostResolution.ResolvedIpv4,
+                    hostSource = hostResolution.Source,
+                    hostInput = hostResolution.RawInput,
+                    transportPath = fallbackToIpUsedForLog
+                        ? "ip-fallback"
+                        : (string.Equals(hostResolution.Source, "hyperv-socket", StringComparison.OrdinalIgnoreCase) ? "hyperv" : "ip-fallback"),
+                    hostResolutionFailure = hostResolution.FailureReason
+                });
+            }
             return _usbDevices;
         }
         }
@@ -1298,20 +1332,65 @@ public sealed partial class App : Application
 
     private async Task<string?> DiscoverUsbHostAddressAsync()
     {
+        var discoveredHostName = await DiscoverHostNameViaHyperVSocketAsync();
+        if (!string.IsNullOrWhiteSpace(discoveredHostName))
+        {
+            _config ??= new GuestConfig();
+            _config.Usb ??= new GuestUsbSettings();
+            _config.Usb.HostName = discoveredHostName;
+            _config.Usb.HostAddress = discoveredHostName;
+            GuestConfigService.Save(_configPath, _config);
+
+            GuestLogger.Info("usb.host.discovery.hostname", "Hostname per Hyper-V Socket gefunden.", new
+            {
+                requester = Environment.MachineName,
+                discoveredHostName = discoveredHostName
+            });
+
+            return discoveredHostName;
+        }
+
         try
         {
-            var discovered = await UsbHostDiscoveryService.DiscoverHostAddressAsync(
+            var discoveryResult = await UsbHostDiscoveryService.DiscoverHostAsync(
                 requesterComputerName: Environment.MachineName,
                 timeout: TimeSpan.FromSeconds(3),
                 cancellationToken: CancellationToken.None);
 
-            if (!string.IsNullOrWhiteSpace(discovered))
+            var discovered = (discoveryResult?.HostAddress ?? string.Empty).Trim();
+            var discoveredBroadcastHostName = (discoveryResult?.HostComputerName ?? string.Empty).Trim();
+
+            if (!string.IsNullOrWhiteSpace(discovered) || !string.IsNullOrWhiteSpace(discoveredBroadcastHostName))
             {
-                GuestLogger.Info("usb.host.discovery.success", "Host-Adresse per Broadcast gefunden.", new
+                _config ??= new GuestConfig();
+                _config.Usb ??= new GuestUsbSettings();
+
+                if (!string.IsNullOrWhiteSpace(discoveredBroadcastHostName))
+                {
+                    _config.Usb.HostName = discoveredBroadcastHostName;
+                    _config.Usb.HostAddress = discoveredBroadcastHostName;
+                }
+                else
+                {
+                    _config.Usb.HostAddress = discovered;
+                }
+
+                GuestLogger.Info("usb.host.discovery.success", "Host per Broadcast gefunden.", new
                 {
                     requester = Environment.MachineName,
-                    discoveredAddress = discovered
+                    discoveredHostName = discoveredBroadcastHostName,
+                    discoveredAddress = discovered,
+                    transportPath = !string.IsNullOrWhiteSpace(discoveredBroadcastHostName)
+                        ? "hostname-broadcast"
+                        : "ip-broadcast"
                 });
+
+                GuestConfigService.Save(_configPath, _config);
+
+                if (!string.IsNullOrWhiteSpace(discoveredBroadcastHostName))
+                {
+                    return discoveredBroadcastHostName;
+                }
             }
             else
             {
@@ -1330,6 +1409,19 @@ public sealed partial class App : Application
                 requester = Environment.MachineName,
                 exceptionType = ex.GetType().FullName
             });
+            return null;
+        }
+    }
+
+    private static async Task<string?> DiscoverHostNameViaHyperVSocketAsync()
+    {
+        try
+        {
+            var client = new HyperVSocketHostIdentityGuestClient();
+            return await client.FetchHostNameAsync(CancellationToken.None);
+        }
+        catch
+        {
             return null;
         }
     }
@@ -1456,7 +1548,8 @@ public sealed partial class App : Application
     private UsbHostResolution ResolveUsbHostAddressDiagnostics(bool preferHyperVSocket = true)
     {
         if (preferHyperVSocket
-            && _usbHyperVSocketProxy?.IsRunning == true)
+            && _usbHyperVSocketProxy?.IsRunning == true
+            && _usbHyperVSocketServiceReachable)
         {
             return new UsbHostResolution(
                 HyperVSocketUsbTunnelDefaults.LoopbackAddress,
@@ -1707,6 +1800,81 @@ public sealed partial class App : Application
         });
     }
 
+    private async Task DisconnectAllAttachedUsbForTransportSwitchAsync()
+    {
+        try
+        {
+            await RefreshUsbDevicesAsync(emitLogs: false);
+        }
+        catch
+        {
+        }
+
+        var attachedBusIds = _usbDevices
+            .Where(device => device.IsAttached && !string.IsNullOrWhiteSpace(device.BusId))
+            .Select(device => device.BusId.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (attachedBusIds.Count == 0)
+        {
+            return;
+        }
+
+        var hostResolution = ResolveUsbHostAddressDiagnostics();
+        var disconnectedCount = 0;
+        var failedCount = 0;
+
+        foreach (var busId in attachedBusIds)
+        {
+            try
+            {
+                await _usbService.DetachFromHostAsync(busId, hostResolution.ResolvedIpv4, CancellationToken.None);
+                await TrySendUsbConnectionEventAckAsync(busId, "usb-disconnected", CancellationToken.None);
+                disconnectedCount++;
+                continue;
+            }
+            catch
+            {
+            }
+
+            if (string.Equals(hostResolution.Source, "hyperv-socket", StringComparison.OrdinalIgnoreCase))
+            {
+                var ipFallbackResolution = ResolveUsbHostAddressDiagnostics(preferHyperVSocket: false);
+                if (!string.IsNullOrWhiteSpace(ipFallbackResolution.ResolvedIpv4))
+                {
+                    try
+                    {
+                        await _usbService.DetachFromHostAsync(busId, ipFallbackResolution.ResolvedIpv4, CancellationToken.None);
+                        await TrySendUsbConnectionEventAckAsync(busId, "usb-disconnected", CancellationToken.None);
+                        disconnectedCount++;
+                        continue;
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+
+            failedCount++;
+        }
+
+        try
+        {
+            await RefreshUsbDevicesAsync(emitLogs: false);
+        }
+        catch
+        {
+        }
+
+        GuestLogger.Info("usb.transport.switch.disconnect", "USB-Geräte vor Transportwechsel getrennt.", new
+        {
+            requestedCount = attachedBusIds.Count,
+            disconnectedCount,
+            failedCount
+        });
+    }
+
     private void StartUsbAutoRefreshLoop()
     {
         StopUsbAutoRefreshLoop();
@@ -1739,7 +1907,7 @@ public sealed partial class App : Application
             {
                 if (!_isExitRequested && _isUsbClientAvailable && HasConfiguredUsbAutoConnect())
                 {
-                    await RefreshUsbDevicesAsync();
+                    await RefreshUsbDevicesAsync(emitLogs: false);
                 }
             }
             catch
@@ -1757,10 +1925,368 @@ public sealed partial class App : Application
         }
     }
 
+    private void StartSharedFolderAutoMountLoop()
+    {
+        StopSharedFolderAutoMountLoop();
+
+        var cts = new CancellationTokenSource();
+        _sharedFolderAutoMountCts = cts;
+        _sharedFolderAutoMountTask = Task.Run(() => RunSharedFolderAutoMountLoopAsync(cts.Token));
+        UpdateSharedFolderReconnectStatusPanel();
+    }
+
+    private void StopSharedFolderAutoMountLoop()
+    {
+        try
+        {
+            _sharedFolderAutoMountCts?.Cancel();
+        }
+        catch
+        {
+        }
+
+        _sharedFolderAutoMountCts?.Dispose();
+        _sharedFolderAutoMountCts = null;
+        _sharedFolderAutoMountTask = null;
+        UpdateSharedFolderReconnectStatusPanel();
+    }
+
+    private void TriggerSharedFolderReconnectCycle()
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                if (!_isExitRequested)
+                {
+                    await RefreshSharedFolderHostNameFromSocketAsync(CancellationToken.None);
+                    await RefreshSharedFolderCredentialFromSocketAsync(CancellationToken.None);
+                }
+
+                if (!_isExitRequested && HasConfiguredSharedFolderAutoMount())
+                {
+                    var result = await EnsureEnabledSharedFolderMappingsAsync(CancellationToken.None);
+                    _sharedFolderReconnectLastRunUtc = DateTimeOffset.UtcNow;
+                    _sharedFolderReconnectLastSummary = BuildSharedFolderReconnectSummary(result);
+                }
+                else
+                {
+                    _sharedFolderReconnectLastSummary = "Keine aktiven Mappings konfiguriert.";
+                }
+            }
+            catch
+            {
+            }
+            finally
+            {
+                UpdateSharedFolderReconnectStatusPanel();
+            }
+        });
+    }
+
+    private async Task RunSharedFolderAutoMountLoopAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                if (!_isExitRequested)
+                {
+                    await RefreshSharedFolderHostNameFromSocketAsync(cancellationToken);
+                    await RefreshSharedFolderCredentialFromSocketAsync(cancellationToken);
+                }
+
+                if (!_isExitRequested && HasConfiguredSharedFolderAutoMount())
+                {
+                    var result = await EnsureEnabledSharedFolderMappingsAsync(cancellationToken);
+                    _sharedFolderReconnectLastRunUtc = DateTimeOffset.UtcNow;
+                    _sharedFolderReconnectLastSummary = BuildSharedFolderReconnectSummary(result);
+                    UpdateSharedFolderReconnectStatusPanel();
+                }
+                else
+                {
+                    _sharedFolderReconnectLastSummary = "Keine aktiven Mappings konfiguriert.";
+                    UpdateSharedFolderReconnectStatusPanel();
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(GetSharedFolderReconnectIntervalSeconds()), cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+        }
+    }
+
+    private bool HasConfiguredSharedFolderAutoMount()
+    {
+        var mappings = _config?.SharedFolders?.Mappings;
+        return mappings is not null
+               && mappings.Any(mapping => mapping.Enabled
+                                           && !string.IsNullOrWhiteSpace(mapping.SharePath)
+                                           && !string.IsNullOrWhiteSpace(mapping.DriveLetter));
+    }
+
+    private int GetSharedFolderReconnectIntervalSeconds()
+    {
+        return Math.Clamp(_config?.PollIntervalSeconds ?? 15, 5, 3600);
+    }
+
+    private static string BuildSharedFolderReconnectSummary(SharedFolderReconnectCycleResult result)
+    {
+        return $"Lauf: {result.Attempted} geprüft, {result.NewlyMounted} neu verbunden, {result.Failed} Fehler";
+    }
+
+    private void UpdateSharedFolderReconnectStatusPanel()
+    {
+        var reconnectActive = !_isExitRequested && HasConfiguredSharedFolderAutoMount();
+        var lastRunUtc = _sharedFolderReconnectLastRunUtc;
+        var summary = _sharedFolderReconnectLastSummary;
+
+        void apply()
+        {
+            _mainWindow?.UpdateSharedFolderReconnectStatus(reconnectActive, lastRunUtc, summary);
+        }
+
+        if (_mainWindow?.DispatcherQueue is { } queue && !queue.HasThreadAccess)
+        {
+            _ = queue.TryEnqueue(apply);
+            return;
+        }
+
+        apply();
+    }
+
+    private void UpdateSharedFolderCredentialStatusPanel()
+    {
+        var socketActive = _sharedFolderCredentialSocketActive;
+        var lastSyncUtc = _sharedFolderCredentialLastSyncUtc;
+
+        void apply()
+        {
+            _mainWindow?.UpdateSharedFolderCredentialSocketStatus(socketActive, lastSyncUtc);
+        }
+
+        if (_mainWindow?.DispatcherQueue is { } queue && !queue.HasThreadAccess)
+        {
+            _ = queue.TryEnqueue(apply);
+            return;
+        }
+
+        apply();
+    }
+
+    private async Task<SharedFolderReconnectCycleResult> EnsureEnabledSharedFolderMappingsAsync(CancellationToken cancellationToken)
+    {
+        await _sharedFolderReconnectGate.WaitAsync(cancellationToken);
+        try
+        {
+            var attempted = 0;
+            var newlyMounted = 0;
+            var failed = 0;
+
+            var mappings = _config?.SharedFolders?.Mappings?
+                .Where(mapping => mapping.Enabled
+                                  && !string.IsNullOrWhiteSpace(mapping.SharePath)
+                                  && !string.IsNullOrWhiteSpace(mapping.DriveLetter))
+                .Select(mapping => new GuestSharedFolderMapping
+                {
+                    Id = mapping.Id,
+                    Label = mapping.Label,
+                    SharePath = mapping.SharePath,
+                    DriveLetter = mapping.DriveLetter,
+                    Persistent = mapping.Persistent,
+                    Enabled = mapping.Enabled
+                })
+                .ToList()
+                ?? [];
+
+            if (mappings.Count == 0)
+            {
+                return new SharedFolderReconnectCycleResult();
+            }
+
+            foreach (var mapping in mappings)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var rateLimitKey = BuildSharedFolderReconnectRateLimitKey(mapping);
+                attempted++;
+
+                try
+                {
+                    var normalizedDriveLetter = GuestConfigService.NormalizeDriveLetter(mapping.DriveLetter);
+                    var before = await _sharedFolderMappingService.QueryMappingAsync(normalizedDriveLetter, cancellationToken);
+                    await _sharedFolderMappingService.MountAsync(mapping, ResolveSharedFolderHostTarget(), _config?.Credential, cancellationToken);
+                    ResetRateLimitedWarning("sharedfolders.reconnect.failed", rateLimitKey);
+
+                    if (!before.Exists)
+                    {
+                        newlyMounted++;
+                        GuestLogger.Info("sharedfolders.reconnect.mounted", "Shared-Folder automatisch gemappt.", new
+                        {
+                            mapping.Label,
+                            mapping.SharePath,
+                            driveLetter = normalizedDriveLetter
+                        });
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    WarnRateLimited(
+                        "sharedfolders.reconnect.failed",
+                        ex.Message,
+                        new
+                        {
+                            mapping.Id,
+                            mapping.Label,
+                            mapping.SharePath,
+                            mapping.DriveLetter,
+                            exceptionType = ex.GetType().FullName
+                        },
+                        rateLimitKey,
+                        RecurringWarnRateLimitInterval);
+                    failed++;
+                }
+            }
+
+            return new SharedFolderReconnectCycleResult
+            {
+                Attempted = attempted,
+                NewlyMounted = newlyMounted,
+                Failed = failed
+            };
+        }
+        finally
+        {
+            _sharedFolderReconnectGate.Release();
+        }
+    }
+
+    private async Task RefreshSharedFolderHostNameFromSocketAsync(CancellationToken cancellationToken)
+    {
+        if (_config is null)
+        {
+            return;
+        }
+
+        string? discoveredHostName;
+        try
+        {
+            discoveredHostName = await new HyperVSocketHostIdentityGuestClient().FetchHostNameAsync(cancellationToken);
+        }
+        catch
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(discoveredHostName))
+        {
+            return;
+        }
+
+        _config.Usb ??= new GuestUsbSettings();
+        var normalizedDiscovered = discoveredHostName.Trim();
+        var previous = (_config.Usb.HostName ?? string.Empty).Trim();
+        if (string.Equals(previous, normalizedDiscovered, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _config.Usb.HostName = normalizedDiscovered;
+        GuestConfigService.Save(_configPath, _config);
+
+        GuestLogger.Info("sharedfolders.hostidentity.updated", "Host-Name per Hyper-V Socket aktualisiert.", new
+        {
+            hostName = normalizedDiscovered
+        });
+    }
+
+    private async Task RefreshSharedFolderCredentialFromSocketAsync(CancellationToken cancellationToken)
+    {
+        if (_config is null)
+        {
+            return;
+        }
+
+        HostSharedFolderGuestCredential? credential;
+        try
+        {
+            credential = await new HyperVSocketSharedFolderCredentialGuestClient().FetchCredentialAsync(cancellationToken);
+        }
+        catch
+        {
+            _sharedFolderCredentialSocketActive = false;
+            UpdateSharedFolderCredentialStatusPanel();
+            return;
+        }
+
+        if (credential is null
+            || string.IsNullOrWhiteSpace(credential.Username)
+            || string.IsNullOrWhiteSpace(credential.Password))
+        {
+            _sharedFolderCredentialSocketActive = false;
+            UpdateSharedFolderCredentialStatusPanel();
+            return;
+        }
+
+        _sharedFolderCredentialSocketActive = true;
+        _sharedFolderCredentialLastSyncUtc = DateTimeOffset.UtcNow;
+        UpdateSharedFolderCredentialStatusPanel();
+
+        _config.Credential ??= new GuestCredential();
+
+        var nextUser = credential.Username.Trim();
+        var nextPass = credential.Password;
+        var currentUser = (_config.Credential.Username ?? string.Empty).Trim();
+        var currentPass = _config.Credential.Password ?? string.Empty;
+
+        if (string.Equals(currentUser, nextUser, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(currentPass, nextPass, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _config.Credential.Username = nextUser;
+        _config.Credential.Password = nextPass;
+        GuestConfigService.Save(_configPath, _config);
+
+        GuestLogger.Info("sharedfolders.credential.updated", "SharedFolder-Credentials per Hyper-V Socket aktualisiert.", new
+        {
+            username = nextUser,
+            source = credential.Source,
+            hostName = credential.HostName
+        });
+    }
+
     private bool HasConfiguredUsbAutoConnect()
     {
         var keys = _config?.Usb?.AutoConnectDeviceKeys;
         return keys is not null && keys.Any(static key => !string.IsNullOrWhiteSpace(key));
+    }
+
+    private string? ResolveSharedFolderHostTarget()
+    {
+        var hostName = (_config?.Usb?.HostName ?? string.Empty).Trim();
+        if (!string.IsNullOrWhiteSpace(hostName))
+        {
+            return hostName;
+        }
+
+        return (_config?.Usb?.HostAddress ?? string.Empty).Trim();
     }
 
     private async Task<int> ApplyUsbAutoConnectAsync(IReadOnlyList<UsbIpDeviceInfo> devices)
@@ -2101,8 +2627,19 @@ public sealed partial class App : Application
         var usbSettings = _config?.Usb;
         if (usbSettings is null || !usbSettings.UseHyperVSocket)
         {
-            _usbHyperVSocketProxy?.Dispose();
-            _usbHyperVSocketProxy = null;
+            if (_usbHyperVSocketProxy is not null)
+            {
+                try
+                {
+                    _usbHyperVSocketProxy.Dispose();
+                }
+                catch
+                {
+                }
+
+                _usbHyperVSocketProxy = null;
+            }
+
             _usbHyperVSocketTransportActive = false;
             _usbHyperVSocketServiceReachable = false;
             _usbHyperVSocketProbeFailureCount = 0;
@@ -2112,7 +2649,7 @@ public sealed partial class App : Application
 
         var serviceIdText = string.IsNullOrWhiteSpace(usbSettings.HyperVSocketServiceId)
             ? HyperVSocketUsbTunnelDefaults.ServiceIdString
-            : usbSettings.HyperVSocketServiceId.Trim();
+            : usbSettings.HyperVSocketServiceId;
 
         if (!Guid.TryParse(serviceIdText, out var serviceId))
         {
@@ -2165,6 +2702,140 @@ public sealed partial class App : Application
                 fallback = "ip"
             });
         }
+    }
+
+    private static string BuildSharedFolderReconnectRateLimitKey(GuestSharedFolderMapping mapping)
+    {
+        if (!string.IsNullOrWhiteSpace(mapping.Id))
+        {
+            return mapping.Id.Trim();
+        }
+
+        var driveLetter = GuestConfigService.NormalizeDriveLetter(mapping.DriveLetter ?? string.Empty);
+        var sharePath = (mapping.SharePath ?? string.Empty).Trim();
+        return $"{driveLetter}|{sharePath}";
+    }
+
+    private void WarnRateLimited(string eventName, string message, object? data, string scopeKey, TimeSpan minInterval)
+    {
+        var key = $"{eventName}:{scopeKey}";
+        var now = DateTimeOffset.UtcNow;
+
+        while (true)
+        {
+            var existing = _rateLimitedWarnStates.GetOrAdd(
+                key,
+                _ => new RateLimitedWarnState
+                {
+                    LastLoggedAtUtc = now,
+                    SuppressedCount = 0
+                });
+
+            var sinceLastLog = now - existing.LastLoggedAtUtc;
+            if (sinceLastLog >= minInterval)
+            {
+                var suppressedCount = existing.SuppressedCount;
+                var replacement = new RateLimitedWarnState
+                {
+                    LastLoggedAtUtc = now,
+                    SuppressedCount = 0
+                };
+
+                if (_rateLimitedWarnStates.TryUpdate(key, replacement, existing))
+                {
+                    var finalMessage = suppressedCount > 0
+                        ? $"{message} (weitere {suppressedCount} gleichartige Warnung(en) unterdrückt)"
+                        : message;
+                    GuestLogger.Warn(eventName, finalMessage, data);
+                    return;
+                }
+
+                continue;
+            }
+
+            var suppressedReplacement = new RateLimitedWarnState
+            {
+                LastLoggedAtUtc = existing.LastLoggedAtUtc,
+                SuppressedCount = existing.SuppressedCount + 1
+            };
+
+            if (_rateLimitedWarnStates.TryUpdate(key, suppressedReplacement, existing))
+            {
+                return;
+            }
+        }
+    }
+
+    private void ResetRateLimitedWarning(string eventName, string scopeKey)
+    {
+        var key = $"{eventName}:{scopeKey}";
+        _rateLimitedWarnStates.TryRemove(key, out _);
+    }
+
+    private async Task<IReadOnlyList<HostSharedFolderDefinition>> FetchHostSharedFoldersAsync()
+    {
+        if (_config?.Usb?.UseHyperVSocket != true)
+        {
+            throw new InvalidOperationException("Host-Liste per Hyper-V Socket ist deaktiviert. Aktiviere in den USB-Einstellungen 'Hyper-V Socket verwenden (bevorzugt)'.");
+        }
+
+        var client = new HyperVSocketSharedFolderCatalogGuestClient();
+        Exception? lastError = null;
+
+        for (var attempt = 1; attempt <= SharedFolderCatalogFetchMaxAttempts; attempt++)
+        {
+            try
+            {
+                var catalog = await client.FetchCatalogAsync(CancellationToken.None);
+                return catalog;
+            }
+            catch (Exception ex) when (attempt < SharedFolderCatalogFetchMaxAttempts && IsTransientCatalogFetchError(ex))
+            {
+                lastError = ex;
+                await Task.Delay(TimeSpan.FromMilliseconds(250 * attempt));
+            }
+            catch (Exception ex)
+            {
+                lastError = ex;
+                break;
+            }
+        }
+
+        var errorMessage = lastError?.Message ?? "Unbekannter Fehler";
+        GuestLogger.Warn("sharedfolders.catalog.fetch_failed", errorMessage, new
+        {
+            transport = "hyperv-socket",
+            attempts = SharedFolderCatalogFetchMaxAttempts,
+            exceptionType = lastError?.GetType().FullName
+        });
+
+        var userMessage = "Host-Liste konnte nicht geladen werden (Hyper-V Socket abgelehnt). Prüfe, ob HyperTool Host läuft, und starte Host/Guest ggf. neu.";
+        if (lastError is SocketException socketException
+            && socketException.SocketErrorCode == SocketError.ConnectionRefused)
+        {
+            userMessage = "Host-Liste konnte nicht geladen werden (Hyper-V Socket verweigert). Starte HyperTool Host einmalig als Administrator, damit der Shared-Folder-Hyper-V-Dienst registriert wird.";
+        }
+
+        throw new InvalidOperationException(
+            userMessage,
+            lastError);
+    }
+
+    private static bool IsTransientCatalogFetchError(Exception exception)
+    {
+        if (exception is not SocketException socketException)
+        {
+            return false;
+        }
+
+        return socketException.SocketErrorCode is SocketError.ConnectionRefused
+            or SocketError.TimedOut
+            or SocketError.NetworkDown
+            or SocketError.NetworkUnreachable
+            or SocketError.HostDown
+            or SocketError.HostUnreachable
+            or SocketError.TryAgain
+            or SocketError.WouldBlock;
     }
 
     private bool TryInitializeSingleInstance()

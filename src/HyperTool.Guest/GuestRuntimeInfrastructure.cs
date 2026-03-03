@@ -5,6 +5,7 @@ namespace HyperTool.Guest;
 internal static class GuestLogger
 {
     private static readonly object Sync = new();
+    private static readonly TimeSpan LogRetentionPeriod = TimeSpan.FromDays(3);
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
@@ -22,10 +23,11 @@ internal static class GuestLogger
             : settings.DirectoryPath;
 
         var fileName = string.IsNullOrWhiteSpace(settings.FileName)
-            ? "hypertool-guest.ndjson"
+            ? "hypertool-guest.log"
             : settings.FileName;
 
         Directory.CreateDirectory(directory);
+        CleanupOldLogFiles(directory, LogRetentionPeriod);
         _logFilePath = Path.Combine(directory, fileName);
         _echoToConsole = settings.EchoToConsole;
     }
@@ -67,6 +69,35 @@ internal static class GuestLogger
             }
 
             EntryWritten?.Invoke($"[{DateTime.Now:HH:mm:ss}] [{level}] {message}");
+        }
+    }
+
+    private static void CleanupOldLogFiles(string directory, TimeSpan maxAge)
+    {
+        try
+        {
+            if (!Directory.Exists(directory))
+            {
+                return;
+            }
+
+            var cutoffUtc = DateTime.UtcNow - maxAge;
+            foreach (var file in Directory.EnumerateFiles(directory, "*", SearchOption.TopDirectoryOnly))
+            {
+                try
+                {
+                    if (File.GetLastWriteTimeUtc(file) < cutoffUtc)
+                    {
+                        File.Delete(file);
+                    }
+                }
+                catch
+                {
+                }
+            }
+        }
+        catch
+        {
         }
     }
 }

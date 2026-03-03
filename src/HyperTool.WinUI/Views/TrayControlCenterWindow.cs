@@ -87,6 +87,8 @@ internal sealed class TrayControlCenterWindow : Window
         ExtendsContentIntoTitleBar = false;
         SystemBackdrop = null;
 
+        _windowRoot.Background = new SolidColorBrush(Color.FromArgb(0xFF, 0x0F, 0x19, 0x2D));
+
         DwmWindowHelper.ApplyRoundedCorners(this);
         BuildLayout();
         ConfigureWindowChrome();
@@ -171,7 +173,7 @@ internal sealed class TrayControlCenterWindow : Window
             ? Color.FromArgb(0xFF, 0x11, 0x24, 0x38)
             : Color.FromArgb(0xFF, 0xF3, 0xF8, 0xFF);
 
-        _windowRoot.Background = new SolidColorBrush(Colors.Transparent);
+        _windowRoot.Background = new SolidColorBrush(panelBackground);
         _panelRoot.Background = new SolidColorBrush(panelBackground);
         _panelRoot.BorderBrush = new SolidColorBrush(panelBorder);
 

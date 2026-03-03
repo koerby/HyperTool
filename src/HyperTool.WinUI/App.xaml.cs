@@ -7,12 +7,16 @@ using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.Win32;
 using Serilog;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
+using System.Security.Principal;
+using System.Text.Json;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -23,8 +27,17 @@ namespace HyperTool.WinUI;
 public sealed partial class App : Application
 {
     private const int HostUsbAutoRefreshSeconds = 5;
+    private static readonly TimeSpan LogRetentionPeriod = TimeSpan.FromDays(3);
     private const string SingleInstanceMutexName = @"Local\HyperTool.WinUI.SingleInstance";
     private const string SingleInstancePipeName = "HyperTool.WinUI.SingleInstance.Activate";
+    private static readonly (string ServiceId, string ElementName)[] RequiredHyperVSocketServices =
+    [
+        (HyperVSocketUsbTunnelDefaults.ServiceIdString, "HyperTool Hyper-V Socket USB Tunnel"),
+        (HyperVSocketUsbTunnelDefaults.DiagnosticsServiceIdString, "HyperTool Hyper-V Socket Diagnostics"),
+        (HyperVSocketUsbTunnelDefaults.SharedFolderCatalogServiceIdString, "HyperTool Hyper-V Socket Shared Folder Catalog"),
+        (HyperVSocketUsbTunnelDefaults.SharedFolderCredentialServiceIdString, "HyperTool Hyper-V Socket Shared Folder Credential"),
+        (HyperVSocketUsbTunnelDefaults.HostIdentityServiceIdString, "HyperTool Hyper-V Socket Host Identity")
+    ];
 
     private ITrayService? _trayService;
     private ITrayControlCenterService? _trayControlCenterService;
@@ -39,6 +52,9 @@ public sealed partial class App : Application
     private bool _usbShutdownCleanupDone;
     private HyperVSocketUsbHostTunnel? _usbHostTunnel;
     private HyperVSocketDiagnosticsHostListener? _usbDiagnosticsHostListener;
+    private HyperVSocketSharedFolderCatalogHostListener? _sharedFolderCatalogHostListener;
+    private HyperVSocketSharedFolderCredentialHostListener? _sharedFolderCredentialHostListener;
+    private HyperVSocketHostIdentityHostListener? _hostIdentityHostListener;
     private CancellationTokenSource? _usbDiagnosticsCts;
     private Task? _usbDiagnosticsTask;
     private CancellationTokenSource? _usbHostDiscoveryCts;
@@ -46,6 +62,11 @@ public sealed partial class App : Application
     private CancellationTokenSource? _usbAutoRefreshCts;
     private Task? _usbAutoRefreshTask;
     private CancellationTokenSource? _usbEventRefreshCts;
+    private string _lastMissingHyperVSocketServicesLogKey = string.Empty;
+    private bool _hyperVSocketRegistrationPromptIssued;
+    private bool _sharedFolderCredentialProvisioningPromptIssued;
+    private bool _sharedFolderCredentialSocketActive;
+    private DateTimeOffset? _sharedFolderCredentialSocketLastSyncUtc;
 
     private MainWindow? _mainWindow;
     private MainViewModel? _mainViewModel;
@@ -55,6 +76,14 @@ public sealed partial class App : Application
     private Mutex? _singleInstanceMutex;
     private CancellationTokenSource? _singleInstanceServerCts;
     private Task? _singleInstanceServerTask;
+
+    private sealed class SharedFolderElevatedRequest
+    {
+        public string Action { get; set; } = string.Empty;
+        public string ShareName { get; set; } = string.Empty;
+        public string LocalPath { get; set; } = string.Empty;
+        public bool ReadOnly { get; set; }
+    }
 
     public App()
     {
@@ -103,6 +132,26 @@ public sealed partial class App : Application
             return;
         }
 
+        if (args.Arguments?.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Any(arg => string.Equals(arg, "--register-sharedfolder-socket", StringComparison.OrdinalIgnoreCase)) == true)
+        {
+            RunRegisterSharedFolderSocketHelperMode();
+            return;
+        }
+
+        if (args.Arguments?.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Any(arg => string.Equals(arg, "--provision-sharedfolder-credential", StringComparison.OrdinalIgnoreCase)) == true)
+        {
+            RunProvisionSharedFolderCredentialHelperMode();
+            return;
+        }
+
+        if (TryGetLaunchArgumentValue(args.Arguments, "--sharedfolder-payload", out var sharedFolderPayload))
+        {
+            RunSharedFolderActionHelperMode(sharedFolderPayload);
+            return;
+        }
+
         if (!TryInitializeSingleInstance())
         {
             Current.Exit();
@@ -115,6 +164,9 @@ public sealed partial class App : Application
         {
             var logPath = InitializeLogging();
             Log.Information("Logging initialized at {LogPath}", logPath);
+
+            EnsureHyperVSocketServiceRegistrationsAtStartup();
+            EnsureSharedFolderCredentialProvisionedAtStartup();
 
             try
             {
@@ -191,8 +243,13 @@ public sealed partial class App : Application
                 usbIpService,
                 uiInteropService);
 
+            StartSharedFolderCatalogListenerWithRecovery();
+            StartSharedFolderCredentialListenerWithRecovery();
+            StartHostIdentityListenerWithRecovery();
+
             _mainWindow = new MainWindow(_themeService, _mainViewModel, showStartupSplash: true);
             AttachMainWindowHandlers(_mainWindow);
+            UpdateSharedFolderCredentialSocketStatusPanel();
             StartUsbDiagnosticsLoop();
             StartUsbHostDiscoveryResponder();
             StartUsbAutoRefreshLoop();
@@ -278,6 +335,14 @@ public sealed partial class App : Application
             _usbDiagnosticsHostListener = null;
             _usbHostTunnel?.Dispose();
             _usbHostTunnel = null;
+            _sharedFolderCatalogHostListener?.Dispose();
+            _sharedFolderCatalogHostListener = null;
+            _sharedFolderCredentialHostListener?.Dispose();
+            _sharedFolderCredentialHostListener = null;
+            _sharedFolderCredentialSocketActive = false;
+            UpdateSharedFolderCredentialSocketStatusPanel();
+            _hostIdentityHostListener?.Dispose();
+            _hostIdentityHostListener = null;
             ShutdownSingleInstanceInfrastructure();
             Log.Information("HyperTool exited.");
             Log.CloseAndFlush();
@@ -330,10 +395,19 @@ public sealed partial class App : Application
             _usbDiagnosticsHostListener = null;
             _usbHostTunnel?.Dispose();
             _usbHostTunnel = null;
+            _sharedFolderCatalogHostListener?.Dispose();
+            _sharedFolderCatalogHostListener = null;
+            _sharedFolderCredentialHostListener?.Dispose();
+            _sharedFolderCredentialHostListener = null;
+            _sharedFolderCredentialSocketActive = false;
+            UpdateSharedFolderCredentialSocketStatusPanel();
+            _hostIdentityHostListener?.Dispose();
+            _hostIdentityHostListener = null;
 
             _themeService.ApplyTheme(_mainViewModel.UiTheme);
 
             var nextWindow = new MainWindow(_themeService, _mainViewModel, showStartupSplash: false);
+            await nextWindow.ShowLifecycleGuardAsync("Design wird neu geladen …");
             AttachMainWindowHandlers(nextWindow);
             _mainWindow = nextWindow;
 
@@ -368,6 +442,10 @@ public sealed partial class App : Application
                 _usbHostTunnel = null;
                 Log.Warning(ex, "Hyper-V socket services could not be restarted after theme change.");
             }
+
+            StartSharedFolderCatalogListenerWithRecovery(isThemeRestart: true);
+            StartSharedFolderCredentialListenerWithRecovery(isThemeRestart: true);
+            StartHostIdentityListenerWithRecovery(isThemeRestart: true);
 
             try
             {
@@ -409,6 +487,7 @@ public sealed partial class App : Application
                 }
 
                 nextWindow.Activate();
+                await nextWindow.HideLifecycleGuardAsync();
             }
             else if (_isTrayFunctional && _minimizeToTray)
             {
@@ -427,6 +506,8 @@ public sealed partial class App : Application
                 catch
                 {
                 }
+
+                await nextWindow.HideLifecycleGuardAsync();
             }
         }
         finally
@@ -689,30 +770,12 @@ public sealed partial class App : Application
 
         try
         {
-            PointInt32 exitPosition;
-            SizeInt32 exitSize;
-            try
-            {
-                exitPosition = mainWindow.AppWindow.Position;
-                exitSize = mainWindow.AppWindow.Size;
-            }
-            catch
-            {
-                exitPosition = new PointInt32(120, 120);
-                exitSize = new SizeInt32(980, 640);
-            }
+            var exitAnimationStopwatch = Stopwatch.StartNew();
+            const int inlineExitAnimationDurationMs = 2000;
 
             try
             {
-                await mainWindow.PlayExitFadeAsync();
-            }
-            catch
-            {
-            }
-
-            try
-            {
-                mainWindow.AppWindow.Hide();
+                await mainWindow.ShowLifecycleGuardAsync("Beende HyperTool …");
             }
             catch
             {
@@ -725,10 +788,25 @@ public sealed partial class App : Application
             _trayService?.Dispose();
             _trayService = null;
 
-            var exitWindow = new ExitScreenWindow();
-            exitWindow.ConfigureBounds(exitPosition, exitSize);
-            exitWindow.Activate();
-            await exitWindow.PlayAndCloseAsync();
+            var remainingMs = inlineExitAnimationDurationMs - (int)exitAnimationStopwatch.ElapsedMilliseconds;
+            if (remainingMs > 0)
+            {
+                try
+                {
+                    await Task.Delay(remainingMs);
+                }
+                catch
+                {
+                }
+            }
+
+            try
+            {
+                mainWindow.AppWindow.Hide();
+            }
+            catch
+            {
+            }
         }
         catch
         {
@@ -1011,8 +1089,23 @@ public sealed partial class App : Application
         }
 
         var hyperVActiveText = _usbHostTunnel?.IsRunning == true ? "Ja" : "Nein";
-        var registryText = HyperVSocketUsbHostTunnel.IsServiceRegistered() ? "Ja" : "Nein";
+        var missingServiceIds = GetMissingHyperVSocketServiceIds();
+        var registryText = missingServiceIds.Count == 0 ? "Ja" : "Nein";
         const string fallbackText = "Nein (Host ist Quelle)";
+
+        var missingServicesLogKey = string.Join("|", missingServiceIds.OrderBy(static id => id, StringComparer.OrdinalIgnoreCase));
+        if (!string.Equals(_lastMissingHyperVSocketServicesLogKey, missingServicesLogKey, StringComparison.Ordinal))
+        {
+            _lastMissingHyperVSocketServicesLogKey = missingServicesLogKey;
+            if (missingServiceIds.Count > 0)
+            {
+                Log.Warning("Registry service check: missing Hyper-V socket service IDs: {ServiceIds}", string.Join(", ", missingServiceIds));
+            }
+            else
+            {
+                Log.Information("Registry service check: all Hyper-V socket service IDs are present.");
+            }
+        }
 
         void apply()
         {
@@ -1047,6 +1140,8 @@ public sealed partial class App : Application
         var logsDirectory = logDirectoryCandidates.FirstOrDefault(IsWritableDirectory)
             ?? throw new InvalidOperationException("Kein beschreibbares Logverzeichnis gefunden.");
 
+        CleanupOldLogFiles(logsDirectory, LogRetentionPeriod);
+
         var logFilePath = Path.Combine(logsDirectory, "hypertool-.log");
 
         Log.Logger = new LoggerConfiguration()
@@ -1058,6 +1153,35 @@ public sealed partial class App : Application
             .CreateLogger();
 
         return logFilePath;
+    }
+
+    private static void CleanupOldLogFiles(string directoryPath, TimeSpan maxAge)
+    {
+        try
+        {
+            if (!Directory.Exists(directoryPath))
+            {
+                return;
+            }
+
+            var cutoffUtc = DateTime.UtcNow - maxAge;
+            foreach (var filePath in Directory.EnumerateFiles(directoryPath, "*", SearchOption.TopDirectoryOnly))
+            {
+                try
+                {
+                    if (File.GetLastWriteTimeUtc(filePath) < cutoffUtc)
+                    {
+                        File.Delete(filePath);
+                    }
+                }
+                catch
+                {
+                }
+            }
+        }
+        catch
+        {
+        }
     }
 
     private static bool IsWritableDirectory(string directoryPath)
@@ -1400,6 +1524,659 @@ public sealed partial class App : Application
             NativeMessageBoxButtons.Ok,
             NativeMessageBoxIcon.Error);
         Microsoft.UI.Xaml.Application.Current.Exit();
+    }
+
+    private void RunRegisterSharedFolderSocketHelperMode()
+    {
+        try
+        {
+            InitializeLogging();
+        }
+        catch
+        {
+        }
+
+        var (success, message) = ExecuteSharedFolderSocketRegistration();
+        if (!success)
+        {
+            Log.Error("Shared-folder socket service registration failed: {Message}", message);
+        }
+
+        Environment.ExitCode = success ? 0 : 1;
+        Microsoft.UI.Xaml.Application.Current.Exit();
+    }
+
+    private void RunProvisionSharedFolderCredentialHelperMode()
+    {
+        try
+        {
+            InitializeLogging();
+        }
+        catch
+        {
+        }
+
+        var (success, message) = ExecuteSharedFolderCredentialProvisioning();
+        if (!success)
+        {
+            Log.Error("Shared-folder credential provisioning failed: {Message}", message);
+        }
+
+        Environment.ExitCode = success ? 0 : 1;
+        Microsoft.UI.Xaml.Application.Current.Exit();
+    }
+
+    private void RunSharedFolderActionHelperMode(string payloadBase64)
+    {
+        try
+        {
+            InitializeLogging();
+        }
+        catch
+        {
+        }
+
+        var (success, message) = ExecuteSharedFolderAction(payloadBase64);
+        if (!success)
+        {
+            Log.Error("Shared-folder elevated action failed: {Message}", message);
+        }
+
+        Environment.ExitCode = success ? 0 : 1;
+        Microsoft.UI.Xaml.Application.Current.Exit();
+    }
+
+    private static (bool Success, string Message) ExecuteSharedFolderAction(string payloadBase64)
+    {
+        try
+        {
+            var (registrationSuccess, registrationMessage) = ExecuteSharedFolderSocketRegistration();
+            if (!registrationSuccess)
+            {
+                return (false, $"Socket-Registrierung fehlgeschlagen: {registrationMessage}");
+            }
+
+            if (string.IsNullOrWhiteSpace(payloadBase64))
+            {
+                return (false, "Payload fehlt.");
+            }
+
+            var payloadJson = Encoding.UTF8.GetString(Convert.FromBase64String(payloadBase64.Trim()));
+            var request = JsonSerializer.Deserialize<SharedFolderElevatedRequest>(payloadJson);
+            if (request is null)
+            {
+                return (false, "Payload konnte nicht gelesen werden.");
+            }
+
+            var action = (request.Action ?? string.Empty).Trim().ToLowerInvariant();
+            var service = new HostSharedFolderService();
+
+            if (action == "ensure")
+            {
+                var definition = new HyperTool.Models.HostSharedFolderDefinition
+                {
+                    ShareName = (request.ShareName ?? string.Empty).Trim(),
+                    LocalPath = (request.LocalPath ?? string.Empty).Trim(),
+                    ReadOnly = request.ReadOnly,
+                    Enabled = true,
+                    Label = (request.ShareName ?? string.Empty).Trim()
+                };
+
+                service.EnsureShareAsync(definition, CancellationToken.None).GetAwaiter().GetResult();
+                return (true, "OK");
+            }
+
+            if (action == "remove")
+            {
+                var shareName = (request.ShareName ?? string.Empty).Trim();
+                service.RemoveShareAsync(shareName, CancellationToken.None).GetAwaiter().GetResult();
+                return (true, "OK");
+            }
+
+            return (false, $"Unbekannte Aktion: {request.Action}");
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message);
+        }
+    }
+
+    private static bool TryGetLaunchArgumentValue(string? rawArguments, string key, out string value)
+    {
+        value = string.Empty;
+        if (string.IsNullOrWhiteSpace(rawArguments) || string.IsNullOrWhiteSpace(key))
+        {
+            return false;
+        }
+
+        var args = rawArguments.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        for (var index = 0; index < args.Length; index++)
+        {
+            if (!string.Equals(args[index], key, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (index + 1 >= args.Length)
+            {
+                return false;
+            }
+
+            value = args[index + 1];
+            return !string.IsNullOrWhiteSpace(value);
+        }
+
+        return false;
+    }
+
+    private static (bool Success, string Message) ExecuteSharedFolderSocketRegistration()
+    {
+        try
+        {
+            const string rootPath = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Virtualization\GuestCommunicationServices";
+
+            using var rootKey = Registry.LocalMachine.CreateSubKey(rootPath, writable: true);
+            if (rootKey is null)
+            {
+                return (false, "Registry-Pfad für GuestCommunicationServices konnte nicht geöffnet werden.");
+            }
+
+            foreach (var (serviceId, elementName) in RequiredHyperVSocketServices)
+            {
+                using var serviceKey = rootKey.CreateSubKey(serviceId, writable: true);
+                if (serviceKey is null)
+                {
+                    return (false, $"Registry-Eintrag für Hyper-V Socket Service {serviceId} konnte nicht erstellt werden.");
+                }
+
+                serviceKey.SetValue("ElementName", elementName, RegistryValueKind.String);
+            }
+
+            return (true, "OK");
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message);
+        }
+    }
+
+    private static (bool Success, string Message) ExecuteSharedFolderCredentialProvisioning()
+    {
+        try
+        {
+            var service = new HostSharedFolderCredentialProvisioningService();
+            var credential = service.EnsureProvisionedAsync(CancellationToken.None).GetAwaiter().GetResult();
+            if (string.IsNullOrWhiteSpace(credential.Username)
+                || string.IsNullOrWhiteSpace(credential.Password)
+                || string.IsNullOrWhiteSpace(credential.GroupName))
+            {
+                return (false, "Provisionierung lieferte unvollständige SharedFolder-Credentials.");
+            }
+
+            return (true, "OK");
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message);
+        }
+    }
+
+    private void EnsureHyperVSocketServiceRegistrationsAtStartup()
+    {
+        var missingServiceIds = GetMissingHyperVSocketServiceIds();
+        if (missingServiceIds.Count == 0)
+        {
+            Log.Information("All required Hyper-V socket registry entries are present.");
+            return;
+        }
+
+        Log.Warning("Missing Hyper-V socket registry entries detected at startup: {ServiceIds}", string.Join(", ", missingServiceIds));
+
+        if (!TryRegisterSharedFolderSocketServiceElevated())
+        {
+            Log.Warning("Could not auto-register missing Hyper-V socket registry entries (elevated helper was not completed).");
+            return;
+        }
+
+        var remainingMissing = GetMissingHyperVSocketServiceIds();
+        if (remainingMissing.Count == 0)
+        {
+            Log.Information("Missing Hyper-V socket registry entries were successfully created by elevated helper.");
+            return;
+        }
+
+        Log.Warning("Hyper-V socket registry entries are still missing after elevated helper: {ServiceIds}", string.Join(", ", remainingMissing));
+    }
+
+    private void EnsureSharedFolderCredentialProvisionedAtStartup()
+    {
+        var service = new HostSharedFolderCredentialProvisioningService();
+        if (service.TryGetCredential(out var existing)
+            && !string.IsNullOrWhiteSpace(existing.Username)
+            && !string.IsNullOrWhiteSpace(existing.Password)
+            && !string.IsNullOrWhiteSpace(existing.GroupName))
+        {
+            Log.Information("Shared-folder guest credential already provisioned. User={User}; Group={Group}", existing.Username, existing.GroupName);
+            return;
+        }
+
+        Log.Warning("Shared-folder guest credential is missing at startup. Attempting provisioning helper.");
+
+        if (!TryProvisionSharedFolderCredentialElevated())
+        {
+            Log.Warning("Could not provision shared-folder guest credential at startup (elevated helper was not completed).");
+            return;
+        }
+
+        if (service.TryGetCredential(out var repaired)
+            && !string.IsNullOrWhiteSpace(repaired.Username)
+            && !string.IsNullOrWhiteSpace(repaired.Password)
+            && !string.IsNullOrWhiteSpace(repaired.GroupName))
+        {
+            Log.Information("Shared-folder guest credential provisioning succeeded. User={User}; Group={Group}", repaired.Username, repaired.GroupName);
+            return;
+        }
+
+        Log.Warning("Shared-folder guest credential is still unavailable after provisioning helper.");
+    }
+
+    private bool TryProvisionSharedFolderCredentialElevated()
+    {
+        if (TryProvisionSharedFolderCredentialWithoutPrompt())
+        {
+            return true;
+        }
+
+        if (_sharedFolderCredentialProvisioningPromptIssued)
+        {
+            Log.Information("Skipping additional elevated shared-folder credential provisioning prompt (already attempted in this app session).");
+            return false;
+        }
+
+        _sharedFolderCredentialProvisioningPromptIssued = true;
+
+        var exePath = Environment.ProcessPath;
+        if (string.IsNullOrWhiteSpace(exePath))
+        {
+            Log.Warning("Could not start elevated shared-folder credential provisioning helper because executable path is unknown.");
+            return false;
+        }
+
+        try
+        {
+            using var process = Process.Start(new ProcessStartInfo
+            {
+                FileName = exePath,
+                Arguments = "--provision-sharedfolder-credential",
+                UseShellExecute = true,
+                Verb = "runas"
+            });
+
+            if (process is null)
+            {
+                Log.Warning("Elevated shared-folder credential provisioning helper could not be started.");
+                return false;
+            }
+
+            process.WaitForExit();
+            if (process.ExitCode == 0)
+            {
+                return true;
+            }
+
+            Log.Warning("Elevated shared-folder credential provisioning helper exited with code {ExitCode}.", process.ExitCode);
+            return false;
+        }
+        catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
+        {
+            Log.Warning("UAC prompt for shared-folder credential provisioning was cancelled.");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to start elevated shared-folder credential provisioning helper.");
+            return false;
+        }
+    }
+
+    private bool TryProvisionSharedFolderCredentialWithoutPrompt()
+    {
+        if (!IsRunningAsAdministrator())
+        {
+            return false;
+        }
+
+        var (success, message) = ExecuteSharedFolderCredentialProvisioning();
+        if (!success)
+        {
+            Log.Warning("Silent shared-folder credential provisioning failed: {Message}", message);
+            return false;
+        }
+
+        Log.Information("Silent shared-folder credential provisioning completed (process already elevated).");
+        return true;
+    }
+
+    private bool TryRegisterSharedFolderSocketServiceWithoutPrompt()
+    {
+        if (!IsRunningAsAdministrator())
+        {
+            return false;
+        }
+
+        var (success, message) = ExecuteSharedFolderSocketRegistration();
+        if (!success)
+        {
+            Log.Warning("Silent Hyper-V socket registration failed: {Message}", message);
+            return false;
+        }
+
+        Log.Information("Silent Hyper-V socket registration completed (process already elevated).");
+        return true;
+    }
+
+    private static bool IsRunningAsAdministrator()
+    {
+        try
+        {
+            using var identity = WindowsIdentity.GetCurrent();
+            return new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static List<string> GetMissingHyperVSocketServiceIds()
+    {
+        var missing = new List<string>();
+        foreach (var (serviceId, _) in RequiredHyperVSocketServices)
+        {
+            if (!Guid.TryParse(serviceId, out var parsedServiceId)
+                || !HyperVSocketUsbHostTunnel.IsServiceRegistered(parsedServiceId))
+            {
+                missing.Add(serviceId);
+            }
+        }
+
+        return missing;
+    }
+
+    private void StartSharedFolderCatalogListenerWithRecovery(bool isThemeRestart = false)
+    {
+        if (_mainViewModel is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _sharedFolderCatalogHostListener = new HyperVSocketSharedFolderCatalogHostListener(
+                () => _mainViewModel.GetHostSharedFoldersSnapshot());
+            _sharedFolderCatalogHostListener.Start();
+            Log.Information(isThemeRestart
+                ? "Hyper-V socket shared-folder catalog listener restarted after theme change."
+                : "Hyper-V socket shared-folder catalog listener started.");
+            return;
+        }
+        catch (Exception ex)
+        {
+            _sharedFolderCatalogHostListener?.Dispose();
+            _sharedFolderCatalogHostListener = null;
+            Log.Warning(ex, isThemeRestart
+                ? "Hyper-V socket shared-folder catalog listener could not be restarted after theme change."
+                : "Hyper-V socket shared-folder catalog listener could not be started.");
+
+            if (!IsMissingSharedFolderSocketRegistration(ex))
+            {
+                return;
+            }
+        }
+
+        if (!TryRegisterSharedFolderSocketServiceElevated())
+        {
+            Log.Information("Hyper-V socket shared-folder catalog listener remains disabled until registry entries exist (elevated registration was not completed).");
+            return;
+        }
+
+        try
+        {
+            _sharedFolderCatalogHostListener = new HyperVSocketSharedFolderCatalogHostListener(
+                () => _mainViewModel.GetHostSharedFoldersSnapshot());
+            _sharedFolderCatalogHostListener.Start();
+            Log.Information("Hyper-V socket shared-folder catalog listener started after elevated registration helper.");
+        }
+        catch (Exception ex)
+        {
+            _sharedFolderCatalogHostListener?.Dispose();
+            _sharedFolderCatalogHostListener = null;
+            Log.Warning(ex, "Hyper-V socket shared-folder catalog listener still unavailable after elevated registration helper.");
+        }
+    }
+
+    private void StartHostIdentityListenerWithRecovery(bool isThemeRestart = false)
+    {
+        try
+        {
+            _hostIdentityHostListener = new HyperVSocketHostIdentityHostListener();
+            _hostIdentityHostListener.Start();
+            Log.Information(isThemeRestart
+                ? "Hyper-V socket host-identity listener restarted after theme change."
+                : "Hyper-V socket host-identity listener started.");
+            return;
+        }
+        catch (Exception ex)
+        {
+            _hostIdentityHostListener?.Dispose();
+            _hostIdentityHostListener = null;
+            Log.Warning(ex, isThemeRestart
+                ? "Hyper-V socket host-identity listener could not be restarted after theme change."
+                : "Hyper-V socket host-identity listener could not be started.");
+
+            if (!IsMissingSharedFolderSocketRegistration(ex))
+            {
+                return;
+            }
+        }
+
+        if (!TryRegisterSharedFolderSocketServiceElevated())
+        {
+            Log.Information("Hyper-V socket host-identity listener remains disabled until registry entries exist (elevated registration was not completed).");
+            return;
+        }
+
+        try
+        {
+            _hostIdentityHostListener = new HyperVSocketHostIdentityHostListener();
+            _hostIdentityHostListener.Start();
+            Log.Information("Hyper-V socket host-identity listener started after elevated registration helper.");
+        }
+        catch (Exception ex)
+        {
+            _hostIdentityHostListener?.Dispose();
+            _hostIdentityHostListener = null;
+            Log.Warning(ex, "Hyper-V socket host-identity listener still unavailable after elevated registration helper.");
+        }
+    }
+
+    private void StartSharedFolderCredentialListenerWithRecovery(bool isThemeRestart = false)
+    {
+        try
+        {
+            _sharedFolderCredentialHostListener = new HyperVSocketSharedFolderCredentialHostListener(
+                onCredentialServed: OnSharedFolderCredentialServed);
+            _sharedFolderCredentialHostListener.Start();
+            _sharedFolderCredentialSocketActive = true;
+            UpdateSharedFolderCredentialSocketStatusPanel();
+            Log.Information(isThemeRestart
+                ? "Hyper-V socket shared-folder credential listener restarted after theme change."
+                : "Hyper-V socket shared-folder credential listener started.");
+            return;
+        }
+        catch (Exception ex)
+        {
+            _sharedFolderCredentialHostListener?.Dispose();
+            _sharedFolderCredentialHostListener = null;
+            _sharedFolderCredentialSocketActive = false;
+            UpdateSharedFolderCredentialSocketStatusPanel();
+            Log.Warning(ex, isThemeRestart
+                ? "Hyper-V socket shared-folder credential listener could not be restarted after theme change."
+                : "Hyper-V socket shared-folder credential listener could not be started.");
+
+            if (!IsMissingSharedFolderSocketRegistration(ex))
+            {
+                return;
+            }
+        }
+
+        if (!TryRegisterSharedFolderSocketServiceElevated())
+        {
+            _sharedFolderCredentialSocketActive = false;
+            UpdateSharedFolderCredentialSocketStatusPanel();
+            Log.Information("Hyper-V socket shared-folder credential listener remains disabled until registry entries exist (elevated registration was not completed).");
+            return;
+        }
+
+        try
+        {
+            _sharedFolderCredentialHostListener = new HyperVSocketSharedFolderCredentialHostListener(
+                onCredentialServed: OnSharedFolderCredentialServed);
+            _sharedFolderCredentialHostListener.Start();
+            _sharedFolderCredentialSocketActive = true;
+            UpdateSharedFolderCredentialSocketStatusPanel();
+            Log.Information("Hyper-V socket shared-folder credential listener started after registration helper.");
+        }
+        catch (Exception ex)
+        {
+            _sharedFolderCredentialHostListener?.Dispose();
+            _sharedFolderCredentialHostListener = null;
+            _sharedFolderCredentialSocketActive = false;
+            UpdateSharedFolderCredentialSocketStatusPanel();
+            Log.Warning(ex, "Hyper-V socket shared-folder credential listener still unavailable after registration helper.");
+        }
+    }
+
+    private void OnSharedFolderCredentialServed(DateTimeOffset servedAtUtc)
+    {
+        _sharedFolderCredentialSocketLastSyncUtc = servedAtUtc;
+        _sharedFolderCredentialSocketActive = _sharedFolderCredentialHostListener?.IsRunning == true;
+        UpdateSharedFolderCredentialSocketStatusPanel();
+    }
+
+    private void UpdateSharedFolderCredentialSocketStatusPanel()
+    {
+        var socketActive = _sharedFolderCredentialSocketActive;
+        var lastSyncUtc = _sharedFolderCredentialSocketLastSyncUtc;
+
+        void apply()
+        {
+            _mainWindow?.UpdateSharedFolderCredentialSocketStatus(socketActive, lastSyncUtc);
+        }
+
+        if (_mainWindow?.DispatcherQueue is { } queue && !queue.HasThreadAccess)
+        {
+            _ = queue.TryEnqueue(apply);
+            return;
+        }
+
+        apply();
+    }
+
+    private static bool IsMissingSharedFolderSocketRegistration(Exception ex)
+    {
+        return ex is InvalidOperationException invalidOperation
+               && invalidOperation.Message.Contains("nicht registriert", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool TryRegisterSharedFolderSocketServiceElevated()
+    {
+        if (TryRegisterSharedFolderSocketServiceWithoutPrompt())
+        {
+            return true;
+        }
+
+        if (_hyperVSocketRegistrationPromptIssued)
+        {
+            Log.Information("Skipping additional elevated Hyper-V socket registration prompt (already attempted in this app session).");
+            return false;
+        }
+
+        _hyperVSocketRegistrationPromptIssued = true;
+
+        string? scriptPath = null;
+
+        try
+        {
+            scriptPath = Path.Combine(Path.GetTempPath(), $"HyperTool.RegisterHyperVSocket.{Guid.NewGuid():N}.ps1");
+            File.WriteAllText(scriptPath, BuildElevatedHyperVSocketRegistrationScript(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+
+            using var process = Process.Start(new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"",
+                UseShellExecute = true,
+                Verb = "runas"
+            });
+
+            if (process is null)
+            {
+                Log.Warning("Elevated shared-folder registration helper could not be started.");
+                return false;
+            }
+
+            process.WaitForExit();
+            if (process.ExitCode == 0)
+            {
+                return true;
+            }
+
+            Log.Warning("Elevated shared-folder registration helper exited with code {ExitCode}.", process.ExitCode);
+            return false;
+        }
+        catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
+        {
+            Log.Warning("UAC prompt for shared-folder socket registration was cancelled.");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to start elevated shared-folder registration helper.");
+            return false;
+        }
+        finally
+        {
+            if (!string.IsNullOrWhiteSpace(scriptPath))
+            {
+                try
+                {
+                    File.Delete(scriptPath);
+                }
+                catch
+                {
+                }
+            }
+        }
+    }
+
+    private static string BuildElevatedHyperVSocketRegistrationScript()
+    {
+        static string escape(string value) => value.Replace("'", "''", StringComparison.Ordinal);
+
+        var rootPath = @"HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Virtualization\GuestCommunicationServices";
+        var sb = new StringBuilder();
+        sb.AppendLine("$ErrorActionPreference = 'Stop'");
+        sb.AppendLine($"$rootPath = '{escape(rootPath)}'");
+        sb.AppendLine("New-Item -Path $rootPath -Force | Out-Null");
+
+        foreach (var (serviceId, elementName) in RequiredHyperVSocketServices)
+        {
+            sb.AppendLine($"$servicePath = Join-Path $rootPath '{escape(serviceId)}'");
+            sb.AppendLine("New-Item -Path $servicePath -Force | Out-Null");
+            sb.AppendLine($"Set-ItemProperty -Path $servicePath -Name 'ElementName' -Type String -Value '{escape(elementName)}'");
+        }
+
+        return sb.ToString();
     }
 
     private static (bool Success, string Message) ExecuteHnsRestart()

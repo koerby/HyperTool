@@ -215,6 +215,7 @@ public sealed class ConfigService : IConfigService
         config.Ui ??= new UiSettings();
         config.Update ??= new UpdateSettings();
         config.Usb ??= new UsbSettings();
+        config.SharedFolders ??= new SharedFolderSettings();
 
         if (config.Ui.TrayVmNames is null)
         {
@@ -256,6 +257,40 @@ public sealed class ConfigService : IConfigService
             }
 
             config.Usb.AutoShareDeviceKeys = normalizedAutoShareKeys;
+        }
+
+        if (config.SharedFolders.HostDefinitions is null)
+        {
+            config.SharedFolders.HostDefinitions = [];
+            wasUpdated = true;
+        }
+        else
+        {
+            var normalizedSharedFolderDefinitions = config.SharedFolders.HostDefinitions
+                .Where(definition => definition is not null)
+                .Select(definition => new HostSharedFolderDefinition
+                {
+                    Id = string.IsNullOrWhiteSpace(definition.Id)
+                        ? Guid.NewGuid().ToString("N")
+                        : definition.Id.Trim(),
+                    Label = definition.Label?.Trim() ?? string.Empty,
+                    LocalPath = definition.LocalPath?.Trim() ?? string.Empty,
+                    ShareName = definition.ShareName?.Trim() ?? string.Empty,
+                    Enabled = definition.Enabled,
+                    ReadOnly = definition.ReadOnly
+                })
+                .Where(definition => !string.IsNullOrWhiteSpace(definition.LocalPath)
+                                     && !string.IsNullOrWhiteSpace(definition.ShareName))
+                .GroupBy(definition => definition.Id, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .ToList();
+
+            if (normalizedSharedFolderDefinitions.Count != config.SharedFolders.HostDefinitions.Count)
+            {
+                wasUpdated = true;
+            }
+
+            config.SharedFolders.HostDefinitions = normalizedSharedFolderDefinitions;
         }
 
         if (string.IsNullOrWhiteSpace(config.Ui.WindowTitle))

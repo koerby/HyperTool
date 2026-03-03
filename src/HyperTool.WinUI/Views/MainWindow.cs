@@ -20,16 +20,27 @@ using System.Diagnostics;
 using System.IO;
 using System.Media;
 using System.Net.Http;
+using System.Text;
+using System.Text.Json;
 using System.Windows.Input;
 using Windows.Media.Core;
 using Windows.Media.Playback;
 using Windows.Graphics;
+using Windows.Storage.Pickers;
 using Windows.UI;
 
 namespace HyperTool.WinUI.Views;
 
 public sealed class MainWindow : Window
 {
+    private sealed class SharedFolderElevatedRequest
+    {
+        public string Action { get; set; } = string.Empty;
+        public string ShareName { get; set; } = string.Empty;
+        public string LocalPath { get; set; } = string.Empty;
+        public bool ReadOnly { get; set; }
+    }
+
     public const int DefaultWindowWidth = 1400;
     public const int DefaultWindowHeight = 940;
     private const string HostUsbRuntimeOwner = "dorssel";
@@ -39,6 +50,7 @@ public sealed class MainWindow : Window
 
     private readonly IThemeService _themeService;
     private readonly MainViewModel _viewModel;
+    private readonly IHostSharedFolderService _hostSharedFolderService = new HostSharedFolderService();
     private readonly List<Button> _navButtons = [];
     private readonly StackPanel _vmChipPanel = new() { Orientation = Orientation.Horizontal, Spacing = 8 };
     private readonly ScrollViewer _vmChipScrollViewer = new()
@@ -65,6 +77,18 @@ public sealed class MainWindow : Window
     private readonly Button _toggleLogButton = new();
     private readonly TreeView _checkpointTreeView = new();
     private readonly ListView _usbDevicesListView = new();
+    private readonly ListView _sharedFoldersListView = new();
+    private readonly Ellipse _sharedFolderCredentialSocketStatusDot = new() { Width = 10, Height = 10, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _sharedFolderCredentialSocketStatusText = new() { Opacity = 0.9, VerticalAlignment = VerticalAlignment.Center };
+    private readonly Ellipse _sharedFolderCredentialProvisioningStatusDot = new() { Width = 10, Height = 10, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _sharedFolderCredentialProvisioningStatusText = new() { Opacity = 0.9, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBox _sharedFolderPathTextBox = new();
+    private readonly TextBox _sharedFolderShareNameTextBox = new();
+    private readonly CheckBox _sharedFolderEnabledCheckBox = new() { Content = "Eintrag aktiv" };
+    private readonly CheckBox _sharedFolderReadOnlyCheckBox = new() { Content = "Freigabe nur Lesen" };
+    private readonly TextBlock _sharedFolderStatusText = new() { Opacity = 0.88, TextWrapping = TextWrapping.Wrap, Text = "Bereit." };
+    private string _sharedFolderEditingId = string.Empty;
+    private string _sharedFolderLastError = "-";
     private readonly CheckBox _usbAutoShareCheckBox = new();
     private readonly Ellipse _usbRuntimeStatusDot = new() { Width = 10, Height = 10, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _usbRuntimeStatusText = new() { Opacity = 0.9, VerticalAlignment = VerticalAlignment.Center };
@@ -77,6 +101,7 @@ public sealed class MainWindow : Window
     private readonly RotateTransform _logoRotateTransform = new();
     private UIElement? _vmPage;
     private UIElement? _snapshotsPage;
+    private UIElement? _sharedFoldersPage;
     private UIElement? _configPage;
     private UIElement? _infoPage;
     private UIElement? _usbPage;
@@ -365,6 +390,16 @@ public sealed class MainWindow : Window
             _themeTransitionOverlay.Visibility = Visibility.Collapsed;
             _themeTransitionOverlay.IsHitTestVisible = false;
         }
+    }
+
+    public Task ShowLifecycleGuardAsync(string statusText)
+    {
+        return ShowThemeTransitionOverlayAsync(statusText);
+    }
+
+    public Task HideLifecycleGuardAsync()
+    {
+        return HideThemeTransitionOverlaySafeAsync();
     }
 
     private static async Task AnimateOpacityAsync(UIElement target, double from, double to, int durationMs)
@@ -1442,9 +1477,10 @@ public sealed class MainWindow : Window
         var sidebarStack = new StackPanel { Spacing = 8 };
         sidebarStack.Children.Add(CreateNavButton("▶", "VM", 0));
         sidebarStack.Children.Add(CreateNavButton("🔌", "USB", 1));
-        sidebarStack.Children.Add(CreateNavButton("📷", "Snapshots", 2));
-        sidebarStack.Children.Add(CreateNavButton("⚙", "Einstellungen", 3));
-        sidebarStack.Children.Add(CreateNavButton("ℹ", "Info", 4));
+        sidebarStack.Children.Add(CreateNavButton("📁", "Shared Folder", 2));
+        sidebarStack.Children.Add(CreateNavButton("📷", "Snapshots", 3));
+        sidebarStack.Children.Add(CreateNavButton("⚙", "Einstellungen", 4));
+        sidebarStack.Children.Add(CreateNavButton("ℹ", "Info", 5));
         sidebar.Child = sidebarStack;
         mainGrid.Children.Add(sidebar);
 
@@ -2304,7 +2340,7 @@ public sealed class MainWindow : Window
         };
 
         var diagnosticsStack = new StackPanel { Spacing = 6 };
-        diagnosticsStack.Children.Add(new TextBlock { Text = "USB Transport Diagnose (live)", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
+        diagnosticsStack.Children.Add(new TextBlock { Text = "Transport Diagnose", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
 
         var hyperVSocketRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
         hyperVSocketRow.Children.Add(new TextBlock { Text = "Hyper-V Socket aktiv:", Opacity = 0.9 });
@@ -2461,6 +2497,392 @@ public sealed class MainWindow : Window
         return new ScrollViewer { Content = root };
     }
 
+    private UIElement BuildSharedFoldersPage()
+    {
+        var root = new Grid { RowSpacing = 10 };
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+
+        var editorCard = new Border
+        {
+            CornerRadius = new CornerRadius(10),
+            BorderThickness = new Thickness(1),
+            BorderBrush = Application.Current.Resources["PanelBorderBrush"] as Brush,
+            Background = Application.Current.Resources["SurfaceSoftBrush"] as Brush,
+            Padding = new Thickness(10)
+        };
+
+        var editorStack = new StackPanel { Spacing = 8 };
+
+        var headerRow = new Grid { ColumnSpacing = 10 };
+        headerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        headerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var titleText = new TextBlock
+        {
+            Text = "Host Shared Folder",
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+        };
+        headerRow.Children.Add(titleText);
+
+        var credentialChipRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+        credentialChipRow.Children.Add(_sharedFolderCredentialSocketStatusDot);
+        credentialChipRow.Children.Add(_sharedFolderCredentialSocketStatusText);
+        Grid.SetColumn(credentialChipRow, 1);
+        headerRow.Children.Add(credentialChipRow);
+
+        editorStack.Children.Add(headerRow);
+
+        var provisioningRow = new Grid { ColumnSpacing = 8 };
+        provisioningRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        provisioningRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var provisioningChipRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+        provisioningChipRow.Children.Add(_sharedFolderCredentialProvisioningStatusDot);
+        provisioningChipRow.Children.Add(_sharedFolderCredentialProvisioningStatusText);
+        provisioningRow.Children.Add(provisioningChipRow);
+
+        var reprovisionButton = CreateIconButton("🔐", "Provisionierung erneut ausführen", onClick: async (_, _) =>
+        {
+            _sharedFolderStatusText.Text = "SharedFolder-Credential-Provisionierung wird ausgeführt...";
+            Log.Information("Shared-folder credential reprovision requested from Host UI.");
+
+            var ok = await TryRunSharedFolderCredentialProvisioningElevatedAsync();
+            var probe = await RefreshSharedFolderCredentialProvisioningStatusAsync();
+
+            Log.Information(
+                "Shared-folder credential reprovision finished. HelperOk={HelperOk}; StatePresent={StatePresent}; UserExists={UserExists}; GroupExists={GroupExists}; User={User}; Group={Group}; ProbeSource={ProbeSource}",
+                ok,
+                probe.StatePresent,
+                probe.UserExists,
+                probe.GroupExists,
+                probe.UserName,
+                probe.GroupName,
+                probe.ProbeSource);
+
+            _sharedFolderStatusText.Text = (ok, probe.UserExists, probe.GroupExists) switch
+            {
+                (true, true, true) => "SharedFolder-Credential-Provisionierung erfolgreich ausgeführt.",
+                (true, _, _) => "Provisionierung lief, aber User/Gruppe fehlen weiterhin. Details im Host-Log.",
+                _ => "SharedFolder-Credential-Provisionierung nicht abgeschlossen. Details im Host-Log."
+            };
+        });
+        Grid.SetColumn(reprovisionButton, 1);
+        provisioningRow.Children.Add(reprovisionButton);
+
+        editorStack.Children.Add(provisioningRow);
+
+        editorStack.Children.Add(new TextBlock
+        {
+            Text = "Minimaler Ablauf: SMB-Freigabename + lokaler Ordner, dann Speichern.",
+            Opacity = 0.82,
+            TextWrapping = TextWrapping.Wrap
+        });
+
+        _sharedFolderPathTextBox.PlaceholderText = "Lokaler Ordnerpfad (z. B. C:\\VMShare\\Tools)";
+        _sharedFolderShareNameTextBox.PlaceholderText = "SMB-Freigabename (z. B. HyperToolTools)";
+        editorStack.Children.Add(_sharedFolderShareNameTextBox);
+
+        var pathRow = new Grid { ColumnSpacing = 8 };
+        pathRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        pathRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        pathRow.Children.Add(_sharedFolderPathTextBox);
+        var browseFolderButton = CreateIconButton("📂", "Ordner wählen", onClick: async (_, _) => await BrowseSharedFolderPathAsync());
+        Grid.SetColumn(browseFolderButton, 1);
+        pathRow.Children.Add(browseFolderButton);
+        editorStack.Children.Add(pathRow);
+        var actionRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        actionRow.Children.Add(_sharedFolderEnabledCheckBox);
+        actionRow.Children.Add(_sharedFolderReadOnlyCheckBox);
+        actionRow.Children.Add(CreateIconButton("✚", "Neu", onClick: (_, _) => ResetSharedFolderEditor()));
+        actionRow.Children.Add(CreateIconButton("💾", "Speichern", onClick: async (_, _) => await SaveSharedFolderEntryAsync()));
+        actionRow.Children.Add(CreateIconButton("🗑", "Entfernen", onClick: async (_, _) => await DeleteSharedFolderEntryAsync()));
+        actionRow.Children.Add(CreateIconButton("🧪", "Self-Test", onClick: async (_, _) => await RunHostSharedFolderSelfTestAsync()));
+        editorStack.Children.Add(actionRow);
+        editorStack.Children.Add(new TextBlock
+        {
+            Text = "Speichern erstellt/aktualisiert direkt die SMB-Freigabe. Entfernen hebt die Freigabe auf und löscht den Eintrag.",
+            Opacity = 0.78,
+            TextWrapping = TextWrapping.Wrap
+        });
+        editorStack.Children.Add(_sharedFolderStatusText);
+
+        editorCard.Child = editorStack;
+        root.Children.Add(editorCard);
+
+        UpdateSharedFolderCredentialSocketStatus(socketActive: false, lastSyncUtc: null);
+        UpdateSharedFolderCredentialProvisioningStatus(provisioned: false, userExists: false, groupExists: false, userName: string.Empty, groupName: string.Empty);
+        _ = RefreshSharedFolderCredentialProvisioningStatusAsync();
+
+        var helpText = new TextBlock
+        {
+            Margin = new Thickness(2, 0, 0, 0),
+            Opacity = 0.85,
+            Text = "Shared-Folder werden als SMB-Freigaben am Host erstellt. Änderungen werden direkt in HyperTool.config.json gespeichert."
+        };
+        Grid.SetRow(helpText, 1);
+        root.Children.Add(helpText);
+
+        var listCard = new Border
+        {
+            CornerRadius = new CornerRadius(10),
+            BorderThickness = new Thickness(1),
+            BorderBrush = Application.Current.Resources["PanelBorderBrush"] as Brush,
+            Background = Application.Current.Resources["PanelBackgroundBrush"] as Brush,
+            Padding = new Thickness(8)
+        };
+
+        _sharedFoldersListView.ItemsSource = _viewModel.HostSharedFolders;
+        _sharedFoldersListView.ItemTemplate = CreateSharedFolderListItemTemplate();
+        _sharedFoldersListView.SelectionMode = ListViewSelectionMode.Single;
+        _sharedFoldersListView.IsItemClickEnabled = true;
+        _sharedFoldersListView.ItemClick += (_, args) =>
+        {
+            if (args.ClickedItem is HostSharedFolderDefinition definition)
+            {
+                _sharedFoldersListView.SelectedItem = definition;
+                LoadSharedFolderEditor(definition);
+            }
+        };
+        _sharedFoldersListView.SelectionChanged += (_, _) =>
+        {
+            if (_sharedFoldersListView.SelectedItem is HostSharedFolderDefinition definition)
+            {
+                LoadSharedFolderEditor(definition);
+            }
+        };
+
+        listCard.Child = _sharedFoldersListView;
+        Grid.SetRow(listCard, 2);
+        root.Children.Add(listCard);
+
+        if (_viewModel.HostSharedFolders.Count > 0)
+        {
+            _sharedFoldersListView.SelectedItem = _viewModel.HostSharedFolders[0];
+            LoadSharedFolderEditor(_viewModel.HostSharedFolders[0]);
+        }
+        else
+        {
+            ResetSharedFolderEditor();
+        }
+
+        return new ScrollViewer { Content = root };
+    }
+
+    public void UpdateSharedFolderCredentialSocketStatus(bool socketActive, DateTimeOffset? lastSyncUtc)
+    {
+        var lastSyncText = lastSyncUtc.HasValue
+            ? lastSyncUtc.Value.ToLocalTime().ToString("HH:mm:ss")
+            : "-";
+
+        _sharedFolderCredentialSocketStatusDot.Fill = new SolidColorBrush(socketActive
+            ? Windows.UI.Color.FromArgb(0xFF, 0x32, 0xD7, 0x4B)
+            : Windows.UI.Color.FromArgb(0xFF, 0xE8, 0x4A, 0x5F));
+        _sharedFolderCredentialSocketStatusText.Text = socketActive
+            ? $"Credential Socket: aktiv · Letzte Sync: {lastSyncText}"
+            : $"Credential Socket: inaktiv · Letzte Sync: {lastSyncText}";
+    }
+
+    public void UpdateSharedFolderCredentialProvisioningStatus(bool provisioned, bool userExists, bool groupExists, string userName, string groupName)
+    {
+        var isHealthy = provisioned && userExists && groupExists;
+
+        _sharedFolderCredentialProvisioningStatusDot.Fill = new SolidColorBrush(isHealthy
+            ? Windows.UI.Color.FromArgb(0xFF, 0x32, 0xD7, 0x4B)
+            : Windows.UI.Color.FromArgb(0xFF, 0xE8, 0x4A, 0x5F));
+
+        var nextUser = string.IsNullOrWhiteSpace(userName) ? "HyperToolGuest" : userName.Trim();
+        var nextGroup = string.IsNullOrWhiteSpace(groupName) ? "HyperTool" : groupName.Trim();
+
+        _sharedFolderCredentialProvisioningStatusText.Text = isHealthy
+            ? $"Credential Provisioning: aktiv · User {nextUser} · Gruppe {nextGroup}"
+            : $"Credential Provisioning: inaktiv · User {(userExists ? "ok" : "fehlt")} · Gruppe {(groupExists ? "ok" : "fehlt")}";
+    }
+
+    private async Task<(bool StatePresent, bool UserExists, bool GroupExists, string UserName, string GroupName, string ProbeSource)> RefreshSharedFolderCredentialProvisioningStatusAsync()
+    {
+        try
+        {
+            var service = new HostSharedFolderCredentialProvisioningService();
+            var hasState = service.TryGetCredential(out var credential);
+
+            var userName = hasState && !string.IsNullOrWhiteSpace(credential.Username)
+                ? credential.Username.Trim()
+                : "HyperToolGuest";
+            var groupName = hasState && !string.IsNullOrWhiteSpace(credential.GroupName)
+                ? credential.GroupName.Trim()
+                : "HyperTool";
+
+            var (userExists, groupExists, probeSource) = await ProbeLocalSharedFolderPrincipalStatusAsync(userName, groupName);
+
+            UpdateSharedFolderCredentialProvisioningStatus(
+                provisioned: hasState,
+                userExists: userExists,
+                groupExists: groupExists,
+                userName: userName,
+                groupName: groupName);
+
+            if (!userExists || !groupExists)
+            {
+                Log.Warning(
+                    "Shared-folder credential provisioning status is incomplete. StatePresent={StatePresent}; UserExists={UserExists}; GroupExists={GroupExists}; User={User}; Group={Group}; ProbeSource={ProbeSource}",
+                    hasState,
+                    userExists,
+                    groupExists,
+                    userName,
+                    groupName,
+                    probeSource);
+            }
+
+            return (hasState, userExists, groupExists, userName, groupName, probeSource);
+        }
+        catch (Exception ex)
+        {
+            UpdateSharedFolderCredentialProvisioningStatus(
+                provisioned: false,
+                userExists: false,
+                groupExists: false,
+                userName: "HyperToolGuest",
+                groupName: "HyperTool");
+
+            Log.Warning(ex, "Failed to refresh shared-folder credential provisioning status.");
+            return (false, false, false, "HyperToolGuest", "HyperTool", "failed");
+        }
+    }
+
+    private static async Task<(bool UserExists, bool GroupExists, string ProbeSource)> ProbeLocalSharedFolderPrincipalStatusAsync(string userName, string groupName)
+    {
+        var script = $@"
+$ErrorActionPreference = 'Stop'
+$groupName = {ToPsSingleQuoted(groupName)}
+$userName = {ToPsSingleQuoted(userName)}
+
+$groupExists = $false
+$userExists = $false
+$probeSource = 'LocalAccounts'
+
+try {{
+    $group = Get-LocalGroup -Name $groupName -ErrorAction SilentlyContinue
+    $user = Get-LocalUser -Name $userName -ErrorAction SilentlyContinue
+    $groupExists = $null -ne $group
+    $userExists = $null -ne $user
+}}
+catch {{
+    $probeSource = 'ADSI'
+    $machine = $env:COMPUTERNAME
+    try {{
+        $groupAdsi = [ADSI](""WinNT://$machine/$groupName,group"")
+        $null = $groupAdsi.Name
+        $groupExists = $true
+    }} catch {{ $groupExists = $false }}
+
+    try {{
+        $userAdsi = [ADSI](""WinNT://$machine/$userName,user"")
+        $null = $userAdsi.Name
+        $userExists = $true
+    }} catch {{ $userExists = $false }}
+}}
+
+if ($groupExists) {{ 'GROUP=1' }} else {{ 'GROUP=0' }}
+if ($userExists) {{ 'USER=1' }} else {{ 'USER=0' }}
+""PROBE=$probeSource""
+";
+
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = "powershell",
+                Arguments = $"-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"{EscapeForPowerShellCommandArgument(script)}\"",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                StandardOutputEncoding = Encoding.UTF8,
+                StandardErrorEncoding = Encoding.UTF8
+            }
+        };
+
+        process.Start();
+        var output = await process.StandardOutput.ReadToEndAsync();
+        var error = await process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
+
+        var userExists = output.Contains("USER=1", StringComparison.OrdinalIgnoreCase);
+        var groupExists = output.Contains("GROUP=1", StringComparison.OrdinalIgnoreCase);
+        var probeSource = output.Contains("PROBE=ADSI", StringComparison.OrdinalIgnoreCase)
+            ? "ADSI"
+            : "LocalAccounts";
+
+        if (process.ExitCode != 0)
+        {
+            Log.Warning(
+                "Shared-folder principal probe command failed. ExitCode={ExitCode}; Stderr={Stderr}; Stdout={Stdout}",
+                process.ExitCode,
+                error,
+                output);
+        }
+
+        return (userExists, groupExists, probeSource);
+    }
+
+    private static string ToPsSingleQuoted(string value)
+    {
+        return $"'{(value ?? string.Empty).Replace("'", "''")}'";
+    }
+
+    private static string EscapeForPowerShellCommandArgument(string script)
+    {
+        return (script ?? string.Empty).Replace("\"", "`\"");
+    }
+
+    private async Task<bool> TryRunSharedFolderCredentialProvisioningElevatedAsync()
+    {
+        var exePath = Environment.ProcessPath;
+        if (string.IsNullOrWhiteSpace(exePath))
+        {
+            _sharedFolderStatusText.Text = "UAC-Helper konnte nicht gestartet werden (Pfad unbekannt).";
+            return false;
+        }
+
+        try
+        {
+            using var process = Process.Start(new ProcessStartInfo
+            {
+                FileName = exePath,
+                Arguments = "--provision-sharedfolder-credential",
+                UseShellExecute = true,
+                Verb = "runas"
+            });
+
+            if (process is null)
+            {
+                _sharedFolderStatusText.Text = "UAC-Helper konnte nicht gestartet werden.";
+                return false;
+            }
+
+            await process.WaitForExitAsync();
+            if (process.ExitCode == 0)
+            {
+                return true;
+            }
+
+            _sharedFolderStatusText.Text = $"UAC-Helper fehlgeschlagen (ExitCode {process.ExitCode}).";
+            return false;
+        }
+        catch (Win32Exception win32Ex) when (win32Ex.NativeErrorCode == 1223)
+        {
+            _sharedFolderStatusText.Text = "UAC-Abfrage wurde abgebrochen.";
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _sharedFolderStatusText.Text = $"UAC-Helper Fehler: {ex.Message}";
+            return false;
+        }
+    }
+
     private static CheckBox CreateCheckBox(string text, Func<bool> getter, Action<bool> setter)
     {
         var checkBox = new CheckBox
@@ -2498,6 +2920,350 @@ public sealed class MainWindow : Window
 """;
 
                 return (DataTemplate)XamlReader.Load(templateXaml);
+    }
+
+    private static DataTemplate CreateSharedFolderListItemTemplate()
+    {
+                const string templateXaml = """
+<DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>
+    <Grid ColumnSpacing='10' Margin='4,2,4,2'>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width='*'/>
+            <ColumnDefinition Width='260'/>
+        </Grid.ColumnDefinitions>
+        <TextBlock Text='{Binding ShareName}' FontWeight='SemiBold' TextTrimming='CharacterEllipsis' TextWrapping='NoWrap' VerticalAlignment='Center'/>
+        <TextBlock Grid.Column='1' Text='{Binding LocalPath}' Opacity='0.85' TextTrimming='CharacterEllipsis' TextWrapping='NoWrap' VerticalAlignment='Center'/>
+    </Grid>
+</DataTemplate>
+""";
+
+                return (DataTemplate)XamlReader.Load(templateXaml);
+    }
+
+    private void ResetSharedFolderEditor()
+    {
+        _sharedFolderEditingId = string.Empty;
+        _sharedFolderPathTextBox.Text = string.Empty;
+        _sharedFolderShareNameTextBox.Text = string.Empty;
+        _sharedFolderEnabledCheckBox.IsChecked = true;
+        _sharedFolderReadOnlyCheckBox.IsChecked = false;
+        _sharedFolderStatusText.Text = "Neuer Shared-Folder Eintrag.";
+    }
+
+    private void LoadSharedFolderEditor(HostSharedFolderDefinition definition)
+    {
+        _sharedFolderEditingId = definition.Id;
+        _sharedFolderPathTextBox.Text = definition.LocalPath;
+        _sharedFolderShareNameTextBox.Text = definition.ShareName;
+        _sharedFolderEnabledCheckBox.IsChecked = definition.Enabled;
+        _sharedFolderReadOnlyCheckBox.IsChecked = definition.ReadOnly;
+        _sharedFolderStatusText.Text = $"Eintrag '{definition.ShareName}' ausgewählt.";
+    }
+
+    private HostSharedFolderDefinition? BuildSharedFolderFromEditor()
+    {
+        var shareName = (_sharedFolderShareNameTextBox.Text ?? string.Empty).Trim();
+        var localPath = (_sharedFolderPathTextBox.Text ?? string.Empty).Trim();
+
+        if (string.IsNullOrWhiteSpace(shareName))
+        {
+            _sharedFolderStatusText.Text = "SMB-Freigabename ist erforderlich.";
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(localPath))
+        {
+            _sharedFolderStatusText.Text = "Lokaler Ordnerpfad ist erforderlich.";
+            return null;
+        }
+
+        return new HostSharedFolderDefinition
+        {
+            Id = string.IsNullOrWhiteSpace(_sharedFolderEditingId)
+                ? Guid.NewGuid().ToString("N")
+                : _sharedFolderEditingId,
+            Label = shareName,
+            LocalPath = localPath,
+            ShareName = shareName,
+            Enabled = _sharedFolderEnabledCheckBox.IsChecked == true,
+            ReadOnly = _sharedFolderReadOnlyCheckBox.IsChecked == true
+        };
+    }
+
+    private async Task SaveSharedFolderEntryAsync()
+    {
+        var definition = BuildSharedFolderFromEditor();
+        if (definition is null)
+        {
+            return;
+        }
+
+        _viewModel.UpsertHostSharedFolderDefinition(definition);
+        _sharedFoldersListView.SelectedItem = _viewModel.HostSharedFolders.FirstOrDefault(item => string.Equals(item.Id, definition.Id, StringComparison.OrdinalIgnoreCase));
+
+        if (_viewModel.SaveConfigCommand.CanExecute(null))
+        {
+            await _viewModel.SaveConfigCommand.ExecuteAsync(null);
+        }
+
+        try
+        {
+            if (definition.Enabled)
+            {
+                await _hostSharedFolderService.EnsureShareAsync(definition, CancellationToken.None);
+                _sharedFolderStatusText.Text = $"Eintrag gespeichert und SMB-Freigabe '{definition.ShareName}' aktiviert.";
+            }
+            else
+            {
+                var exists = await _hostSharedFolderService.ShareExistsAsync(definition.ShareName, CancellationToken.None);
+                if (exists)
+                {
+                    await _hostSharedFolderService.RemoveShareAsync(definition.ShareName, CancellationToken.None);
+                }
+
+                _sharedFolderStatusText.Text = $"Eintrag gespeichert. SMB-Freigabe '{definition.ShareName}' ist deaktiviert.";
+            }
+
+            _sharedFolderLastError = "-";
+        }
+        catch (Exception ex)
+        {
+            if (IsSharedFolderElevationRequired(ex)
+                && await TryRunSharedFolderActionElevatedAsync(
+                    definition.Enabled ? "ensure" : "remove",
+                    definition.ShareName,
+                    definition.LocalPath,
+                    definition.ReadOnly))
+            {
+                _sharedFolderStatusText.Text = definition.Enabled
+                    ? $"Eintrag gespeichert und SMB-Freigabe '{definition.ShareName}' (via UAC) aktiviert."
+                    : $"Eintrag gespeichert. SMB-Freigabe '{definition.ShareName}' (via UAC) ist deaktiviert.";
+                _sharedFolderLastError = "-";
+            }
+            else
+            {
+                _sharedFolderLastError = ex.Message;
+                _sharedFolderStatusText.Text = $"Speichern fehlgeschlagen: {ex.Message}";
+                Log.ForContext("eventId", "sharedfolders.host.save.failed")
+                    .Warning(ex,
+                    "Shared-folder save/apply failed. ShareName={ShareName}; LocalPath={LocalPath}; Enabled={Enabled}; ReadOnly={ReadOnly}",
+                    definition.ShareName,
+                    definition.LocalPath,
+                    definition.Enabled,
+                    definition.ReadOnly);
+            }
+        }
+    }
+
+    private async Task DeleteSharedFolderEntryAsync()
+    {
+        if (_sharedFoldersListView.SelectedItem is not HostSharedFolderDefinition selected)
+        {
+            _sharedFolderStatusText.Text = "Kein Shared-Folder Eintrag ausgewählt.";
+            return;
+        }
+
+        var shareName = (selected.ShareName ?? string.Empty).Trim();
+
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(shareName))
+            {
+                var exists = await _hostSharedFolderService.ShareExistsAsync(shareName, CancellationToken.None);
+                if (exists)
+                {
+                    await _hostSharedFolderService.RemoveShareAsync(shareName, CancellationToken.None);
+                }
+            }
+
+            _viewModel.RemoveHostSharedFolderDefinition(selected.Id);
+
+            if (_viewModel.SaveConfigCommand.CanExecute(null))
+            {
+                await _viewModel.SaveConfigCommand.ExecuteAsync(null);
+            }
+
+            ResetSharedFolderEditor();
+            _sharedFolderStatusText.Text = $"Eintrag '{selected.ShareName}' gelöscht und Freigabe aufgehoben.";
+            _sharedFolderLastError = "-";
+        }
+        catch (Exception ex)
+        {
+            if (IsSharedFolderElevationRequired(ex)
+                && await TryRunSharedFolderActionElevatedAsync("remove", shareName, selected.LocalPath, selected.ReadOnly))
+            {
+                _viewModel.RemoveHostSharedFolderDefinition(selected.Id);
+
+                if (_viewModel.SaveConfigCommand.CanExecute(null))
+                {
+                    await _viewModel.SaveConfigCommand.ExecuteAsync(null);
+                }
+
+                ResetSharedFolderEditor();
+                _sharedFolderStatusText.Text = $"Eintrag '{selected.ShareName}' gelöscht (via UAC) und Freigabe aufgehoben.";
+                _sharedFolderLastError = "-";
+            }
+            else
+            {
+                _sharedFolderLastError = ex.Message;
+                _sharedFolderStatusText.Text = $"Entfernen fehlgeschlagen: {ex.Message}";
+                Log.ForContext("eventId", "sharedfolders.host.delete.failed")
+                    .Warning(ex,
+                    "Shared-folder delete/unshare failed. ShareName={ShareName}; EntryId={EntryId}",
+                    selected.ShareName,
+                    selected.Id);
+            }
+        }
+    }
+
+    private static bool IsSharedFolderElevationRequired(Exception ex)
+    {
+        var message = (ex?.Message ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        return message.Contains("Administrator", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("Zugriff verweigert", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("Access is denied", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("System Error 5", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("Windows System Error 5", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task<bool> TryRunSharedFolderActionElevatedAsync(string action, string shareName, string localPath, bool readOnly)
+    {
+        var exePath = Environment.ProcessPath;
+        if (string.IsNullOrWhiteSpace(exePath))
+        {
+            _sharedFolderStatusText.Text = "UAC-Helper konnte nicht gestartet werden (Pfad unbekannt).";
+            return false;
+        }
+
+        var payload = new SharedFolderElevatedRequest
+        {
+            Action = (action ?? string.Empty).Trim(),
+            ShareName = (shareName ?? string.Empty).Trim(),
+            LocalPath = (localPath ?? string.Empty).Trim(),
+            ReadOnly = readOnly
+        };
+
+        var payloadJson = JsonSerializer.Serialize(payload);
+        var payloadBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(payloadJson));
+
+        try
+        {
+            using var process = Process.Start(new ProcessStartInfo
+            {
+                FileName = exePath,
+                Arguments = $"--sharedfolder-payload {payloadBase64}",
+                UseShellExecute = true,
+                Verb = "runas"
+            });
+
+            if (process is null)
+            {
+                _sharedFolderStatusText.Text = "UAC-Helper konnte nicht gestartet werden.";
+                return false;
+            }
+
+            await process.WaitForExitAsync();
+            if (process.ExitCode == 0)
+            {
+                if (string.Equals(action, "ensure", StringComparison.OrdinalIgnoreCase))
+                {
+                    var created = await _hostSharedFolderService.ShareExistsAsync(payload.ShareName, CancellationToken.None);
+                    if (!created)
+                    {
+                        _sharedFolderStatusText.Text = "UAC-Helper lief durch, aber SMB-Freigabe wurde nicht gefunden.";
+                        return false;
+                    }
+                }
+                else if (string.Equals(action, "remove", StringComparison.OrdinalIgnoreCase))
+                {
+                    var stillExists = await _hostSharedFolderService.ShareExistsAsync(payload.ShareName, CancellationToken.None);
+                    if (stillExists)
+                    {
+                        _sharedFolderStatusText.Text = "UAC-Helper lief durch, aber SMB-Freigabe besteht weiterhin.";
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+
+            _sharedFolderStatusText.Text = $"UAC-Helper fehlgeschlagen (ExitCode {process.ExitCode}).";
+            return false;
+        }
+        catch (Win32Exception win32Ex) when (win32Ex.NativeErrorCode == 1223)
+        {
+            _sharedFolderStatusText.Text = "UAC-Abfrage wurde abgebrochen.";
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _sharedFolderStatusText.Text = $"UAC-Helper Fehler: {ex.Message}";
+            return false;
+        }
+    }
+
+    private async Task RunHostSharedFolderSelfTestAsync()
+    {
+        var target = BuildSharedFolderFromEditor();
+        if (target is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var configEntryExists = _viewModel.HostSharedFolders
+                .Any(item => string.Equals(item.Id, target.Id, StringComparison.OrdinalIgnoreCase)
+                             || string.Equals(item.ShareName, target.ShareName, StringComparison.OrdinalIgnoreCase));
+            var shareExists = await _hostSharedFolderService.ShareExistsAsync(target.ShareName, CancellationToken.None);
+            var pathExists = Directory.Exists(target.LocalPath);
+            var hyperVSocketActive = string.Equals(_viewModel.UsbDiagnosticsHyperVSocketText, "Ja", StringComparison.OrdinalIgnoreCase);
+
+            var registryServiceOk = HyperVSocketUsbHostTunnel.IsServiceRegistered(HyperVSocketUsbTunnelDefaults.ServiceId)
+                                    && HyperVSocketUsbHostTunnel.IsServiceRegistered(HyperVSocketUsbTunnelDefaults.DiagnosticsServiceId)
+                                    && HyperVSocketUsbHostTunnel.IsServiceRegistered(HyperVSocketUsbTunnelDefaults.SharedFolderCatalogServiceId)
+                                    && HyperVSocketUsbHostTunnel.IsServiceRegistered(HyperVSocketUsbTunnelDefaults.SharedFolderCredentialServiceId)
+                                    && HyperVSocketUsbHostTunnel.IsServiceRegistered(HyperVSocketUsbTunnelDefaults.HostIdentityServiceId);
+
+            _sharedFolderStatusText.Text = $"Self-Test (Host) · Konfig-Eintrag: {(configEntryExists ? "Ja" : "Nein")} · SMB-Freigabe: {(shareExists ? "Ja" : "Nein")} · Pfad vorhanden: {(pathExists ? "Ja" : "Nein")} · Hyper-V Socket: {(hyperVSocketActive ? "Ja" : "Nein")} · Registry-Service: {(registryServiceOk ? "Ja" : "Nein")} · Letzter Fehler: {_sharedFolderLastError}";
+        }
+        catch (Exception ex)
+        {
+            _sharedFolderLastError = ex.Message;
+            _sharedFolderStatusText.Text = $"Self-Test fehlgeschlagen: {ex.Message}";
+            Log.ForContext("eventId", "sharedfolders.host.selftest.failed")
+                .Warning(ex, "Shared-folder host self-test failed. ShareName={ShareName}; LocalPath={LocalPath}", target.ShareName, target.LocalPath);
+        }
+    }
+
+    private async Task BrowseSharedFolderPathAsync()
+    {
+        try
+        {
+            var picker = new FolderPicker();
+            picker.FileTypeFilter.Add("*");
+
+            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+
+            var folder = await picker.PickSingleFolderAsync();
+            if (folder is null)
+            {
+                return;
+            }
+
+            _sharedFolderPathTextBox.Text = folder.Path;
+            _sharedFolderStatusText.Text = $"Ordner ausgewählt: {folder.Path}";
+        }
+        catch (Exception ex)
+        {
+            _sharedFolderStatusText.Text = $"Ordnerauswahl fehlgeschlagen: {ex.Message}";
+        }
     }
 
     private static ComboBox CreateStyledComboBox()
@@ -3041,9 +3807,10 @@ public sealed class MainWindow : Window
             var content = _viewModel.SelectedMenuIndex switch
             {
                 1 => _usbPage ??= BuildUsbPage(),
-                2 => _snapshotsPage ??= BuildSnapshotsPage(),
-                3 => _configPage ??= BuildConfigPage(),
-                4 => _infoPage ??= BuildInfoPage(),
+                2 => _sharedFoldersPage ??= BuildSharedFoldersPage(),
+                3 => _snapshotsPage ??= BuildSnapshotsPage(),
+                4 => _configPage ??= BuildConfigPage(),
+                5 => _infoPage ??= BuildInfoPage(),
                 _ => _vmPage ??= BuildVmPage()
             };
 
@@ -3454,6 +4221,7 @@ public sealed class MainWindow : Window
     {
         _vmPage = null;
         _snapshotsPage = null;
+        _sharedFoldersPage = null;
         _configPage = null;
         _infoPage = null;
         _usbPage = null;

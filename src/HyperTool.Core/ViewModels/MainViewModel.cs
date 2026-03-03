@@ -16,7 +16,7 @@ namespace HyperTool.ViewModels;
 public partial class MainViewModel : ViewModelBase
 {
     private const string NotConnectedSwitchDisplay = "Nicht verbunden";
-    private const int ConfigMenuIndex = 3;
+    private const int ConfigMenuIndex = 4;
 
     [ObservableProperty]
     private string _windowTitle = "HyperTool";
@@ -211,6 +211,8 @@ public partial class MainViewModel : ViewModelBase
     public ObservableCollection<UiNotification> Notifications { get; } = [];
 
     public ObservableCollection<UsbIpDeviceInfo> UsbDevices { get; } = [];
+
+    public ObservableCollection<HostSharedFolderDefinition> HostSharedFolders { get; } = [];
 
     public string DefaultSwitchName { get; }
 
@@ -431,6 +433,7 @@ public partial class MainViewModel : ViewModelBase
                 _usbAutoShareDeviceKeys.Add(key.Trim());
             }
         }
+        ApplyConfiguredSharedFolders(configResult.Config.SharedFolders.HostDefinitions);
         ApplyConfiguredVmDefinitions(configResult.Config.Vms);
         _trayVmNames = NormalizeTrayVmNames(configResult.Config.Ui.TrayVmNames);
         AppVersion = ResolveAppVersion();
@@ -2495,6 +2498,14 @@ public partial class MainViewModel : ViewModelBase
                     AutoShareDeviceKeys = _usbAutoShareDeviceKeys
                         .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
                         .ToList()
+                },
+                SharedFolders = new SharedFolderSettings
+                {
+                    HostDefinitions = HostSharedFolders
+                        .Select(CloneSharedFolderDefinition)
+                        .OrderBy(folder => folder.Label, StringComparer.OrdinalIgnoreCase)
+                        .ThenBy(folder => folder.ShareName, StringComparer.OrdinalIgnoreCase)
+                        .ToList()
                 }
             };
 
@@ -2559,6 +2570,70 @@ public partial class MainViewModel : ViewModelBase
                 RuntimeSwitchName = vm.RuntimeSwitchName
             })
             .ToList();
+    }
+
+    public IReadOnlyList<HostSharedFolderDefinition> GetHostSharedFoldersSnapshot()
+    {
+        return HostSharedFolders
+            .Select(CloneSharedFolderDefinition)
+            .ToList();
+    }
+
+    public void UpsertHostSharedFolderDefinition(HostSharedFolderDefinition definition)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+
+        var normalized = NormalizeSharedFolderDefinition(definition);
+        if (string.IsNullOrWhiteSpace(normalized.Id))
+        {
+            normalized.Id = Guid.NewGuid().ToString("N");
+        }
+
+        var existingIndex = -1;
+        for (var index = 0; index < HostSharedFolders.Count; index++)
+        {
+            if (!string.Equals(HostSharedFolders[index].Id, normalized.Id, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            existingIndex = index;
+            break;
+        }
+
+        if (existingIndex >= 0)
+        {
+            HostSharedFolders[existingIndex] = normalized;
+        }
+        else
+        {
+            HostSharedFolders.Add(normalized);
+        }
+
+        MarkConfigDirty();
+    }
+
+    public bool RemoveHostSharedFolderDefinition(string id)
+    {
+        var normalizedId = (id ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalizedId))
+        {
+            return false;
+        }
+
+        for (var index = 0; index < HostSharedFolders.Count; index++)
+        {
+            if (!string.Equals(HostSharedFolders[index].Id, normalizedId, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            HostSharedFolders.RemoveAt(index);
+            MarkConfigDirty();
+            return true;
+        }
+
+        return false;
     }
 
     public IReadOnlyList<HyperVSwitchInfo> GetTraySwitches()
@@ -2998,6 +3073,7 @@ public partial class MainViewModel : ViewModelBase
                         _usbAutoShareDeviceKeys.Add(key.Trim());
                     }
                 }
+                ApplyConfiguredSharedFolders(config.SharedFolders.HostDefinitions);
 
                 _suppressUsbAutoShareToggleHandling = true;
                 try
@@ -3055,6 +3131,64 @@ public partial class MainViewModel : ViewModelBase
                 OpenConsoleWithSessionEdit = vm.OpenConsoleWithSessionEdit
             };
         }
+    }
+
+    private void ApplyConfiguredSharedFolders(IEnumerable<HostSharedFolderDefinition>? sharedFolders)
+    {
+        HostSharedFolders.Clear();
+
+        if (sharedFolders is null)
+        {
+            return;
+        }
+
+        foreach (var folder in sharedFolders)
+        {
+            if (folder is null)
+            {
+                continue;
+            }
+
+            var normalized = NormalizeSharedFolderDefinition(folder);
+            if (string.IsNullOrWhiteSpace(normalized.LocalPath)
+                || string.IsNullOrWhiteSpace(normalized.ShareName))
+            {
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(normalized.Id))
+            {
+                normalized.Id = Guid.NewGuid().ToString("N");
+            }
+
+            HostSharedFolders.Add(normalized);
+        }
+    }
+
+    private static HostSharedFolderDefinition NormalizeSharedFolderDefinition(HostSharedFolderDefinition definition)
+    {
+        return new HostSharedFolderDefinition
+        {
+            Id = (definition.Id ?? string.Empty).Trim(),
+            Label = (definition.Label ?? string.Empty).Trim(),
+            LocalPath = (definition.LocalPath ?? string.Empty).Trim(),
+            ShareName = (definition.ShareName ?? string.Empty).Trim(),
+            Enabled = definition.Enabled,
+            ReadOnly = definition.ReadOnly
+        };
+    }
+
+    private static HostSharedFolderDefinition CloneSharedFolderDefinition(HostSharedFolderDefinition definition)
+    {
+        return new HostSharedFolderDefinition
+        {
+            Id = definition.Id,
+            Label = definition.Label,
+            LocalPath = definition.LocalPath,
+            ShareName = definition.ShareName,
+            Enabled = definition.Enabled,
+            ReadOnly = definition.ReadOnly
+        };
     }
 
     private static List<string> NormalizeTrayVmNames(IEnumerable<string>? vmNames)

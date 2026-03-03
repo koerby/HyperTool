@@ -47,6 +47,8 @@ internal sealed class GuestTrayControlCenterWindow : Window
         Title = "HyperTool Guest Control Center";
         ExtendsContentIntoTitleBar = false;
 
+        _windowRoot.Background = new SolidColorBrush(Color.FromArgb(0xFF, 0x0F, 0x19, 0x2D));
+
         BuildLayout();
         ConfigureWindowChrome();
         ApplyTheme(isDark: true);
