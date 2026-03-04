@@ -33,7 +33,7 @@ internal sealed class GuestMainWindow : Window
     }
 
     public const int DefaultWindowWidth = 1400;
-    public const int DefaultWindowHeight = 860;
+    public const int DefaultWindowHeight = 865;
     private const string ToolRestartIcon = "↻";
     private const string ToolRestartLabel = "Tool neu starten";
     private const int GuestSplashMinVisibleMs = 900;
