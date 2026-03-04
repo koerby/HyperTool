@@ -2891,6 +2891,42 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    public async Task HandleUsbClientDisconnectedAsync(string busId)
+    {
+        var normalizedBusId = (busId ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalizedBusId) || !HostUsbSharingEnabled)
+        {
+            return;
+        }
+
+        var gateEntered = false;
+        try
+        {
+            await _usbTrayRefreshGate.WaitAsync(_lifetimeCancellation.Token);
+            gateEntered = true;
+
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCancellation.Token);
+            cts.CancelAfter(TimeSpan.FromSeconds(12));
+
+            await _usbIpService.DetachAsync(normalizedBusId, cts.Token);
+            Log.Information("USB detach executed after client disconnect. BusId={BusId}", normalizedBusId);
+        }
+        catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Automatic USB detach after client disconnect failed. BusId={BusId}", normalizedBusId);
+        }
+        finally
+        {
+            if (gateEntered)
+            {
+                _usbTrayRefreshGate.Release();
+            }
+        }
+    }
+
     public async Task ShareSelectedUsbFromTrayAsync()
     {
         if (!HostUsbSharingEnabled)

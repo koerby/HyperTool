@@ -1,4 +1,5 @@
 using HyperTool.Models;
+using Microsoft.Win32;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Security.Principal;
@@ -16,6 +17,9 @@ public sealed class UsbIpdCliService : IUsbIpService
     private static readonly Regex UsbipPortHeaderRegex = new(@"^\s*Port\s+(\d+):", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex UsbipPortBusIdRegex = new(@"\bbusid\s+([0-9]+-[0-9]+(?:\.[0-9]+)*)\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex UsbipPortUriBusIdRegex = new(@"usbip://[^\s/]+:\d+/([0-9]+-[0-9]+(?:\.[0-9]+)*)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private const string RemoteFxUsbPolicyClientPath = @"SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services\Client";
+    private const string RemoteFxUsbPolicyLegacyPath = @"SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services";
+    private const string RemoteFxUsbPolicyValuePrefix = "fEnableUsb";
     private const string WslUsbipFallbackPath = "/mnt/c/Program Files/usbipd-win/WSL/usbip";
     private const string NativeUsbipFallbackPath = @"C:\Program Files\USBip\usbip.exe";
     private static readonly SemaphoreSlim EnsureReadyGate = new(1, 1);
@@ -152,7 +156,8 @@ public sealed class UsbIpdCliService : IUsbIpService
     {
         await EnsureReadyAsync(cancellationToken);
         var args = new List<string> { "bind", "--busid", busId };
-        if (force)
+        var effectiveForce = force || IsRemoteFxUsbPolicyActive();
+        if (effectiveForce)
         {
             args.Add("--force");
         }
@@ -166,6 +171,58 @@ public sealed class UsbIpdCliService : IUsbIpService
 
         var result = await RunCommandAsync(args, cancellationToken);
         EnsureSuccess(result, $"USB-Gerät mit BUSID '{busId}' konnte nicht freigegeben werden.");
+    }
+
+    private static bool IsRemoteFxUsbPolicyActive()
+    {
+        try
+        {
+            return HasEnabledUsbPolicyValue(RegistryView.Registry64)
+                   || HasEnabledUsbPolicyValue(RegistryView.Registry32);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool HasEnabledUsbPolicyValue(RegistryView view)
+    {
+        using var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, view);
+        return HasEnabledUsbPolicyValueInKey(baseKey, RemoteFxUsbPolicyClientPath)
+               || HasEnabledUsbPolicyValueInKey(baseKey, RemoteFxUsbPolicyLegacyPath);
+    }
+
+    private static bool HasEnabledUsbPolicyValueInKey(RegistryKey baseKey, string subKeyPath)
+    {
+        using var key = baseKey.OpenSubKey(subKeyPath, writable: false);
+        if (key is null)
+        {
+            return false;
+        }
+
+        foreach (var valueName in key.GetValueNames())
+        {
+            if (!valueName.StartsWith(RemoteFxUsbPolicyValuePrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var value = key.GetValue(valueName, null, RegistryValueOptions.DoNotExpandEnvironmentNames);
+            var numericValue = value switch
+            {
+                int intValue => intValue,
+                long longValue => (int)longValue,
+                _ => 0
+            };
+
+            if (numericValue > 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public async Task UnbindAsync(string busId, CancellationToken cancellationToken)

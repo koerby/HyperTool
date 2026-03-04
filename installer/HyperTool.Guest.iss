@@ -87,7 +87,7 @@ Name: "{group}\{cm:UninstallShortcut}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\HyperTool Guest"; Filename: "{app}\HyperTool.Guest.exe"; IconFilename: "{app}\HyperTool.Guest.exe"; IconIndex: 0; AppUserModelID: "HyperTool.Guest"; Tasks: desktopicon
 
 [Run]
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""HyperTool Guest USB Discovery (UDP-Out)"" dir=out action=allow protocol=UDP remoteport=32491 profile=private,domain program=""{app}\HyperTool.Guest.exe"""; Flags: runhidden waituntilterminated
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""$n='HyperTool Guest USB Discovery (UDP-Out)'; if(-not (Get-NetFirewallRule -DisplayName $n -ErrorAction SilentlyContinue)){{ New-NetFirewallRule -DisplayName $n -Direction Outbound -Action Allow -Protocol UDP -RemotePort 32491 -Profile Domain,Private -Program '{app}\HyperTool.Guest.exe' | Out-Null }}"""; Flags: runhidden waituntilterminated
 Filename: "{app}\HyperTool.Guest.exe"; Description: "{cm:RunAfterInstall}"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
@@ -315,6 +315,7 @@ procedure TryInstallUsbipWin2;
 var
   ResultCode: Integer;
   SetupPath: string;
+  StartInstallArgs: string;
   PowerShellArgs: string;
 begin
   if not WizardIsTaskSelected('installusbip') then
@@ -343,7 +344,9 @@ begin
 
   if FileExists(SetupPath) then
   begin
-    Exec(SetupPath, '/SP- /VERYSILENT /SUPPRESSMSGBOXES /NOCANCEL /NORESTART /COMPONENTS="main,client"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    StartInstallArgs :=
+      '/C start "" /MIN "' + SetupPath + '" /SP- /VERYSILENT /SUPPRESSMSGBOXES /NOCANCEL /NORESTART /COMPONENTS="main,client"';
+    Exec(ExpandConstant('{cmd}'), StartInstallArgs, '', SW_HIDE, ewNoWait, ResultCode);
   end;
 end;
 
@@ -351,6 +354,7 @@ procedure TryInstallWinFsp;
 var
   ResultCode: Integer;
   InstallerPath: string;
+  StartInstallArgs: string;
   PowerShellArgs: string;
 begin
   if not WizardIsTaskSelected('installwinfsp') then
@@ -379,12 +383,8 @@ begin
 
   if FileExists(InstallerPath) then
   begin
-    Exec('msiexec.exe', '/i "' + InstallerPath + '" /qn /norestart', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  end;
-
-  if not IsWinFspInstalled() then
-  begin
-    MsgBox(ExpandConstant('{cm:WinFspInstallFailed}'), mbInformation, MB_OK);
+    StartInstallArgs := '/C start "" /MIN msiexec.exe /i "' + InstallerPath + '" /qn /norestart';
+    Exec(ExpandConstant('{cmd}'), StartInstallArgs, '', SW_HIDE, ewNoWait, ResultCode);
   end;
 end;
 

@@ -13,6 +13,7 @@ using Microsoft.UI.Xaml.Markup;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Shapes;
+using Microsoft.Win32;
 using Serilog;
 using System.Linq;
 using System.ComponentModel;
@@ -104,8 +105,13 @@ public sealed class MainWindow : Window
     private readonly Ellipse _usbRuntimeStatusDot = new() { Width = 10, Height = 10, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _usbRuntimeStatusText = new() { Opacity = 0.9, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _usbRuntimeHintText = new() { TextWrapping = TextWrapping.Wrap, Opacity = 0.9 };
+    private readonly Border _usbRemoteFxPolicyStatusChip = new() { CornerRadius = new CornerRadius(9), MinHeight = 30, BorderThickness = new Thickness(1), Padding = new Thickness(10, 5, 10, 5), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _usbRemoteFxPolicyStatusChipText = new() { FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
+    private readonly TextBlock _usbRemoteFxPolicyHintText = new() { TextWrapping = TextWrapping.Wrap, Opacity = 0.9 };
+    private readonly CheckBox _usbRemoteFxPolicyEnabledCheckBox = new() { Content = "RemoteFX USB Redirection aktiv (Policy)" };
     private Button? _usbRuntimeInstallButton;
     private Button? _usbRuntimeRestartButton;
+    private Button? _usbRemoteFxPolicyRefreshButton;
     private Button? _usbRefreshButton;
     private Button? _usbShareButton;
     private Button? _usbUnshareButton;
@@ -127,6 +133,9 @@ public sealed class MainWindow : Window
     private TextBlock? _themeTransitionStatusText;
     private bool _isMainLayoutLoaded;
     private bool _isThemeRestartInProgress;
+    private bool _usbRemoteFxPolicyKnown;
+    private bool _usbRemoteFxPolicyActive;
+    private bool _suppressRemoteFxPolicyToggleEvents;
     private DispatcherQueueTimer? _startupStatusTimer;
     private TextBlock? _startupStatusText;
     private int _startupStatusIndex;
@@ -135,6 +144,9 @@ public sealed class MainWindow : Window
     private DispatcherQueueTimer? _vmChipRefreshDebounceTimer;
     private string _vmChipRefreshSignature = string.Empty;
     private bool _suppressHostFeatureToggleEvents;
+    private const string RemoteFxUsbPolicyClientPath = @"SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services\Client";
+    private const string RemoteFxUsbPolicyLegacyPath = @"SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services";
+    private const string RemoteFxUsbPolicyValuePrefix = "fEnableUsb";
 
     public MainWindow(IThemeService themeService, MainViewModel viewModel, bool showStartupSplash = false)
     {
@@ -2289,24 +2301,24 @@ public sealed class MainWindow : Window
             Padding = new Thickness(10)
         };
 
-        var infoStack = new StackPanel { Spacing = 6 };
+        var infoStack = new StackPanel { Spacing = 4 };
         infoStack.Children.Add(new TextBlock { Text = "HyperTool Projekt", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
         infoStack.Children.Add(new TextBlock { Text = "HyperTool wird über GitHub Releases verteilt. Hier findest du Version, Update-Status und Release-Links.", TextWrapping = TextWrapping.Wrap, Opacity = 0.85 });
 
-        var linksGrid = new Grid { ColumnSpacing = 8, Margin = new Thickness(0, 8, 0, 0) };
+        var linksGrid = new Grid { ColumnSpacing = 8, RowSpacing = 4 };
         linksGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
         linksGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         linksGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         linksGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        linksGrid.Children.Add(new TextBlock { Text = "GitHub Owner", Opacity = 0.8 });
+        linksGrid.Children.Add(new TextBlock { Text = "GitHub Owner", Opacity = 0.9 });
         var ownerText = new TextBlock();
         ownerText.SetBinding(TextBlock.TextProperty, new Binding { Source = _viewModel, Path = new PropertyPath(nameof(MainViewModel.GithubOwner)) });
         Grid.SetColumn(ownerText, 1);
         linksGrid.Children.Add(ownerText);
-        var repoLabel = new TextBlock { Text = "GitHub Repo", Opacity = 0.8, Margin = new Thickness(0, 8, 0, 0) };
+        var repoLabel = new TextBlock { Text = "GitHub Repo", Opacity = 0.9 };
         Grid.SetRow(repoLabel, 1);
         linksGrid.Children.Add(repoLabel);
-        var repoText = new TextBlock { Margin = new Thickness(0, 8, 0, 0) };
+        var repoText = new TextBlock();
         repoText.SetBinding(TextBlock.TextProperty, new Binding { Source = _viewModel, Path = new PropertyPath(nameof(MainViewModel.GithubRepo)) });
         Grid.SetColumn(repoText, 1);
         Grid.SetRow(repoText, 1);
@@ -2324,7 +2336,7 @@ public sealed class MainWindow : Window
             Padding = new Thickness(10)
         };
 
-        var usbipdInfoStack = new StackPanel { Spacing = 6 };
+        var usbipdInfoStack = new StackPanel { Spacing = 4 };
         usbipdInfoStack.Children.Add(new TextBlock { Text = "Externe USB/IP Quelle", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
         usbipdInfoStack.Children.Add(new TextBlock { Text = "Quelle: dorssel/usbipd-win", Opacity = 0.9 });
         usbipdInfoStack.Children.Add(new TextBlock { Text = "Nutzung in HyperTool: externer CLI-/Dienst-Stack für USB-Funktionen in der Host-App.", TextWrapping = TextWrapping.Wrap, Opacity = 0.85 });
@@ -2341,7 +2353,7 @@ public sealed class MainWindow : Window
             Padding = new Thickness(10)
         };
 
-        var diagnosticsStack = new StackPanel { Spacing = 6 };
+        var diagnosticsStack = new StackPanel { Spacing = 4 };
         diagnosticsStack.Children.Add(new TextBlock { Text = "Transport Diagnose", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
 
         var hyperVSocketRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
@@ -2460,10 +2472,53 @@ public sealed class MainWindow : Window
         actionRow.Children.Add(_usbAutoShareCheckBox);
 
         _usbFeatureControlsPanel.Children.Add(_usbRuntimeHintText);
+
+        var remoteFxPolicySection = new StackPanel { Spacing = 6 };
+
+        var remoteFxPolicyHeaderRow = new Grid { ColumnSpacing = 10, VerticalAlignment = VerticalAlignment.Center };
+        remoteFxPolicyHeaderRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        remoteFxPolicyHeaderRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var remoteFxPolicyTitle = new TextBlock
+        {
+            Text = "RemoteFX USB-Redirection Richtlinie",
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        remoteFxPolicyHeaderRow.Children.Add(remoteFxPolicyTitle);
+
+        _usbRemoteFxPolicyStatusChip.Child = _usbRemoteFxPolicyStatusChipText;
+        _usbRemoteFxPolicyStatusChip.HorizontalAlignment = HorizontalAlignment.Right;
+        Grid.SetColumn(_usbRemoteFxPolicyStatusChip, 1);
+        remoteFxPolicyHeaderRow.Children.Add(_usbRemoteFxPolicyStatusChip);
+
+        remoteFxPolicySection.Children.Add(remoteFxPolicyHeaderRow);
+
+        var remoteFxPolicyActionRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        _usbRemoteFxPolicyEnabledCheckBox.Checked += async (_, _) => await OnUsbRemoteFxPolicyToggleChangedAsync(true);
+        _usbRemoteFxPolicyEnabledCheckBox.Unchecked += async (_, _) => await OnUsbRemoteFxPolicyToggleChangedAsync(false);
+        remoteFxPolicyActionRow.Children.Add(_usbRemoteFxPolicyEnabledCheckBox);
+
+        _usbRemoteFxPolicyRefreshButton = CreateIconButton("⟳", "Policy Refresh", onClick: async (_, _) => await RefreshUsbRemoteFxPolicyStatusAsync(showNotification: true));
+        remoteFxPolicyActionRow.Children.Add(_usbRemoteFxPolicyRefreshButton);
+
+        remoteFxPolicySection.Children.Add(remoteFxPolicyActionRow);
+        _usbFeatureControlsPanel.Children.Add(remoteFxPolicySection);
+
+        _usbRemoteFxPolicyHintText.Foreground = Application.Current.Resources["TextMutedBrush"] as Brush;
+        _usbFeatureControlsPanel.Children.Add(_usbRemoteFxPolicyHintText);
         actionsStack.Children.Add(_usbFeatureControlsPanel);
 
         UpdateUsbRuntimeStatusUi();
         UpdateHostFeatureAvailabilityUi();
+        _ = RefreshUsbRemoteFxPolicyStatusAsync(showNotification: false);
 
         actionsCard.Child = actionsStack;
         Grid.SetRow(actionsCard, 0);
@@ -3869,6 +3924,11 @@ public sealed class MainWindow : Window
         {
             UpdatePageContent();
             UpdateNavSelection();
+
+            if (_viewModel.SelectedMenuIndex == 1)
+            {
+                _ = RefreshUsbRemoteFxPolicyStatusAsync(showNotification: false);
+            }
         }
 
         if (string.Equals(e.PropertyName, nameof(MainViewModel.SelectedVm), StringComparison.Ordinal)
@@ -3967,6 +4027,246 @@ public sealed class MainWindow : Window
         }
 
         _usbRuntimeHintText.Visibility = (isFeatureEnabled && !isAvailable) ? Visibility.Visible : Visibility.Collapsed;
+
+        var policyIsKnown = _usbRemoteFxPolicyKnown;
+        var policyActive = _usbRemoteFxPolicyActive;
+        var policyChipPalette = ResolveRemoteFxPolicyChipPalette(policyIsKnown, policyActive);
+
+        _usbRemoteFxPolicyStatusChip.Background = policyChipPalette.chipBackground;
+        _usbRemoteFxPolicyStatusChip.BorderBrush = policyChipPalette.chipBorder;
+        _usbRemoteFxPolicyStatusChipText.Foreground = policyChipPalette.textForeground;
+        _usbRemoteFxPolicyStatusChipText.Text = !policyIsKnown
+            ? "Unbekannt"
+            : policyActive
+                ? "Aktiv"
+                : "Inaktiv";
+
+        _usbRemoteFxPolicyHintText.Text = !policyIsKnown
+            ? "Richtlinienstatus konnte nicht gelesen werden. Für USB-Share sollte RemoteFX USB Device Redirection nicht aktiviert sein."
+            : policyActive
+                ? "Warnung: Richtlinie ist aktiv. Das kann USB-Share stören. Nach Deaktivierung ist ein Host-Neustart erforderlich."
+                : string.Empty;
+
+        _suppressRemoteFxPolicyToggleEvents = true;
+        try
+        {
+            _usbRemoteFxPolicyEnabledCheckBox.IsChecked = policyIsKnown && policyActive;
+        }
+        finally
+        {
+            _suppressRemoteFxPolicyToggleEvents = false;
+        }
+
+        _usbRemoteFxPolicyEnabledCheckBox.IsEnabled = policyIsKnown;
+        _usbRemoteFxPolicyHintText.Visibility = (policyIsKnown && policyActive) || !policyIsKnown
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        if (_usbRemoteFxPolicyRefreshButton is not null)
+        {
+            _usbRemoteFxPolicyRefreshButton.IsEnabled = true;
+        }
+    }
+
+    private (Brush chipBackground, Brush chipBorder, Brush textForeground) ResolveRemoteFxPolicyChipPalette(bool isKnown, bool isActive)
+    {
+        static SolidColorBrush Brush(byte a, byte r, byte g, byte b) => new(Color.FromArgb(a, r, g, b));
+
+        if (!isKnown)
+        {
+            return (
+                Application.Current.Resources["SurfaceSoftBrush"] as Brush ?? Brush(0xFF, 0x20, 0x2A, 0x48),
+                Application.Current.Resources["PanelBorderBrush"] as Brush ?? Brush(0xFF, 0x44, 0x57, 0x7F),
+                Application.Current.Resources["TextMutedBrush"] as Brush ?? Brush(0xFF, 0xA6, 0xB9, 0xD8));
+        }
+
+        if (isActive)
+        {
+            if (IsDarkMode())
+            {
+                return (
+                    Brush(0xFF, 0x47, 0x31, 0x1B),
+                    Brush(0xFF, 0xF2, 0x9A, 0x3A),
+                    Brush(0xFF, 0xFF, 0xE9, 0xCC));
+            }
+
+            return (
+                Brush(0xFF, 0xFF, 0xF1, 0xDF),
+                Brush(0xFF, 0xD7, 0x82, 0x2C),
+                Brush(0xFF, 0x6B, 0x3A, 0x0A));
+        }
+
+        return ResolveFeatureChipPalette(isActive: true);
+    }
+
+    private async Task RefreshUsbRemoteFxPolicyStatusAsync(bool showNotification)
+    {
+        var (isKnown, isActive) = await Task.Run(ReadUsbRemoteFxPolicyStatus);
+        _usbRemoteFxPolicyKnown = isKnown;
+        _usbRemoteFxPolicyActive = isKnown && isActive;
+
+        if (_usbRemoteFxPolicyKnown && _usbRemoteFxPolicyActive && _viewModel.HostUsbSharingEnabled)
+        {
+            _viewModel.UsbStatusText = "Warnung: RemoteFX USB Device Redirection ist aktiv. Bitte Richtlinie deaktivieren und Host neu starten.";
+        }
+
+        if (showNotification)
+        {
+            if (!_usbRemoteFxPolicyKnown)
+            {
+                _viewModel.PublishNotification("RemoteFX-USB-Richtlinienstatus konnte nicht ermittelt werden.", "Warning");
+            }
+            else if (_usbRemoteFxPolicyActive)
+            {
+                _viewModel.PublishNotification("RemoteFX USB Device Redirection ist aktiv. Für USB-Share bitte deaktivieren und den Host neu starten.", "Warning");
+            }
+        }
+
+        UpdateUsbRuntimeStatusUi();
+    }
+
+    private static (bool isKnown, bool isActive) ReadUsbRemoteFxPolicyStatus()
+    {
+        try
+        {
+            var foundAnyPolicyValue = false;
+
+            if (HasEnabledUsbPolicyValue(RegistryView.Registry64, ref foundAnyPolicyValue)
+                || HasEnabledUsbPolicyValue(RegistryView.Registry32, ref foundAnyPolicyValue))
+            {
+                return (true, true);
+            }
+
+            return (true, false);
+        }
+        catch
+        {
+            return (false, false);
+        }
+    }
+
+    private static bool HasEnabledUsbPolicyValue(RegistryView view, ref bool foundAnyPolicyValue)
+    {
+        using var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, view);
+
+        if (HasEnabledUsbPolicyValueInKey(baseKey, RemoteFxUsbPolicyClientPath, ref foundAnyPolicyValue))
+        {
+            return true;
+        }
+
+        return HasEnabledUsbPolicyValueInKey(baseKey, RemoteFxUsbPolicyLegacyPath, ref foundAnyPolicyValue);
+    }
+
+    private static bool HasEnabledUsbPolicyValueInKey(RegistryKey baseKey, string subKeyPath, ref bool foundAnyPolicyValue)
+    {
+        using var key = baseKey.OpenSubKey(subKeyPath, writable: false);
+        if (key is null)
+        {
+            return false;
+        }
+
+        foreach (var valueName in key.GetValueNames())
+        {
+            if (!valueName.StartsWith(RemoteFxUsbPolicyValuePrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            foundAnyPolicyValue = true;
+
+            var value = key.GetValue(valueName, null, RegistryValueOptions.DoNotExpandEnvironmentNames);
+            var numericValue = value switch
+            {
+                int intValue => intValue,
+                long longValue => (int)longValue,
+                _ => 0
+            };
+
+            if (numericValue > 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private async Task OnUsbRemoteFxPolicyToggleChangedAsync(bool enabled)
+    {
+        if (_suppressRemoteFxPolicyToggleEvents)
+        {
+            return;
+        }
+
+        await SetUsbRemoteFxPolicyEnabledViaPowerShellAsync(enabled);
+    }
+
+    private async Task SetUsbRemoteFxPolicyEnabledViaPowerShellAsync(bool enabled)
+    {
+        _usbRemoteFxPolicyEnabledCheckBox.IsEnabled = false;
+
+        if (_usbRemoteFxPolicyRefreshButton is not null)
+        {
+            _usbRemoteFxPolicyRefreshButton.IsEnabled = false;
+        }
+
+        try
+        {
+            var valueMain = enabled ? 1 : 0;
+            var valueNoAckIsoch = enabled ? 80 : 0;
+            var command =
+                "$ErrorActionPreference='Stop'; " +
+                "$p='HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows NT\\Terminal Services\\Client'; " +
+                "New-Item -Path $p -Force | Out-Null; " +
+                $"Set-ItemProperty -Path $p -Name fEnableUsbRedirection -Type DWord -Value {valueMain}; " +
+                $"Set-ItemProperty -Path $p -Name fEnableUsbBlockDeviceBySetupClass -Type DWord -Value {valueMain}; " +
+                $"Set-ItemProperty -Path $p -Name fEnableUsbSelectDeviceByInterface -Type DWord -Value {valueMain}; " +
+                $"Set-ItemProperty -Path $p -Name fEnableUsbNoAckIsochWriteToDevice -Type DWord -Value {valueNoAckIsoch};";
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                Arguments = $"-NoProfile -ExecutionPolicy Bypass -Command \"{command}\"",
+                UseShellExecute = true,
+                Verb = "runas",
+                WindowStyle = ProcessWindowStyle.Hidden
+            };
+
+            using var process = Process.Start(psi);
+            if (process is null)
+            {
+                throw new InvalidOperationException("PowerShell-Prozess konnte nicht gestartet werden.");
+            }
+
+            await process.WaitForExitAsync();
+            if (process.ExitCode != 0)
+            {
+                throw new InvalidOperationException($"PowerShell-ExitCode: {process.ExitCode}");
+            }
+
+            _viewModel.PublishNotification(enabled
+                    ? "RemoteFX USB Device Redirection wurde aktiviert. Host-Neustart erforderlich."
+                    : "RemoteFX USB Device Redirection wurde deaktiviert. Host-Neustart erforderlich.",
+                "Success");
+            await RefreshUsbRemoteFxPolicyStatusAsync(showNotification: false);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            _viewModel.PublishNotification("Richtlinie konnte nicht geändert werden. Bitte HyperTool als Administrator starten.", "Error");
+        }
+        catch (Exception ex)
+        {
+            _viewModel.PublishNotification($"Richtlinie konnte nicht geändert werden: {ex.Message}", "Error");
+        }
+        finally
+        {
+            _usbRemoteFxPolicyEnabledCheckBox.IsEnabled = _usbRemoteFxPolicyKnown;
+
+            if (_usbRemoteFxPolicyRefreshButton is not null)
+            {
+                _usbRemoteFxPolicyRefreshButton.IsEnabled = true;
+            }
+        }
     }
 
     private void UpdateHostFeatureAvailabilityUi()
@@ -4069,9 +4369,18 @@ public sealed class MainWindow : Window
     private (Brush chipBackground, Brush chipBorder, Brush textForeground) ResolveFeatureChipPalette(bool isActive)
     {
         static SolidColorBrush Brush(byte a, byte r, byte g, byte b) => new(Color.FromArgb(a, r, g, b));
+        var isDarkMode = IsDarkMode();
 
         if (isActive)
         {
+            if (isDarkMode)
+            {
+                return (
+                    Brush(0xFF, 0x14, 0x3C, 0x2C),
+                    Brush(0xFF, 0x43, 0xB5, 0x81),
+                    Brush(0xFF, 0xD9, 0xF6, 0xE8));
+            }
+
             return (
                 Brush(0xFF, 0xE8, 0xF8, 0xEF),
                 Brush(0xFF, 0x2F, 0x9E, 0x68),

@@ -68,7 +68,7 @@ Hinweise:
 
 ## Voraussetzungen
 
-- Windows 10/11
+- Windows 10/11 x64
 - Für Host: Hyper-V aktiviert
 - Für Entwicklung: .NET SDK 8.x
 - Für Installer-Build: Inno Setup 6 (ISCC)

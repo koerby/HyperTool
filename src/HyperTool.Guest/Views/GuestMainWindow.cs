@@ -33,7 +33,7 @@ internal sealed class GuestMainWindow : Window
     }
 
     public const int DefaultWindowWidth = 1400;
-    public const int DefaultWindowHeight = 865;
+    public const int DefaultWindowHeight = 860;
     private const string ToolRestartIcon = "↻";
     private const string ToolRestartLabel = "Tool neu starten";
     private const int GuestSplashMinVisibleMs = 900;
@@ -3009,73 +3009,21 @@ internal sealed class GuestMainWindow : Window
         projectCard.Child = projectStack;
         panel.Children.Add(projectCard);
 
-        const double externalCardPadding = 10;
-        const double externalCardMinHeight = 132;
-        const double externalCardInnerRowSpacing = 4;
-        const double externalCardColumnSpacing = 10;
-
         var usbipCard = new Border
         {
             BorderThickness = new Thickness(1),
             BorderBrush = Application.Current.Resources["PanelBorderBrush"] as Brush,
             Background = Application.Current.Resources["PageBackgroundBrush"] as Brush,
             CornerRadius = new CornerRadius(10),
-            Padding = new Thickness(externalCardPadding),
-            MinHeight = externalCardMinHeight,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalAlignment = VerticalAlignment.Stretch
+            Padding = new Thickness(10)
         };
 
-        var usbipContentGrid = new Grid
-        {
-            RowSpacing = externalCardInnerRowSpacing,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalAlignment = VerticalAlignment.Stretch
-        };
-        usbipContentGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        usbipContentGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        usbipContentGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        usbipContentGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-
-        var usbipTitleText = new TextBlock
-        {
-            Text = "Externe USB/IP Quelle",
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            MinHeight = 24,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        Grid.SetRow(usbipTitleText, 0);
-        usbipContentGrid.Children.Add(usbipTitleText);
-
-        var usbipSourceText = new TextBlock
-        {
-            Text = "Quelle: vadimgrn/usbip-win2",
-            Opacity = 0.9,
-            MinHeight = 22,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        Grid.SetRow(usbipSourceText, 1);
-        usbipContentGrid.Children.Add(usbipSourceText);
-
-        var usbipUsageText = new TextBlock
-        {
-            Text = "Nutzung in HyperTool: externer CLI-Client ohne eigene GUI-Integration.",
-            TextWrapping = TextWrapping.Wrap,
-            Opacity = 0.85
-        };
-        Grid.SetRow(usbipUsageText, 2);
-        usbipContentGrid.Children.Add(usbipUsageText);
-
-        var usbipLicenseText = new TextBlock
-        {
-            Text = "Lizenz/Eigentümer: siehe Original-Repository von vadimgrn.",
-            TextWrapping = TextWrapping.Wrap,
-            Opacity = 0.85
-        };
-        Grid.SetRow(usbipLicenseText, 3);
-        usbipContentGrid.Children.Add(usbipLicenseText);
-
-        usbipCard.Child = usbipContentGrid;
+        var usbipStack = new StackPanel { Spacing = 4 };
+        usbipStack.Children.Add(new TextBlock { Text = "Externe USB/IP Quelle", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
+        usbipStack.Children.Add(new TextBlock { Text = "Quelle: vadimgrn/usbip-win2", Opacity = 0.9 });
+        usbipStack.Children.Add(new TextBlock { Text = "Nutzung in HyperTool: externer CLI-Client ohne eigene GUI-Integration.", TextWrapping = TextWrapping.Wrap, Opacity = 0.85 });
+        usbipStack.Children.Add(new TextBlock { Text = "Lizenz/Eigentümer: siehe Original-Repository von vadimgrn.", TextWrapping = TextWrapping.Wrap, Opacity = 0.85 });
+        usbipCard.Child = usbipStack;
 
         var winfspCard = new Border
         {
@@ -3083,66 +3031,19 @@ internal sealed class GuestMainWindow : Window
             BorderBrush = Application.Current.Resources["PanelBorderBrush"] as Brush,
             Background = Application.Current.Resources["PageBackgroundBrush"] as Brush,
             CornerRadius = new CornerRadius(10),
-            Padding = new Thickness(externalCardPadding),
-            MinHeight = externalCardMinHeight,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalAlignment = VerticalAlignment.Stretch
+            Padding = new Thickness(10)
         };
 
-        var winfspContentGrid = new Grid
-        {
-            RowSpacing = externalCardInnerRowSpacing,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalAlignment = VerticalAlignment.Stretch
-        };
-        winfspContentGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        winfspContentGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        winfspContentGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        winfspContentGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-
-        var winfspTitleText = new TextBlock
-        {
-            Text = "Externe Shared-Folder Runtime",
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            MinHeight = 24,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        Grid.SetRow(winfspTitleText, 0);
-        winfspContentGrid.Children.Add(winfspTitleText);
-
-        var winfspSourceText = new TextBlock
-        {
-            Text = "Quelle: winfsp/winfsp",
-            Opacity = 0.9,
-            MinHeight = 22,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        Grid.SetRow(winfspSourceText, 1);
-        winfspContentGrid.Children.Add(winfspSourceText);
-
-        var winfspUsageText = new TextBlock
-        {
-            Text = "Nutzung in HyperTool: externer Runtime-Treiber für Guest Shared-Folder-Mounts.",
-            TextWrapping = TextWrapping.Wrap,
-            Opacity = 0.85
-        };
-        Grid.SetRow(winfspUsageText, 2);
-        winfspContentGrid.Children.Add(winfspUsageText);
-
-        var winfspLicenseText = new TextBlock
-        {
-            Text = "Lizenz/Eigentümer: siehe Original-Repository von winfsp.",
-            TextWrapping = TextWrapping.Wrap,
-            Opacity = 0.85
-        };
-        Grid.SetRow(winfspLicenseText, 3);
-        winfspContentGrid.Children.Add(winfspLicenseText);
-
-        winfspCard.Child = winfspContentGrid;
+        var winfspStack = new StackPanel { Spacing = 4 };
+        winfspStack.Children.Add(new TextBlock { Text = "Externe Shared-Folder Runtime", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
+        winfspStack.Children.Add(new TextBlock { Text = "Quelle: winfsp/winfsp", Opacity = 0.9 });
+        winfspStack.Children.Add(new TextBlock { Text = "Nutzung in HyperTool: externer Runtime-Treiber für Guest Shared-Folder-Mounts.", TextWrapping = TextWrapping.Wrap, Opacity = 0.85 });
+        winfspStack.Children.Add(new TextBlock { Text = "Lizenz/Eigentümer: siehe Original-Repository von winfsp.", TextWrapping = TextWrapping.Wrap, Opacity = 0.85 });
+        winfspCard.Child = winfspStack;
 
         var externalSourcesGrid = new Grid
         {
-            ColumnSpacing = externalCardColumnSpacing,
+            ColumnSpacing = 10,
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
         externalSourcesGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });

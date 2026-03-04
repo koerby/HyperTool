@@ -92,8 +92,8 @@ Name: "{group}\{cm:UninstallShortcut}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\HyperTool"; Filename: "{app}\HyperTool.exe"; IconFilename: "{app}\Assets\HyperTool.ico"; Tasks: desktopicon
 
 [Run]
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""HyperTool USB Discovery (UDP-In)"" dir=in action=allow protocol=UDP localport=32491 profile=private,domain program=""{app}\HyperTool.exe"""; Flags: runhidden waituntilterminated
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""HyperTool USB Discovery (UDP-Out)"" dir=out action=allow protocol=UDP remoteport=32491 profile=private,domain program=""{app}\HyperTool.exe"""; Flags: runhidden waituntilterminated
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""$n='HyperTool USB Discovery (UDP-In)'; if(-not (Get-NetFirewallRule -DisplayName $n -ErrorAction SilentlyContinue)){{ New-NetFirewallRule -DisplayName $n -Direction Inbound -Action Allow -Protocol UDP -LocalPort 32491 -Profile Domain,Private -Program '{app}\HyperTool.exe' | Out-Null }}"""; Flags: runhidden waituntilterminated
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""$n='HyperTool USB Discovery (UDP-Out)'; if(-not (Get-NetFirewallRule -DisplayName $n -ErrorAction SilentlyContinue)){{ New-NetFirewallRule -DisplayName $n -Direction Outbound -Action Allow -Protocol UDP -RemotePort 32491 -Profile Domain,Private -Program '{app}\HyperTool.exe' | Out-Null }}"""; Flags: runhidden waituntilterminated
 Filename: "{app}\HyperTool.exe"; Description: "{cm:RunAfterInstall}"; Flags: postinstall nowait skipifsilent
 
 [UninstallRun]

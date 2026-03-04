@@ -157,6 +157,13 @@ public sealed partial class App : Application
 
                     if (_mainViewModel is not null
                         && !string.IsNullOrWhiteSpace(ack.BusId)
+                        && string.Equals(ack.EventType, "usb-disconnected", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _ = HandleUsbClientDisconnectEventAsync(ack.BusId);
+                    }
+
+                    if (_mainViewModel is not null
+                        && !string.IsNullOrWhiteSpace(ack.BusId)
                         && (string.Equals(ack.EventType, "usb-connected", StringComparison.OrdinalIgnoreCase)
                             || string.Equals(ack.EventType, "usb-disconnected", StringComparison.OrdinalIgnoreCase)))
                     {
@@ -1004,6 +1011,26 @@ public sealed partial class App : Application
         }
 
         await _mainViewModel.RefreshUsbDevicesFromTrayAsync();
+    }
+
+    private async Task HandleUsbClientDisconnectEventAsync(string busId)
+    {
+        if (_mainViewModel is null
+            || _isExitRequested
+            || _isThemeWindowReopenInProgress
+            || string.IsNullOrWhiteSpace(busId))
+        {
+            return;
+        }
+
+        try
+        {
+            await _mainViewModel.HandleUsbClientDisconnectedAsync(busId);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "Automatic host detach on usb-disconnected event failed. BusId={BusId}", busId);
+        }
     }
 
     private async Task RunUsbAutoRefreshLoopAsync(CancellationToken cancellationToken)
