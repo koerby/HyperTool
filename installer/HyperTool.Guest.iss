@@ -72,8 +72,8 @@ german.UninstallUsbipCheckbox=usbip-win2 ebenfalls deinstallieren (falls install
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:DesktopIconTask}"; GroupDescription: "{cm:AdditionalTasks}"
-Name: "installusbip"; Description: "{cm:UsbipInstallTask}"; GroupDescription: "{cm:AdditionalTasks}"; Check: not IsUsbipClientInstalled; Flags: checkedonce
-Name: "installwinfsp"; Description: "{cm:WinFspInstallTask}"; GroupDescription: "{cm:AdditionalTasks}"; Check: not IsWinFspInstalled; Flags: checkedonce
+Name: "installusbip"; Description: "{cm:UsbipInstallTask}"; GroupDescription: "{cm:AdditionalTasks}"; Check: not IsUsbipClientInstalled
+Name: "installwinfsp"; Description: "{cm:WinFspInstallTask}"; GroupDescription: "{cm:AdditionalTasks}"; Check: not IsWinFspInstalled
 
 [Files]
 Source: "{#MySourceDir}\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion createallsubdirs
@@ -231,11 +231,38 @@ begin
 end;
 
 function IsUsbipClientInstalled: Boolean;
+var
+  ResultCode: Integer;
+  Candidate: string;
 begin
-  Result :=
-    FileExists(ExpandConstant('{commonpf64}\USBip\usbip.exe')) or
-    FileExists(ExpandConstant('{commonpf}\USBip\usbip.exe')) or
-    FileExists(ExpandConstant('{localappdata}\Programs\USBip\usbip.exe'));
+  Result := False;
+
+  Candidate := ExpandConstant('{commonpf64}\USBip\usbip.exe');
+  if FileExists(Candidate)
+     and Exec(Candidate, '--version', '', SW_HIDE, ewWaitUntilTerminated, ResultCode)
+     and (ResultCode = 0) then
+  begin
+    Result := True;
+    Exit;
+  end;
+
+  Candidate := ExpandConstant('{commonpf}\USBip\usbip.exe');
+  if FileExists(Candidate)
+     and Exec(Candidate, '--version', '', SW_HIDE, ewWaitUntilTerminated, ResultCode)
+     and (ResultCode = 0) then
+  begin
+    Result := True;
+    Exit;
+  end;
+
+  Candidate := ExpandConstant('{localappdata}\Programs\USBip\usbip.exe');
+  if FileExists(Candidate)
+     and Exec(Candidate, '--version', '', SW_HIDE, ewWaitUntilTerminated, ResultCode)
+     and (ResultCode = 0) then
+  begin
+    Result := True;
+    Exit;
+  end;
 end;
 
 function IsWinFspInstalled: Boolean;

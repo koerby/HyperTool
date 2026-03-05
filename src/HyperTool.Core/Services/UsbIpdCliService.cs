@@ -811,6 +811,13 @@ public sealed class UsbIpdCliService : IUsbIpService, IDisposable
 
     private static string ResolveExecutablePath()
     {
+        var registryPath = TryResolveUsbipdExecutableFromRegistry(RegistryView.Registry64)
+                           ?? TryResolveUsbipdExecutableFromRegistry(RegistryView.Registry32);
+        if (!string.IsNullOrWhiteSpace(registryPath))
+        {
+            return registryPath;
+        }
+
         var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
         var candidate = Path.Combine(programFiles, "usbipd-win", "usbipd.exe");
         if (File.Exists(candidate))
@@ -818,7 +825,38 @@ public sealed class UsbIpdCliService : IUsbIpService, IDisposable
             return candidate;
         }
 
+        var programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+        if (!string.IsNullOrWhiteSpace(programFilesX86))
+        {
+            var x86Candidate = Path.Combine(programFilesX86, "usbipd-win", "usbipd.exe");
+            if (File.Exists(x86Candidate))
+            {
+                return x86Candidate;
+            }
+        }
+
         return "usbipd";
+    }
+
+    private static string? TryResolveUsbipdExecutableFromRegistry(RegistryView view)
+    {
+        try
+        {
+            using var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, view);
+            using var key = baseKey.OpenSubKey(@"SOFTWARE\usbipd-win", writable: false);
+            var installFolder = key?.GetValue("APPLICATIONFOLDER", string.Empty, RegistryValueOptions.DoNotExpandEnvironmentNames) as string;
+            if (string.IsNullOrWhiteSpace(installFolder))
+            {
+                return null;
+            }
+
+            var candidate = Path.Combine(installFolder.Trim(), "usbipd.exe");
+            return File.Exists(candidate) ? candidate : null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static async Task EnsureReadyAsync(CancellationToken cancellationToken)

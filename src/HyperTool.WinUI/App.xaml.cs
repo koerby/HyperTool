@@ -577,10 +577,32 @@ public sealed partial class App : Application
 
                 await nextWindow.HideLifecycleGuardAsync();
             }
+
+            _ = RefreshHostRuntimeStateAfterWindowReopenAsync();
         }
         finally
         {
             _isThemeWindowReopenInProgress = false;
+        }
+    }
+
+    private async Task RefreshHostRuntimeStateAfterWindowReopenAsync()
+    {
+        try
+        {
+            await Task.Delay(220);
+
+            if (_mainViewModel is null || _isExitRequested)
+            {
+                return;
+            }
+
+            await _mainViewModel.RefreshUsbRuntimeAvailabilityAsync();
+            await _mainViewModel.RefreshUsbDevicesFromTrayAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "Post-reopen host runtime refresh failed.");
         }
     }
 
