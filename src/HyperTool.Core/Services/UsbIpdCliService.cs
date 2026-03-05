@@ -41,6 +41,7 @@ public sealed class UsbIpdCliService : IUsbIpService, IDisposable
 
     public async Task<bool> IsUsbClientAvailableAsync(CancellationToken cancellationToken)
     {
+        var hasNativeCandidate = false;
         foreach (var candidate in GetNativeUsbipCandidates().Distinct(StringComparer.OrdinalIgnoreCase))
         {
             if (string.Equals(candidate, "usbip", StringComparison.OrdinalIgnoreCase))
@@ -50,12 +51,33 @@ public sealed class UsbIpdCliService : IUsbIpService, IDisposable
 
             if (File.Exists(candidate))
             {
-                return true;
+                hasNativeCandidate = true;
+                break;
             }
         }
 
         var whereResult = await RunUtilityAsync("where", "usbip", cancellationToken);
-        return whereResult.ExitCode == 0 && !string.IsNullOrWhiteSpace(whereResult.StandardOutput);
+        var hasPathCandidate = whereResult.ExitCode == 0 && !string.IsNullOrWhiteSpace(whereResult.StandardOutput);
+        if (!hasNativeCandidate && !hasPathCandidate)
+        {
+            return false;
+        }
+
+        var healthResult = await RunNativeUsbipCommandWithFallbackAsync(["port"], cancellationToken);
+        var healthText = (healthResult.StandardOutput ?? string.Empty) + "\n" + (healthResult.StandardError ?? string.Empty);
+        if (healthResult.ExitCode == 0)
+        {
+            return !ContainsUsbClientMissingSignature(healthText);
+        }
+
+        if (ContainsUsbClientMissingSignature(healthText))
+        {
+            return false;
+        }
+
+        var versionResult = await RunNativeUsbipCommandWithFallbackAsync(["--version"], cancellationToken);
+        var versionText = (versionResult.StandardOutput ?? string.Empty) + "\n" + (versionResult.StandardError ?? string.Empty);
+        return versionResult.ExitCode == 0 && !ContainsUsbClientMissingSignature(versionText);
     }
 
     public async Task<IReadOnlyList<UsbIpDeviceInfo>> GetDevicesAsync(CancellationToken cancellationToken)
@@ -1148,6 +1170,28 @@ public sealed class UsbIpdCliService : IUsbIpService, IDisposable
                || text.Contains("invalid option --once")
                || text.Contains("the following argument was not expected")
                || text.Contains("not found");
+    }
+
+    private static bool ContainsUsbClientMissingSignature(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        var normalized = text.ToLowerInvariant();
+        return normalized.Contains("'usbip' not found")
+               || normalized.Contains("'usbip.exe' not found")
+               || normalized.Contains("not recognized")
+               || normalized.Contains("wurde nicht als name eines cmdlet")
+               || normalized.Contains("konnte nicht gefunden werden")
+               || normalized.Contains("file not found")
+               || normalized.Contains("no such file")
+               || normalized.Contains("could not open vhci")
+               || normalized.Contains("vhci driver")
+               || normalized.Contains("usbip_vhci")
+               || normalized.Contains("driver is not installed")
+               || normalized.Contains("treiber ist nicht installiert");
     }
 
     private static async Task<CommandResult> RunNativeUsbipCommandAsync(string fileName, IReadOnlyList<string> args, CancellationToken cancellationToken)

@@ -250,11 +250,6 @@ begin
   begin
     Result := FileExists(ExpandConstant('{commonpf}\\usbipd-win\\usbipd.exe'));
   end;
-
-  if not Result then
-  begin
-    Result := HasUninstallDisplayNameMatching('usbipd-win');
-  end;
 end;
 
 function ShouldRemoveUsbipdOnUninstall(): Boolean;

@@ -53,6 +53,52 @@ public sealed partial class App : Application
     private Task? _singleInstanceServerTask;
     private bool _singleInstanceOwned;
     private bool _pendingSingleInstanceShow;
+    private CancellationTokenSource? _rainbowPrincessModeCts;
+    private CancellationTokenSource? _trollModeCts;
+    private readonly Random _trollRandom = new();
+    private Grid? _trollOverlayHost;
+    private Border? _trollOverlayDimmer;
+    private Border? _trollOverlayCrater;
+    private Canvas? _trollOverlayCanvas;
+    private TextBlock? _trollOverlayBoss;
+    private TextBlock? _trollOverlayStatus;
+    private UIElement? _trollSceneTarget;
+    private TranslateTransform? _trollSceneTranslate;
+    private RotateTransform? _trollSceneRotate;
+    private readonly List<TrollActorState> _trollOverlayActors = [];
+
+    private static readonly bool UseLegacyTrollGlyphs = !OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000);
+    private static readonly string[] TrollSprites = UseLegacyTrollGlyphs
+        ? ["TROLL", "AXE", "BOOM", "FIRE", "CRASH", "VOID"]
+        : ["🧌", "🪓", "💥", "🔥", "⚒", "🕳"];
+
+    private sealed class TrollActorState
+    {
+        public required TextBlock Sprite { get; init; }
+        public required string Glyph { get; init; }
+        public double X { get; set; }
+        public double Y { get; set; }
+        public double VX { get; set; }
+        public double VY { get; set; }
+        public double Angle { get; set; }
+        public double Spin { get; set; }
+    }
+
+    private static readonly string[] RainbowPaletteKeys =
+    [
+        "PageBackgroundBrush",
+        "PanelBackgroundBrush",
+        "PanelBorderBrush",
+        "TextPrimaryBrush",
+        "TextMutedBrush",
+        "AccentBrush",
+        "AccentTextBrush",
+        "AccentSoftBrush",
+        "AccentStrongBrush",
+        "SurfaceTopBrush",
+        "SurfaceBottomBrush",
+        "SurfaceSoftBrush"
+    ];
 
     private readonly List<UsbIpDeviceInfo> _usbDevices = [];
     private string? _selectedUsbBusId;
@@ -155,6 +201,871 @@ public sealed partial class App : Application
         }
 
         resources[key] = new SolidColorBrush(color);
+    }
+
+    public async Task TriggerRainbowPrincessModeAsync()
+    {
+        _rainbowPrincessModeCts?.Cancel();
+
+        var cts = new CancellationTokenSource();
+        _rainbowPrincessModeCts = cts;
+        var startedAtUtc = DateTimeOffset.UtcNow;
+
+        try
+        {
+            while (DateTimeOffset.UtcNow - startedAtUtc < TimeSpan.FromSeconds(30))
+            {
+                cts.Token.ThrowIfCancellationRequested();
+
+                var seconds = (DateTimeOffset.UtcNow - startedAtUtc).TotalSeconds;
+                ApplyRainbowPrincessPalette(seconds);
+
+                await Task.Delay(95, cts.Token);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            if (ReferenceEquals(_rainbowPrincessModeCts, cts))
+            {
+                _rainbowPrincessModeCts = null;
+                RestoreConfiguredThemeAfterRainbowMode();
+            }
+        }
+    }
+
+    private void ApplyRainbowPrincessPalette(double timeSeconds)
+    {
+        if (Current?.Resources is not ResourceDictionary resources)
+        {
+            return;
+        }
+
+        var baseHue = (timeSeconds * 160d) % 360d;
+
+        foreach (var key in RainbowPaletteKeys)
+        {
+            var offset = (Math.Abs(key.GetHashCode()) % 360 + baseHue) % 360;
+            var saturation = key.Contains("Text", StringComparison.Ordinal) ? 0.24 : 0.76;
+            var value = key.Contains("Background", StringComparison.Ordinal) ? 0.33 : 0.92;
+            var alpha = key == "AccentSoftBrush" ? (byte)0x8A : (byte)0xFF;
+            var color = HsvToColor(offset, saturation, value, alpha);
+            SetBrushColorValue(resources, key, color);
+        }
+
+        if (_mainWindow?.AppWindow?.TitleBar is AppWindowTitleBar titleBar)
+        {
+            var titleColor = HsvToColor((baseHue + 35d) % 360d, 0.82, 0.66, 0xFF);
+            var textColor = HsvToColor((baseHue + 195d) % 360d, 0.16, 0.99, 0xFF);
+
+            titleBar.BackgroundColor = titleColor;
+            titleBar.InactiveBackgroundColor = titleColor;
+            titleBar.ButtonBackgroundColor = titleColor;
+            titleBar.ButtonHoverBackgroundColor = HsvToColor((baseHue + 58d) % 360d, 0.90, 0.74, 0xFF);
+            titleBar.ButtonPressedBackgroundColor = HsvToColor((baseHue + 72d) % 360d, 0.95, 0.58, 0xFF);
+            titleBar.ForegroundColor = textColor;
+            titleBar.InactiveForegroundColor = textColor;
+            titleBar.ButtonForegroundColor = textColor;
+            titleBar.ButtonHoverForegroundColor = Colors.White;
+            titleBar.ButtonPressedForegroundColor = Colors.White;
+        }
+    }
+
+    private void RestoreConfiguredThemeAfterRainbowMode()
+    {
+        if (_mainWindow is null)
+        {
+            return;
+        }
+
+        var configuredTheme = _config?.Ui.Theme ?? "dark";
+        _mainWindow.ApplyTheme(configuredTheme);
+    }
+
+    public async Task TriggerTrollModeAsync()
+    {
+        _rainbowPrincessModeCts?.Cancel();
+        _trollModeCts?.Cancel();
+
+        var cts = new CancellationTokenSource();
+        _trollModeCts = cts;
+        var startedAtUtc = DateTimeOffset.UtcNow;
+        PointInt32? basePosition = null;
+
+        try
+        {
+            if (_mainWindow?.AppWindow is AppWindow appWindow)
+            {
+                basePosition = appWindow.Position;
+            }
+
+            EnsureTrollOverlayLayer();
+            ResetTrollOverlayScene();
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            while (DateTimeOffset.UtcNow - startedAtUtc < TimeSpan.FromSeconds(30))
+            {
+                cts.Token.ThrowIfCancellationRequested();
+
+                var seconds = (DateTimeOffset.UtcNow - startedAtUtc).TotalSeconds;
+                ApplyTrollPalette(seconds);
+                UpdateTrollOverlayScene(seconds);
+                ApplyTrollSceneWarp(seconds);
+                ApplyTrollShake(seconds, basePosition);
+
+                await Task.Delay(80, cts.Token);
+            }
+
+            await PlayTrollRecoveryMomentAsync(cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            if (ReferenceEquals(_trollModeCts, cts))
+            {
+                _trollModeCts = null;
+                HideTrollOverlay();
+                ResetTrollSceneWarp();
+                RestoreMainWindowPosition(basePosition);
+
+                var reloaded = false;
+                try
+                {
+                    var configuredTheme = _config?.Ui.Theme ?? "dark";
+                    await RestartForThemeChangeAsync(configuredTheme);
+                    reloaded = true;
+                }
+                catch
+                {
+                }
+
+                if (!reloaded)
+                {
+                    RestoreConfiguredThemeAfterRainbowMode();
+                }
+            }
+        }
+    }
+
+    private void ApplyTrollPalette(double seconds)
+    {
+        if (Current?.Resources is not ResourceDictionary resources)
+        {
+            return;
+        }
+
+        Color pageColor;
+        Color panelColor;
+        Color borderColor;
+        Color accentColor;
+        Color accentStrongColor;
+        Color textPrimaryColor;
+        Color textMutedColor;
+
+        if (seconds < 8d)
+        {
+            var dim = Math.Clamp(seconds / 8d, 0d, 1d);
+            pageColor = MixColor(Color.FromArgb(0xFF, 0x16, 0x20, 0x34), Color.FromArgb(0xFF, 0x10, 0x10, 0x12), dim);
+            panelColor = MixColor(Color.FromArgb(0xFF, 0x24, 0x2E, 0x45), Color.FromArgb(0xFF, 0x1D, 0x1D, 0x21), dim);
+            borderColor = MixColor(Color.FromArgb(0xFF, 0x38, 0x46, 0x5E), Color.FromArgb(0xFF, 0x44, 0x44, 0x49), dim);
+            accentColor = MixColor(Color.FromArgb(0xFF, 0x72, 0xC6, 0xFF), Color.FromArgb(0xFF, 0x7C, 0x89, 0x72), dim);
+            accentStrongColor = MixColor(accentColor, Color.FromArgb(0xFF, 0x96, 0x9F, 0x89), 0.4d);
+            textPrimaryColor = MixColor(Color.FromArgb(0xFF, 0xE8, 0xF0, 0xFF), Color.FromArgb(0xFF, 0xD2, 0xD2, 0xD4), dim);
+            textMutedColor = MixColor(Color.FromArgb(0xFF, 0xA4, 0xB2, 0xC8), Color.FromArgb(0xFF, 0x9A, 0x9A, 0x9F), dim);
+        }
+        else if (seconds < 20d)
+        {
+            var pulse = (Math.Sin(seconds * 6d) + 1d) / 2d;
+            var impactFlash = ((int)(seconds * 5d) % 9 == 0) ? 1d : 0d;
+            pageColor = MixColor(Color.FromArgb(0xFF, 0x0F, 0x0F, 0x11), Color.FromArgb(0xFF, 0x1B, 0x14, 0x14), impactFlash * 0.55d);
+            panelColor = MixColor(Color.FromArgb(0xFF, 0x1A, 0x1A, 0x1C), Color.FromArgb(0xFF, 0x26, 0x1B, 0x1A), impactFlash * 0.55d);
+            borderColor = MixColor(Color.FromArgb(0xFF, 0x45, 0x45, 0x49), Color.FromArgb(0xFF, 0x8A, 0x53, 0x3B), impactFlash * 0.70d);
+            accentColor = MixColor(Color.FromArgb(0xFF, 0x7B, 0xB1, 0x56), Color.FromArgb(0xFF, 0xC7, 0x6A, 0x28), pulse * 0.5d + impactFlash * 0.35d);
+            accentStrongColor = MixColor(accentColor, Color.FromArgb(0xFF, 0xE5, 0x9A, 0x44), pulse * 0.35d + impactFlash * 0.5d);
+            textPrimaryColor = Color.FromArgb(0xFF, 0xD7, 0xD7, 0xD9);
+            textMutedColor = Color.FromArgb(0xFF, 0xAA, 0xAA, 0xAF);
+        }
+        else if (seconds < 25d)
+        {
+            var blast = (Math.Sin(seconds * 18d) + 1d) / 2d;
+            pageColor = MixColor(Color.FromArgb(0xFF, 0x0E, 0x0E, 0x10), Color.FromArgb(0xFF, 0x2C, 0x12, 0x0F), blast * 0.72d);
+            panelColor = MixColor(Color.FromArgb(0xFF, 0x17, 0x17, 0x1A), Color.FromArgb(0xFF, 0x3A, 0x1A, 0x14), blast * 0.72d);
+            borderColor = MixColor(Color.FromArgb(0xFF, 0x4A, 0x4A, 0x4F), Color.FromArgb(0xFF, 0xD5, 0x6C, 0x2E), blast * 0.90d);
+            accentColor = MixColor(Color.FromArgb(0xFF, 0x8A, 0x8A, 0x8A), Color.FromArgb(0xFF, 0xF0, 0x7D, 0x2D), blast * 0.92d);
+            accentStrongColor = MixColor(accentColor, Color.FromArgb(0xFF, 0xFF, 0xC8, 0x72), blast * 0.58d);
+            textPrimaryColor = MixColor(Color.FromArgb(0xFF, 0xD0, 0xD0, 0xD2), Color.FromArgb(0xFF, 0xFF, 0xD5, 0xBA), blast * 0.36d);
+            textMutedColor = MixColor(Color.FromArgb(0xFF, 0xA4, 0xA4, 0xA8), Color.FromArgb(0xFF, 0xD8, 0x9C, 0x79), blast * 0.4d);
+        }
+        else
+        {
+            var craterPulse = (Math.Sin(seconds * 4d) + 1d) / 2d;
+            pageColor = Color.FromArgb(0xFF, 0x06, 0x06, 0x07);
+            panelColor = MixColor(Color.FromArgb(0xFF, 0x11, 0x11, 0x13), Color.FromArgb(0xFF, 0x17, 0x13, 0x18), craterPulse * 0.35d);
+            borderColor = MixColor(Color.FromArgb(0xFF, 0x34, 0x34, 0x39), Color.FromArgb(0xFF, 0x52, 0x3D, 0x57), craterPulse * 0.45d);
+            accentColor = MixColor(Color.FromArgb(0xFF, 0x6A, 0x5A, 0x73), Color.FromArgb(0xFF, 0x8D, 0x6B, 0x47), craterPulse * 0.45d);
+            accentStrongColor = MixColor(accentColor, Color.FromArgb(0xFF, 0xB7, 0x8A, 0x55), craterPulse * 0.35d);
+            textPrimaryColor = Color.FromArgb(0xFF, 0xCA, 0xCA, 0xCD);
+            textMutedColor = Color.FromArgb(0xFF, 0x95, 0x95, 0x9A);
+        }
+
+        SetBrushColorValue(resources, "PageBackgroundBrush", pageColor);
+        SetBrushColorValue(resources, "PanelBackgroundBrush", panelColor);
+        SetBrushColorValue(resources, "PanelBorderBrush", borderColor);
+        SetBrushColorValue(resources, "TextPrimaryBrush", textPrimaryColor);
+        SetBrushColorValue(resources, "TextMutedBrush", textMutedColor);
+        SetBrushColorValue(resources, "AccentBrush", accentColor);
+        SetBrushColorValue(resources, "AccentStrongBrush", accentStrongColor);
+        SetBrushColorValue(resources, "AccentTextBrush", Color.FromArgb(0xFF, 0x18, 0x18, 0x1A));
+        SetBrushColorValue(resources, "SurfaceTopBrush", MixColor(panelColor, pageColor, 0.38d));
+        SetBrushColorValue(resources, "SurfaceBottomBrush", MixColor(pageColor, Color.FromArgb(0xFF, 0x05, 0x05, 0x06), 0.35d));
+        SetBrushColorValue(resources, "SurfaceSoftBrush", MixColor(panelColor, pageColor, 0.24d));
+        SetBrushColorValue(resources, "AccentSoftBrush", MixColor(Color.FromArgb(0x74, accentColor.R, accentColor.G, accentColor.B), Color.FromArgb(0x74, 0xA5, 0x55, 0x2D), seconds >= 20d ? 0.45d : 0.2d));
+
+        if (_mainWindow?.AppWindow?.TitleBar is AppWindowTitleBar titleBar)
+        {
+            var titleBg = MixColor(panelColor, pageColor, 0.42d);
+            var titleFg = textPrimaryColor;
+            titleBar.BackgroundColor = titleBg;
+            titleBar.InactiveBackgroundColor = titleBg;
+            titleBar.ButtonBackgroundColor = titleBg;
+            titleBar.ButtonHoverBackgroundColor = MixColor(titleBg, accentColor, 0.35d);
+            titleBar.ButtonPressedBackgroundColor = MixColor(titleBg, accentStrongColor, 0.45d);
+            titleBar.ForegroundColor = titleFg;
+            titleBar.InactiveForegroundColor = titleFg;
+            titleBar.ButtonForegroundColor = titleFg;
+            titleBar.ButtonHoverForegroundColor = Colors.White;
+            titleBar.ButtonPressedForegroundColor = Colors.White;
+        }
+    }
+
+    private void EnsureTrollOverlayLayer()
+    {
+        if (_mainWindow is null || _mainWindow.Content is not UIElement currentContent)
+        {
+            return;
+        }
+
+        if (_trollOverlayCanvas is not null && _trollOverlayHost is not null)
+        {
+            return;
+        }
+
+        Grid hostGrid;
+        var sceneContainer = new Grid();
+        if (currentContent is Grid existingGrid)
+        {
+            hostGrid = existingGrid;
+
+            var existingChildren = existingGrid.Children.ToList();
+            existingGrid.Children.Clear();
+            foreach (var child in existingChildren)
+            {
+                sceneContainer.Children.Add(child);
+            }
+
+            existingGrid.Children.Add(sceneContainer);
+            _trollSceneTarget = sceneContainer;
+        }
+        else
+        {
+            hostGrid = new Grid();
+            _mainWindow.Content = hostGrid;
+            sceneContainer.Children.Add(currentContent);
+            hostGrid.Children.Add(sceneContainer);
+            _trollSceneTarget = sceneContainer;
+        }
+
+        _trollOverlayHost = hostGrid;
+        _trollOverlayDimmer = new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(0xFF, 0x05, 0x05, 0x06)),
+            Opacity = 0,
+            IsHitTestVisible = false
+        };
+
+        _trollOverlayCrater = new Border
+        {
+            Width = 300,
+            Height = 210,
+            CornerRadius = new CornerRadius(160),
+            BorderThickness = new Thickness(3),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0xAA, 0x8F, 0x5C, 0x37)),
+            Background = new SolidColorBrush(Color.FromArgb(0xD8, 0x03, 0x03, 0x04)),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Opacity = 0,
+            IsHitTestVisible = false,
+            RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5),
+            RenderTransform = new RotateTransform()
+        };
+
+        _trollOverlayCanvas = new Canvas
+        {
+            Opacity = 0,
+            IsHitTestVisible = false
+        };
+
+        _trollOverlayBoss = new TextBlock
+        {
+            Text = UseLegacyTrollGlyphs ? "TROLL" : "🧌",
+            FontSize = 230,
+            Opacity = 0,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            IsHitTestVisible = false,
+            RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5),
+            RenderTransform = new ScaleTransform()
+        };
+
+        _trollOverlayStatus = new TextBlock
+        {
+            Text = string.Empty,
+            FontSize = 28,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+            Opacity = 0,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, 26, 0, 0),
+            IsHitTestVisible = false,
+            Foreground = new SolidColorBrush(Color.FromArgb(0xFF, 0xFF, 0xC1, 0x88))
+        };
+
+        if (_trollSceneTarget is not null)
+        {
+            _trollSceneTranslate = new TranslateTransform();
+            _trollSceneRotate = new RotateTransform();
+
+            var group = new TransformGroup();
+            group.Children.Add(_trollSceneRotate);
+            group.Children.Add(_trollSceneTranslate);
+
+            _trollSceneTarget.RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5);
+            _trollSceneTarget.RenderTransform = group;
+        }
+
+        Canvas.SetZIndex(_trollOverlayDimmer, 7000);
+        Canvas.SetZIndex(_trollOverlayCrater, 7001);
+        Canvas.SetZIndex(_trollOverlayCanvas, 7002);
+        Canvas.SetZIndex(_trollOverlayBoss, 7003);
+        Canvas.SetZIndex(_trollOverlayStatus, 7004);
+
+        hostGrid.Children.Add(_trollOverlayDimmer);
+        hostGrid.Children.Add(_trollOverlayCrater);
+        hostGrid.Children.Add(_trollOverlayCanvas);
+        hostGrid.Children.Add(_trollOverlayBoss);
+        hostGrid.Children.Add(_trollOverlayStatus);
+    }
+
+    private void ResetTrollOverlayScene()
+    {
+        if (_trollOverlayCanvas is null)
+        {
+            return;
+        }
+
+        _trollOverlayCanvas.Children.Clear();
+        _trollOverlayActors.Clear();
+
+        if (_trollOverlayDimmer is not null)
+        {
+            _trollOverlayDimmer.Opacity = 0;
+        }
+
+        if (_trollOverlayCrater is not null)
+        {
+            _trollOverlayCrater.Opacity = 0;
+        }
+
+        if (_trollOverlayBoss is not null)
+        {
+            _trollOverlayBoss.Opacity = 0;
+        }
+
+        if (_trollOverlayStatus is not null)
+        {
+            _trollOverlayStatus.Opacity = 0;
+            _trollOverlayStatus.Text = string.Empty;
+        }
+
+        _trollOverlayCanvas.Opacity = 0;
+    }
+
+    private void UpdateTrollOverlayScene(double seconds)
+    {
+        if (_trollOverlayHost is null || _trollOverlayCanvas is null)
+        {
+            return;
+        }
+
+        var width = _trollOverlayHost.ActualWidth;
+        var height = _trollOverlayHost.ActualHeight;
+        if (width < 64 || height < 64)
+        {
+            return;
+        }
+
+        var dimOpacity = seconds switch
+        {
+            < 8d => 0.16 + (seconds / 8d) * 0.32,
+            < 20d => 0.46,
+            < 25d => 0.62,
+            _ => 0.66
+        };
+
+        var blastFlash = seconds >= 18d && ((int)(seconds * 15d) % 11 == 0);
+
+        if (_trollOverlayDimmer is not null)
+        {
+            _trollOverlayDimmer.Opacity = dimOpacity;
+            if (_trollOverlayDimmer.Background is SolidColorBrush dimBrush)
+            {
+                dimBrush.Color = blastFlash
+                    ? Color.FromArgb(0xEE, 0x30, 0x13, 0x0C)
+                    : Color.FromArgb(0xFF, 0x05, 0x05, 0x06);
+            }
+        }
+
+        _trollOverlayCanvas.Opacity = seconds >= 5d ? 1 : 0;
+
+        if (_trollOverlayCrater is not null)
+        {
+            if (seconds >= 22d)
+            {
+                var pulse = (Math.Sin(seconds * 5d) + 1d) / 2d;
+                _trollOverlayCrater.Opacity = 0.45 + pulse * 0.35;
+                _trollOverlayCrater.Width = 260 + pulse * 120;
+                _trollOverlayCrater.Height = 180 + pulse * 90;
+
+                if (_trollOverlayCrater.RenderTransform is RotateTransform rotate)
+                {
+                    rotate.Angle = Math.Sin(seconds * 1.7d) * 4d;
+                }
+            }
+            else
+            {
+                _trollOverlayCrater.Opacity = 0;
+            }
+        }
+
+        var targetActors = seconds switch
+        {
+            < 8d => 10,
+            < 20d => 26,
+            < 25d => 40,
+            < 27d => 28,
+            _ => 54
+        };
+
+        var isFinalBossPhase = seconds >= 27d;
+        if (_trollOverlayBoss is not null)
+        {
+            if (isFinalBossPhase)
+            {
+                var pulse = (Math.Sin(seconds * 20d) + 1d) / 2d;
+                _trollOverlayBoss.Opacity = 0.52 + pulse * 0.46;
+                _trollOverlayBoss.Text = pulse > 0.62
+                    ? (UseLegacyTrollGlyphs ? "TROLL" : "🧌")
+                    : (UseLegacyTrollGlyphs ? "BOOM" : "💥");
+                if (_trollOverlayBoss.RenderTransform is ScaleTransform scale)
+                {
+                    scale.ScaleX = 1.12 + pulse * 0.82;
+                    scale.ScaleY = 1.12 + pulse * 0.82;
+                }
+            }
+            else
+            {
+                _trollOverlayBoss.Opacity = 0;
+            }
+        }
+
+        if (_trollOverlayStatus is not null)
+        {
+            if (isFinalBossPhase)
+            {
+                _trollOverlayStatus.Text = "TROLL CORE MELTDOWN";
+                _trollOverlayStatus.Opacity = 0.88;
+                if (_trollOverlayStatus.Foreground is SolidColorBrush fg)
+                {
+                    fg.Color = ((int)(seconds * 18d) % 2 == 0)
+                        ? Color.FromArgb(0xFF, 0xFF, 0xB3, 0x6A)
+                        : Color.FromArgb(0xFF, 0xFF, 0xE2, 0xA8);
+                }
+            }
+            else
+            {
+                _trollOverlayStatus.Opacity = 0;
+                _trollOverlayStatus.Text = string.Empty;
+            }
+        }
+
+        while (_trollOverlayActors.Count < targetActors)
+        {
+            SpawnTrollActor(width, height);
+        }
+
+        while (_trollOverlayActors.Count > targetActors && _trollOverlayActors.Count > 0)
+        {
+            var last = _trollOverlayActors[^1];
+            _trollOverlayCanvas.Children.Remove(last.Sprite);
+            _trollOverlayActors.RemoveAt(_trollOverlayActors.Count - 1);
+        }
+
+        foreach (var actor in _trollOverlayActors)
+        {
+            var velocityBoost = seconds >= 20d ? 1.55d : (seconds >= 12d ? 1.2d : 1d);
+            actor.X += actor.VX * velocityBoost;
+            actor.Y += actor.VY * velocityBoost;
+            actor.Angle += actor.Spin;
+
+            if (string.Equals(actor.Glyph, "🔥", StringComparison.Ordinal) || string.Equals(actor.Glyph, "FIRE", StringComparison.Ordinal))
+            {
+                actor.Y -= (seconds >= 20d ? 0.9d : 0.35d);
+            }
+
+            if ((string.Equals(actor.Glyph, "💥", StringComparison.Ordinal)
+                || string.Equals(actor.Glyph, "BOOM", StringComparison.Ordinal)
+                || string.Equals(actor.Glyph, "CRASH", StringComparison.Ordinal))
+                && seconds >= 18d)
+            {
+                actor.Angle += actor.Spin * 0.8d;
+            }
+
+            if (actor.X < -80)
+            {
+                actor.X = width + 20;
+            }
+            else if (actor.X > width + 40)
+            {
+                actor.X = -60;
+            }
+
+            if (actor.Y < -80)
+            {
+                actor.Y = height + 20;
+            }
+            else if (actor.Y > height + 40)
+            {
+                actor.Y = -60;
+            }
+
+            if (actor.Sprite.RenderTransform is RotateTransform rotate)
+            {
+                rotate.Angle = actor.Angle;
+            }
+
+            Canvas.SetLeft(actor.Sprite, actor.X);
+            Canvas.SetTop(actor.Sprite, actor.Y);
+        }
+    }
+
+    private void SpawnTrollActor(double width, double height)
+    {
+        if (_trollOverlayCanvas is null)
+        {
+            return;
+        }
+
+        var glyph = TrollSprites[_trollRandom.Next(TrollSprites.Length)];
+        var spriteSize = glyph switch
+        {
+            "🧌" => _trollRandom.Next(64, 110),
+            "🔥" => _trollRandom.Next(52, 94),
+            "💥" => _trollRandom.Next(58, 102),
+            "TROLL" => _trollRandom.Next(68, 108),
+            "FIRE" => _trollRandom.Next(62, 96),
+            "BOOM" => _trollRandom.Next(64, 100),
+            _ => _trollRandom.Next(42, 86)
+        };
+
+        var sprite = new TextBlock
+        {
+            Text = glyph,
+            FontSize = spriteSize,
+            Opacity = _trollRandom.NextDouble() * 0.35 + 0.58,
+            IsHitTestVisible = false,
+            RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5),
+            RenderTransform = new RotateTransform()
+        };
+
+        var actor = new TrollActorState
+        {
+            Sprite = sprite,
+            Glyph = glyph,
+            X = _trollRandom.NextDouble() * Math.Max(80, width - 40),
+            Y = _trollRandom.NextDouble() * Math.Max(80, height - 40),
+            VX = (_trollRandom.NextDouble() * 4.2d + 0.9d) * (_trollRandom.Next(0, 2) == 0 ? -1 : 1),
+            VY = (_trollRandom.NextDouble() * 3.0d + 0.5d) * (_trollRandom.Next(0, 2) == 0 ? -1 : 1),
+            Angle = _trollRandom.NextDouble() * 360d,
+            Spin = (_trollRandom.NextDouble() * 7d + 1.2d) * (_trollRandom.Next(0, 2) == 0 ? -1 : 1)
+        };
+
+        _trollOverlayCanvas.Children.Add(sprite);
+        _trollOverlayActors.Add(actor);
+        Canvas.SetLeft(sprite, actor.X);
+        Canvas.SetTop(sprite, actor.Y);
+    }
+
+    private void HideTrollOverlay()
+    {
+        if (_trollOverlayCanvas is not null)
+        {
+            _trollOverlayCanvas.Children.Clear();
+            _trollOverlayCanvas.Opacity = 0;
+        }
+
+        _trollOverlayActors.Clear();
+
+        if (_trollOverlayCrater is not null)
+        {
+            _trollOverlayCrater.Opacity = 0;
+        }
+
+        if (_trollOverlayDimmer is not null)
+        {
+            _trollOverlayDimmer.Opacity = 0;
+        }
+
+        if (_trollOverlayBoss is not null)
+        {
+            _trollOverlayBoss.Opacity = 0;
+        }
+
+        if (_trollOverlayStatus is not null)
+        {
+            _trollOverlayStatus.Opacity = 0;
+            _trollOverlayStatus.Text = string.Empty;
+        }
+    }
+
+    private void ApplyTrollSceneWarp(double seconds)
+    {
+        if (_trollSceneTranslate is null || _trollSceneRotate is null)
+        {
+            return;
+        }
+
+        var shiftStrength = seconds switch
+        {
+            < 8d => 0,
+            < 20d => 4,
+            < 25d => 10,
+            _ => 3
+        };
+
+        var tiltStrength = seconds switch
+        {
+            < 8d => 0d,
+            < 20d => 0.6d,
+            < 25d => 1.7d,
+            _ => 0.4d
+        };
+
+        _trollSceneTranslate.X = _trollRandom.Next(-shiftStrength, shiftStrength + 1);
+        _trollSceneTranslate.Y = _trollRandom.Next(-shiftStrength, shiftStrength + 1);
+        _trollSceneRotate.Angle = Math.Sin(seconds * 8d) * tiltStrength;
+    }
+
+    private void ResetTrollSceneWarp()
+    {
+        if (_trollSceneTranslate is not null)
+        {
+            _trollSceneTranslate.X = 0;
+            _trollSceneTranslate.Y = 0;
+        }
+
+        if (_trollSceneRotate is not null)
+        {
+            _trollSceneRotate.Angle = 0;
+        }
+    }
+
+    private async Task PlayTrollRecoveryMomentAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (_trollOverlayDimmer is not null)
+        {
+            _trollOverlayDimmer.Opacity = 0.42;
+            if (_trollOverlayDimmer.Background is SolidColorBrush dimBrush)
+            {
+                dimBrush.Color = Color.FromArgb(0xEA, 0x09, 0x1B, 0x10);
+            }
+        }
+
+        if (_trollOverlayBoss is not null)
+        {
+            _trollOverlayBoss.Text = UseLegacyTrollGlyphs ? "OK" : "✅";
+            _trollOverlayBoss.Opacity = 0.78;
+            if (_trollOverlayBoss.RenderTransform is ScaleTransform scale)
+            {
+                scale.ScaleX = 1.12;
+                scale.ScaleY = 1.12;
+            }
+        }
+
+        if (_trollOverlayStatus is not null)
+        {
+            _trollOverlayStatus.Text = "SYSTEM RECOVERED";
+            _trollOverlayStatus.Opacity = 0.96;
+            if (_trollOverlayStatus.Foreground is SolidColorBrush fg)
+            {
+                fg.Color = Color.FromArgb(0xFF, 0x9D, 0xFF, 0xBE);
+            }
+        }
+
+        await Task.Delay(900, cancellationToken);
+
+        if (_trollOverlayBoss is not null)
+        {
+            _trollOverlayBoss.Opacity = 0;
+        }
+
+        if (_trollOverlayStatus is not null)
+        {
+            _trollOverlayStatus.Opacity = 0;
+            _trollOverlayStatus.Text = string.Empty;
+        }
+    }
+
+    private void ApplyTrollShake(double seconds, PointInt32? basePosition)
+    {
+        if (basePosition is null || _mainWindow?.AppWindow is not AppWindow appWindow)
+        {
+            return;
+        }
+
+        var amplitude = seconds switch
+        {
+            < 8d => 0,
+            < 20d => 3,
+            < 25d => 8,
+            _ => 2
+        };
+
+        if (amplitude <= 0)
+        {
+            return;
+        }
+
+        try
+        {
+            var dx = _trollRandom.Next(-amplitude, amplitude + 1);
+            var dy = _trollRandom.Next(-amplitude, amplitude + 1);
+            appWindow.Move(new PointInt32(basePosition.Value.X + dx, basePosition.Value.Y + dy));
+        }
+        catch
+        {
+        }
+    }
+
+    private void RestoreMainWindowPosition(PointInt32? basePosition)
+    {
+        if (basePosition is null || _mainWindow?.AppWindow is not AppWindow appWindow)
+        {
+            return;
+        }
+
+        try
+        {
+            appWindow.Move(basePosition.Value);
+        }
+        catch
+        {
+        }
+    }
+
+    private static Color MixColor(Color from, Color to, double amount)
+    {
+        var t = Math.Clamp(amount, 0d, 1d);
+        return Color.FromArgb(
+            LerpByte(from.A, to.A, t),
+            LerpByte(from.R, to.R, t),
+            LerpByte(from.G, to.G, t),
+            LerpByte(from.B, to.B, t));
+    }
+
+    private static byte LerpByte(byte from, byte to, double amount)
+    {
+        return (byte)Math.Clamp((int)Math.Round(from + (to - from) * amount), 0, 255);
+    }
+
+    private static void SetBrushColorValue(ResourceDictionary resources, string key, Color color)
+    {
+        if (resources.TryGetValue(key, out var existingValue) && existingValue is SolidColorBrush existingBrush)
+        {
+            existingBrush.Color = color;
+            return;
+        }
+
+        resources[key] = new SolidColorBrush(color);
+    }
+
+    private static Color HsvToColor(double hue, double saturation, double value, byte alpha)
+    {
+        var normalizedHue = hue % 360d;
+        if (normalizedHue < 0d)
+        {
+            normalizedHue += 360d;
+        }
+
+        var chroma = value * saturation;
+        var x = chroma * (1d - Math.Abs((normalizedHue / 60d) % 2d - 1d));
+        var m = value - chroma;
+
+        double rPrime;
+        double gPrime;
+        double bPrime;
+
+        if (normalizedHue < 60d)
+        {
+            rPrime = chroma;
+            gPrime = x;
+            bPrime = 0d;
+        }
+        else if (normalizedHue < 120d)
+        {
+            rPrime = x;
+            gPrime = chroma;
+            bPrime = 0d;
+        }
+        else if (normalizedHue < 180d)
+        {
+            rPrime = 0d;
+            gPrime = chroma;
+            bPrime = x;
+        }
+        else if (normalizedHue < 240d)
+        {
+            rPrime = 0d;
+            gPrime = x;
+            bPrime = chroma;
+        }
+        else if (normalizedHue < 300d)
+        {
+            rPrime = x;
+            gPrime = 0d;
+            bPrime = chroma;
+        }
+        else
+        {
+            rPrime = chroma;
+            gPrime = 0d;
+            bPrime = x;
+        }
+
+        var r = (byte)Math.Clamp((int)Math.Round((rPrime + m) * 255d), 0, 255);
+        var g = (byte)Math.Clamp((int)Math.Round((gPrime + m) * 255d), 0, 255);
+        var b = (byte)Math.Clamp((int)Math.Round((bPrime + m) * 255d), 0, 255);
+        return Color.FromArgb(alpha, r, g, b);
     }
 
     protected override async void OnLaunched(LaunchActivatedEventArgs args)
@@ -1276,6 +2187,12 @@ public sealed partial class App : Application
         }
         catch (Exception ex)
         {
+            if (ShouldMarkUsbClientUnavailableFromException(ex))
+            {
+                MarkUsbClientUnavailableAndRefreshUi("usb.connect.client_missing", busId, ex.Message);
+                return 1;
+            }
+
             if (ShouldRetryUsbAttach(ex))
             {
                 try
@@ -1410,6 +2327,56 @@ public sealed partial class App : Application
                || message.Contains("resource busy", StringComparison.OrdinalIgnoreCase)
                || message.Contains("temporarily unavailable", StringComparison.OrdinalIgnoreCase)
                || message.Contains("already in use", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ShouldMarkUsbClientUnavailableFromException(Exception exception)
+    {
+        var message = exception.Message ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        return message.Contains("'usbip' not found", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("'usbip.exe' not found", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("not recognized", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("wurde nicht als name eines cmdlet", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("konnte nicht gefunden werden", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("file not found", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("no such file", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("could not open vhci", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("vhci driver", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("usbip_vhci", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("driver is not installed", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("treiber ist nicht installiert", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("stelle sicher, dass usbip-win2 installiert ist", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void MarkUsbClientUnavailableAndRefreshUi(string eventName, string? busId, string reason)
+    {
+        _isUsbClientAvailable = false;
+        _usbClientMissingLogged = true;
+
+        GuestLogger.Warn(eventName, "USB/IP-Client fehlt oder ist nicht funktionsfähig. Bitte usbip-win2 neu installieren.", new
+        {
+            busId,
+            reason,
+            source = "https://github.com/vadimgrn/usbip-win2"
+        });
+
+        void apply()
+        {
+            _mainWindow?.UpdateUsbClientAvailability(false);
+            UpdateTrayControlCenterView();
+        }
+
+        if (_mainWindow?.DispatcherQueue is { } queue && !queue.HasThreadAccess)
+        {
+            _ = queue.TryEnqueue(apply);
+            return;
+        }
+
+        apply();
     }
 
     private async Task<string?> DiscoverUsbHostAddressAsync()

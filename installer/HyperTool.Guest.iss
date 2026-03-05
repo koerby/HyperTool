@@ -236,11 +236,6 @@ begin
     FileExists(ExpandConstant('{commonpf64}\USBip\usbip.exe')) or
     FileExists(ExpandConstant('{commonpf}\USBip\usbip.exe')) or
     FileExists(ExpandConstant('{localappdata}\Programs\USBip\usbip.exe'));
-
-  if not Result then
-  begin
-    Result := HasUninstallDisplayNameMatching('usbip-win2') or HasUninstallDisplayNameMatching('usbip');
-  end;
 end;
 
 function IsWinFspInstalled: Boolean;
@@ -263,11 +258,6 @@ begin
     Result :=
       FileExists(ExpandConstant('{commonpf64}\WinFsp\bin\winfsp-x64.dll')) or
       FileExists(ExpandConstant('{commonpf}\WinFsp\bin\winfsp-x64.dll'));
-  end;
-
-  if not Result then
-  begin
-    Result := HasUninstallDisplayNameMatching('winfsp');
   end;
 end;
 

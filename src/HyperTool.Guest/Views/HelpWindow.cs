@@ -14,6 +14,7 @@ public sealed class HelpWindow : Window
     private readonly string _configPath;
     private readonly string _repoUrl;
     private readonly bool _isDarkMode;
+    private TextBlock? _rainbowHintText;
 
     public HelpWindow(string configPath, string repoUrl, string uiTheme)
     {
@@ -74,6 +75,7 @@ public sealed class HelpWindow : Window
         bodyStack.Children.Add(CreateSection("Single Instance", "Ein zweiter Start blendet die bereits laufende Guest-App ein."));
         bodyStack.Children.Add(CreateSection("Tray Control Center", "Linksklick und Rechtsklick im Tray öffnen das USB-zentrierte Control Center mit Schnellaktionen."));
         bodyStack.Children.Add(CreateSection("Logs", "'Logs öffnen' öffnet immer den Log-Ordner (nicht einzelne Dateien)."));
+        bodyStack.Children.Add(CreateHiddenRainbowPrincessTrigger());
 
         bodyCard.Child = new ScrollViewer
         {
@@ -155,6 +157,43 @@ public sealed class HelpWindow : Window
         };
 
         button.Click += onClick;
+        return button;
+    }
+
+    private Button CreateHiddenRainbowPrincessTrigger()
+    {
+        _rainbowHintText = new TextBlock
+        {
+            Text = "PS: Wenn du Troll-Geraeusche hoerst, diese Zeile besser nicht testen.",
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 11,
+            Opacity = 0.34,
+            FontStyle = Windows.UI.Text.FontStyle.Italic
+        };
+
+        var button = new Button
+        {
+            Content = _rainbowHintText,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            HorizontalContentAlignment = HorizontalAlignment.Left,
+            Padding = new Thickness(2),
+            Margin = new Thickness(2, 4, 2, 0),
+            Background = new SolidColorBrush(Color.FromArgb(0x00, 0x00, 0x00, 0x00)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x00, 0x00, 0x00, 0x00)),
+            BorderThickness = new Thickness(0),
+            CornerRadius = new CornerRadius(6)
+        };
+
+        button.Click += async (_, _) =>
+        {
+            if (Application.Current is App app)
+            {
+                _rainbowHintText.Text = "Troll Mode startet... Hilfe-Fenster schliesst sofort.";
+                Close();
+                _ = app.TriggerTrollModeAsync();
+            }
+        };
+
         return button;
     }
 
