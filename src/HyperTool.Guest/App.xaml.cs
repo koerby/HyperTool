@@ -1243,7 +1243,11 @@ public sealed partial class App : Application
         _minimizeToTray = _config.Ui.MinimizeToTray;
         _mainWindow.ApplyTheme(_config.Ui.Theme);
 
-        if (!skipStartScreen)
+        TryInitializeTray();
+
+        var startHiddenInTray = _config.Ui.StartMinimized && _isTrayFunctional && !_pendingSingleInstanceShow;
+
+        if (!skipStartScreen && !startHiddenInTray)
         {
             try
             {
@@ -1254,10 +1258,9 @@ public sealed partial class App : Application
             }
         }
 
-        TryInitializeTray();
-
-        if (_config.Ui.StartMinimized && _isTrayFunctional && !_pendingSingleInstanceShow)
+        if (startHiddenInTray)
         {
+            _mainWindow.ForceDismissStartupSplash();
             _mainWindow.AppWindow.Hide();
         }
         else
@@ -1718,6 +1721,7 @@ public sealed partial class App : Application
         {
             (Action)(() =>
             {
+                _mainWindow!.ForceDismissStartupSplash();
                 _mainWindow!.AppWindow.Show();
                 _mainWindow.Activate();
                 UpdateTrayControlCenterView();
@@ -1821,6 +1825,7 @@ public sealed partial class App : Application
             }
             else
             {
+                _mainWindow.ForceDismissStartupSplash();
                 _mainWindow.AppWindow.Show();
                 _mainWindow.Activate();
             }
@@ -4268,6 +4273,7 @@ public sealed partial class App : Application
 
         try
         {
+            _mainWindow.ForceDismissStartupSplash();
             _mainWindow.AppWindow.Show();
         }
         catch

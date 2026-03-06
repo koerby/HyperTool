@@ -333,6 +333,7 @@ public sealed partial class App : Application
 
             if (configResult.Config.Ui.StartMinimized && _isTrayFunctional && !shouldForceShowFromSecondLaunch)
             {
+                _mainWindow.ForceDismissStartupSplash();
                 _mainWindow.AppWindow.Hide();
             }
             else
@@ -1688,6 +1689,7 @@ public sealed partial class App : Application
             _trayControlCenterService.Initialize(
                 showMainWindowAction: () =>
                 {
+                    mainWindow.ForceDismissStartupSplash();
                     mainWindow.AppWindow.Show();
                     mainWindow.Activate();
                 },
@@ -1727,6 +1729,7 @@ public sealed partial class App : Application
             _trayService.Initialize(
                 showAction: () =>
                 {
+                    mainWindow.ForceDismissStartupSplash();
                     mainWindow.AppWindow.Show();
                     mainWindow.Activate();
                 },
@@ -2362,6 +2365,7 @@ public sealed partial class App : Application
 
         try
         {
+            _mainWindow.ForceDismissStartupSplash();
             _mainWindow.AppWindow.Show();
         }
         catch

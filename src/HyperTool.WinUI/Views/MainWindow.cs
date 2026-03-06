@@ -146,6 +146,9 @@ public sealed class MainWindow : Window
     private TextBlock? _startupStatusText;
     private int _startupStatusIndex;
     private bool _isStartupStatusTransitionRunning;
+    private Grid? _startupTransitionHost;
+    private UIElement? _startupMainLayout;
+    private UIElement? _startupSplash;
     private MediaPlayer? _logoSpinPlayer;
     private DispatcherQueueTimer? _vmChipRefreshDebounceTimer;
     private string _vmChipRefreshSignature = string.Empty;
@@ -173,6 +176,10 @@ public sealed class MainWindow : Window
             var transitionHost = new Grid();
             transitionHost.Children.Add(mainLayout);
             transitionHost.Children.Add(startupSplash);
+
+            _startupTransitionHost = transitionHost;
+            _startupMainLayout = mainLayout;
+            _startupSplash = startupSplash;
 
             initialMainContent = transitionHost;
             _isMainLayoutLoaded = false;
@@ -218,6 +225,11 @@ public sealed class MainWindow : Window
     {
         await Task.Delay(TimeSpan.FromMilliseconds(LifecycleVisuals.SplashMinVisibleMs));
 
+        if (_isMainLayoutLoaded)
+        {
+            return;
+        }
+
         _startupStatusTimer?.Stop();
         _startupStatusTimer = null;
 
@@ -252,6 +264,50 @@ public sealed class MainWindow : Window
 
         transitionHost.Children.Remove(startupSplash);
         _isMainLayoutLoaded = true;
+        _startupTransitionHost = null;
+        _startupMainLayout = null;
+        _startupSplash = null;
+        RequestVmChipsRefresh();
+        RefreshVmAdapterCards();
+    }
+
+    public void ForceDismissStartupSplash()
+    {
+        _startupStatusTimer?.Stop();
+        _startupStatusTimer = null;
+
+        if (_isMainLayoutLoaded)
+        {
+            return;
+        }
+
+        try
+        {
+            if (_startupMainLayout is not null)
+            {
+                _startupMainLayout.Opacity = 1;
+            }
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            if (_startupTransitionHost is not null && _startupSplash is not null)
+            {
+                _startupTransitionHost.Children.Remove(_startupSplash);
+            }
+        }
+        catch
+        {
+        }
+
+        _isMainLayoutLoaded = true;
+        _startupTransitionHost = null;
+        _startupMainLayout = null;
+        _startupSplash = null;
+
         RequestVmChipsRefresh();
         RefreshVmAdapterCards();
     }
