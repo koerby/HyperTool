@@ -39,6 +39,8 @@ HyperTool ist ein WinUI-3 Toolset für Hyper-V-Host und Windows-Guest mit Fokus 
 - Tray Control Center: usbipd-Dienststatus (grün/rot), kompakter USB-Bereich und Installationsbutton bei fehlendem usbipd-win.
 - Tray + Control Center mit Schnellaktionen.
 - In-App Updatecheck und Installer-Update.
+  
+<img width="1381" height="939" alt="hypertool-host" src="https://github.com/user-attachments/assets/5417ec17-1716-41f0-8679-61214dd6fcf7" />
 
 ### Guest (HyperTool.Guest.exe)
 
@@ -51,6 +53,8 @@ HyperTool ist ein WinUI-3 Toolset für Hyper-V-Host und Windows-Guest mit Fokus 
 - Wenn Tasktray-Menü deaktiviert ist: nur Ein-/Ausblenden und Beenden.
 - Theme-Unterstützung (Dark/Light) und Single-Instance-Verhalten.
 - Theme-Neustart erhält die aktuell gewählte Menüseite in der Guest-App.
+  
+<img width="1041" height="825" alt="hypertool-guest" src="https://github.com/user-attachments/assets/3ef274c2-591c-4364-bdcb-a8f3ba1db74d" />
 
 ## Externe Runtime-Repositories (wichtig)
 
